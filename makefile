@@ -1,13 +1,12 @@
 CC 	   = gcc
-CFLAGS = -Wall -Wno-unused-result -Wno-switch \
+CFLAGS = -Wall \
 		 --std=gnu11 -g \
-		 -fopenmp \
-		 -DYY_NO_UNPUT=1 -DYY_NO_INPUT=1
+		 -fopenmp
 IFLAGS = -Isrc -Isrc/parser
 LFLAGS = -lgmp -lm
 
-SRCS   = clt13.c util.c
-HEADS  = clt13.h util.h
+SRCS   = clt13.c 
+HEADS  = clt13.h
 OBJS   = $(addsuffix .o, $(basename $(SRCS)))
 
 all: test_mmap
