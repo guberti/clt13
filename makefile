@@ -20,3 +20,5 @@ src/%.o: src/%.c
 clean:
 	$(RM) test_mmap
 	$(RM) $(OBJS)
+	$(RM) -r *.mmap
+	$(RM) -r *.pp

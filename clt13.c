@@ -1,46 +1,43 @@
 #include "clt13.h"
-
-#include <unistd.h>
+#include <assert.h>
 #include <fcntl.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <assert.h>
 #include <sys/time.h>
-#include <stdio.h>
+#include <unistd.h>
 
 #ifndef RANDFILE
 #  define RANDFILE "/dev/urandom"
 #endif
 
+static int  crt_tree_init(crt_tree *crt, const mpz_t *ps, size_t nps);
+static void crt_tree_clear(crt_tree *crt);
+static void crt_tree_do_crt(mpz_t rop, const crt_tree *crt, const mpz_t *cs);
+
 static int seed_rng(gmp_randstate_t *rng);
 
+static double current_time();
+
+static int load_ulong(const char *fname, ulong *x);
+static int save_ulong(const char *fname, const ulong x);
 static int load_mpz_scalar(const char *fname, mpz_t x);
 static int save_mpz_scalar(const char *fname, const mpz_t x);
 static int load_mpz_vector(const char *fname, mpz_t *m, const int len);
 static int save_mpz_vector(const char *fname, const mpz_t *m, const int len);
 
-static double current_time();
+////////////////////////////////////////////////////////////////////////////////
+// state
 
-static int  crt_tree_init(crt_tree *crt, const mpz_t *ps, size_t nps);
-static void crt_tree_clear(crt_tree *crt);
-static void crt_tree_do_crt(mpz_t rop, const crt_tree *crt, const mpz_t *cs);
-
-int clt_state_init
-(
-    clt_state *s,
-    unsigned long kappa,
-    unsigned long lambda,
-    unsigned long nzs,
-    const int *pows
-)
+void clt_state_init(clt_state *s, ulong kappa, ulong lambda, ulong nzs, const int *pows)
 {
     ulong alpha, beta, eta, rho_f;
-    mpz_t *ps, *zs;
-    double start;
+    mpz_t *zs;
+    double start_time;
 
-    /* Calculate CLT parameters */
+    // calculate CLT parameters
     s->nzs = nzs;
     alpha  = lambda;
     beta   = lambda;
@@ -48,7 +45,7 @@ int clt_state_init
     rho_f  = kappa * (s->rho + alpha + 2);
     eta    = rho_f + alpha + 2 * beta + lambda + 8;
     s->nu  = eta - beta - rho_f - lambda - 3;
-    s->n   = (int) (eta * log2((float) lambda));
+    s->n   = eta * log2((float) lambda);
 
     if (g_verbose) {
         fprintf(stderr, "  Security Parameter: %ld\n", lambda);
@@ -63,7 +60,7 @@ int clt_state_init
         fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
     }
 
-    ps       = malloc(sizeof(mpz_t) * s->n);
+    s->ps    = malloc(sizeof(mpz_t) * s->n);
     s->gs    = malloc(sizeof(mpz_t) * s->n);
     zs       = malloc(sizeof(mpz_t) * s->nzs);
     s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
@@ -71,21 +68,20 @@ int clt_state_init
 
     seed_rng(&s->rng);
 
-    /* initialize gmp variables */
+    // initialize gmp variables
     mpz_init_set_ui(s->x0,  1);
     mpz_init_set_ui(s->pzt, 0);
-
     for (ulong i = 0; i < s->n; ++i) {
-        mpz_init_set_ui(ps[i], 1);
+        mpz_init_set_ui(s->ps[i], 1);
         mpz_init(s->gs[i]);
     }
     for (ulong i = 0; i < s->nzs; ++i) {
         mpz_inits(zs[i], s->zinvs[i], NULL);
     }
 
-    /* Generate p_i's and g_i's, as well as x0 = \prod p_i */
+    // Generate p_i's and g_i's, as well as x0 = \prod p_i
     if (g_verbose) fprintf(stderr, "  Generating p_i's and g_i's");
-    start = current_time();
+    start_time = current_time();
 GEN_PIS:
 #pragma omp parallel for
     for (ulong i = 0; i < s->n; ++i) {
@@ -93,37 +89,38 @@ GEN_PIS:
         mpz_init(p_unif);
         // XXX: the primes generated here aren't officially uniform
         mpz_urandomb(p_unif, s->rng, eta);
-        mpz_nextprime(ps[i], p_unif);
+        mpz_nextprime(s->ps[i], p_unif);
         mpz_urandomb(p_unif, s->rng, alpha);
         mpz_nextprime(s->gs[i], p_unif);
         mpz_clear(p_unif);
     }
     // use crt_tree to find x0
-    int ok = crt_tree_init(s->crt, ps, s->n);
+    int ok = crt_tree_init(s->crt, s->ps, s->n);
     if (!ok) {
+        // if crt_tree_init fails, regenerate with new p_i's
         crt_tree_clear(s->crt);
         if (g_verbose) fprintf(stderr, " (restarting)");
         goto GEN_PIS;
     }
-
+    // crt_tree_init succeeded, set x0
     mpz_set(s->x0, s->crt->mod);
 
-    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start);
+    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
 
-    /* Compute z_i's */
+    // Compute z_i's
     if (g_verbose) fprintf(stderr, "  Generating z_i's");
-    start = current_time();
+    start_time = current_time();
 #pragma omp parallel for
     for (ulong i = 0; i < s->nzs; ++i) {
         do {
             mpz_urandomm(zs[i], s->rng, s->x0);
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
     }
-    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start);
+    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
 
-    /* Compute pzt */
+    // Compute pzt
     if (g_verbose) fprintf(stderr, "  Generating pzt");
-    start = current_time();
+    start_time = current_time();
     {
         mpz_t zk;
         mpz_init_set_ui(zk, 1);
@@ -141,12 +138,12 @@ GEN_PIS:
             mpz_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
             // compute (((g_i)^{-1} mod p_i) * z^k mod p_i) * r_i * (q / p_i)
-            mpz_invert(tmp, s->gs[i], ps[i]);
+            mpz_invert(tmp, s->gs[i], s->ps[i]);
             mpz_mul(tmp, tmp, zk);
-            mpz_mod(tmp, tmp, ps[i]);
+            mpz_mod(tmp, tmp, s->ps[i]);
             mpz_urandomb(rnd, s->rng, beta);
             mpz_mul(tmp, tmp, rnd);
-            mpz_div(qpi, s->x0, ps[i]);
+            mpz_div(qpi, s->x0, s->ps[i]);
             mpz_mul(tmp, tmp, qpi);
             mpz_mod(tmp, tmp, s->x0);
 #pragma omp critical
@@ -158,18 +155,11 @@ GEN_PIS:
         mpz_mod(s->pzt, s->pzt, s->x0);
         mpz_clear(zk);
     }
-    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start);
+    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
 
-    for (ulong i = 0; i < s->n; ++i) {
-        mpz_clear(ps[i]);
-    }
-    free(ps);
-    for (ulong i = 0; i < s->nzs; ++i) {
+    for (ulong i = 0; i < s->nzs; ++i)
         mpz_clear(zs[i]);
-    }
     free(zs);
-
-    return 0;
 }
 
 void clt_state_clear(clt_state *s)
@@ -180,6 +170,9 @@ void clt_state_clear(clt_state *s)
         mpz_clear(s->gs[i]);
     }
     free(s->gs);
+    for (ulong i = 0; i < s->n; ++i)
+        mpz_clear(s->ps[i]);
+    free(s->ps);
     for (ulong i = 0; i < s->nzs; ++i) {
         mpz_clear(s->zinvs[i]);
     }
@@ -188,7 +181,94 @@ void clt_state_clear(clt_state *s)
     free(s->crt);
 }
 
-void clt_pp_init(clt_public_parameters *pp, clt_state *mmap)
+void clt_state_read(clt_state *s, const char *dir)
+{
+    char *fname;
+    int len = strlen(dir) + 10;
+    fname = malloc(sizeof(char) + len);
+
+    seed_rng(&s->rng);
+
+    snprintf(fname, len, "%s/n", dir);
+    load_ulong(fname, &s->n);
+
+    snprintf(fname, len, "%s/nzs", dir);
+    load_ulong(fname, &s->nzs);
+
+    snprintf(fname, len, "%s/rho", dir);
+    load_ulong(fname, &s->rho);
+
+    snprintf(fname, len, "%s/nu", dir);
+    load_ulong(fname, &s->nu);
+
+    s->ps    = malloc(sizeof(mpz_t) * s->n);
+    s->gs    = malloc(sizeof(mpz_t) * s->n);
+    s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
+    s->crt   = malloc(sizeof(crt_tree));
+
+    mpz_inits(s->x0, s->pzt, NULL);
+    for (ulong i = 0; i < s->n; ++i)
+        mpz_inits(s->ps[i], s->gs[i], NULL);
+    for (ulong i = 0; i < s->nzs; ++i)
+        mpz_init(s->zinvs[i]);
+
+    snprintf(fname, len, "%s/x0", dir);
+    load_mpz_scalar(fname, s->x0);
+
+    snprintf(fname, len, "%s/pzt", dir);
+    load_mpz_scalar(fname, s->pzt);
+
+    snprintf(fname, len, "%s/gs", dir);
+    load_mpz_vector(fname, s->gs, s->n);
+
+    snprintf(fname, len, "%s/ps", dir);
+    load_mpz_vector(fname, s->ps, s->n);
+
+    snprintf(fname, len, "%s/zinvs", dir);
+    load_mpz_vector(fname, s->zinvs, s->nzs);
+
+    crt_tree_init(s->crt, s->ps, s->n);
+}
+
+
+void clt_state_save(const clt_state *s, const char *dir)
+{
+    char *fname;
+    int len = strlen(dir) + 10;
+    fname = malloc(sizeof(char) + len);
+
+    snprintf(fname, len, "%s/n", dir);
+    save_ulong(fname, s->n);
+
+    snprintf(fname, len, "%s/nzs", dir);
+    save_ulong(fname, s->nzs);
+
+    snprintf(fname, len, "%s/rho", dir);
+    save_ulong(fname, s->rho);
+
+    snprintf(fname, len, "%s/nu", dir);
+    save_ulong(fname, s->nu);
+
+    snprintf(fname, len, "%s/x0", dir);
+    save_mpz_scalar(fname, s->x0);
+
+    snprintf(fname, len, "%s/pzt", dir);
+    save_mpz_scalar(fname, s->pzt);
+
+    snprintf(fname, len, "%s/gs", dir);
+    save_mpz_vector(fname, s->gs, s->n);
+
+    snprintf(fname, len, "%s/ps", dir);
+    save_mpz_vector(fname, s->ps, s->n);
+
+    snprintf(fname, len, "%s/zinvs", dir);
+    save_mpz_vector(fname, s->zinvs, s->nzs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// public parameters
+
+void clt_pp_init(clt_pp *pp, clt_state *mmap)
 {
     mpz_inits(pp->x0, pp->pzt, NULL);
     mpz_set(pp->x0, mmap->x0);
@@ -196,22 +276,22 @@ void clt_pp_init(clt_public_parameters *pp, clt_state *mmap)
     pp->nu = mmap->nu;
 }
 
-void clt_pp_clear( clt_public_parameters *pp )
+void clt_pp_clear( clt_pp *pp )
 {
     mpz_clears(pp->x0, pp->pzt, NULL);
 }
 
-void clt_pp_init_from_file(clt_public_parameters *pp, const char *dir)
+void clt_pp_read(clt_pp *pp, const char *dir)
 {
     char *fname;
     int len = strlen(dir) + 10;
     fname = malloc(sizeof(char) + len);
 
+    mpz_inits(pp->x0, pp->pzt, NULL);
+
     // load nu
     snprintf(fname, len, "%s/nu", dir);
-    FILE *file = fopen(fname, "r");
-    fscanf(file, "%lu", &pp->nu);
-    fclose(file);
+    load_ulong(fname, &pp->nu);
 
     // load x0
     snprintf(fname, len, "%s/x0", dir);
@@ -224,7 +304,7 @@ void clt_pp_init_from_file(clt_public_parameters *pp, const char *dir)
     free(fname);
 }
 
-void write_public_params(const clt_public_parameters *pp, const char *dir)
+void clt_pp_save(const clt_pp *pp, const char *dir)
 {
     char *fname;
     int len = strlen(dir) + 10;
@@ -232,9 +312,7 @@ void write_public_params(const clt_public_parameters *pp, const char *dir)
 
     // save nu
     snprintf(fname, len, "%s/nu", dir);
-    FILE *file = fopen(fname, "r");
-    fprintf(file, "%lu", pp->nu);
-    fclose(file);
+    save_ulong(fname, pp->nu);
 
     // save x0
     snprintf(fname, len, "%s/x0", dir);
@@ -246,6 +324,9 @@ void write_public_params(const clt_public_parameters *pp, const char *dir)
 
     free(fname);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// encodings
 
 void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const int *pows)
 {
@@ -283,7 +364,7 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const in
     mpz_clears(tmp, zinv, NULL);
 }
 
-int clt_is_zero(clt_public_parameters *pp, const mpz_t c)
+int clt_is_zero(clt_pp *pp, const mpz_t c)
 {
     int ret;
 
@@ -330,7 +411,7 @@ int crt_tree_init(crt_tree *crt, const mpz_t *ps, size_t nps)
 
         mpz_set_ui(g, 0);
         mpz_gcdext(g, crt->crt_right, crt->crt_left, crt->left->mod, crt->right->mod);
-        if (! (mpz_cmp_ui(g, 1) == 0))
+        if (! (mpz_cmp_ui(g, 1) == 0)) // if g != 1, raise error
             ok &= 0;
 
         mpz_clear(g);
@@ -377,71 +458,100 @@ void crt_tree_do_crt(mpz_t rop, const crt_tree *crt, const mpz_t *cs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// util
+// helper functions
 
-int seed_rng(gmp_randstate_t *rng) {
+int seed_rng(gmp_randstate_t *rng)
+{
     int file;
     if ((file = open(RANDFILE, O_RDONLY)) == -1) {
-        (void) fprintf(stderr, "Error opening %s\n", RANDFILE);
+        fprintf(stderr, "Error opening %s\n", RANDFILE);
         return 1;
     } else {
-        unsigned long seed;
+        ulong seed;
         if (read(file, &seed, sizeof seed) == -1) {
-            (void) fprintf(stderr, "Error reading from %s\n", RANDFILE);
-            (void) close(file);
+            fprintf(stderr, "Error reading from %s\n", RANDFILE);
+            close(file);
             return 1;
         } else {
             if (g_verbose)
-                (void) fprintf(stderr, "  Seed: %lu\n", seed);
+                fprintf(stderr, "  Seed: %lu\n", seed);
 
             gmp_randinit_default(*rng);
             gmp_randseed_ui(*rng, seed);
         }
     }
     if (file != -1)
-        (void) close(file);
+        close(file);
     return 0;
 }
 
-int load_mpz_scalar(const char *fname, mpz_t x) {
+static int load_ulong(const char *fname, ulong *x)
+{
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
         perror(fname);
         return 1;
     }
-    (void) mpz_inp_raw(x, f);
-    (void) fclose(f);
+    fscanf(f, "%lu", x);
+    fclose(f);
     return 0;
 }
 
-int save_mpz_scalar(const char *fname, const mpz_t x) {
+static int save_ulong(const char *fname, const ulong x)
+{
+    FILE *f;
+    if ((f = fopen(fname, "w")) == NULL) {
+        perror(fname);
+        return 1;
+    }
+    fprintf(f, "%lu", x);
+    fclose(f);
+    return 0;
+}
+
+int load_mpz_scalar(const char *fname, mpz_t x)
+{
+    FILE *f;
+    if ((f = fopen(fname, "r")) == NULL) {
+        perror(fname);
+        return 1;
+    }
+    mpz_inp_raw(x, f);
+    fclose(f);
+    return 0;
+}
+
+int save_mpz_scalar(const char *fname, const mpz_t x)
+{
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
         perror(fname);
         return 1;
     }
     if (mpz_out_raw(f, x) == 0) {
-        (void) fclose(f);
+        fclose(f);
         return 1;
     }
-    (void) fclose(f);
+    fclose(f);
     return 0;
 }
 
-int load_mpz_vector(const char *fname, mpz_t *m, const int len) {
+int load_mpz_vector(const char *fname, mpz_t *m, const int len)
+{
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
         perror(fname);
         return 1;
     }
     for (int i = 0; i < len; ++i) {
-        (void) mpz_inp_raw(m[i], f);
+        mpz_inp_raw(m[i], f);
     }
-    (void) fclose(f);
+    fclose(f);
     return 0;
 }
 
-int save_mpz_vector(const char *fname, const mpz_t *m, const int len) {
+int save_mpz_vector(const char *fname, const mpz_t *m, const int len)
+{
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
         perror(fname);
@@ -453,13 +563,14 @@ int save_mpz_vector(const char *fname, const mpz_t *m, const int len) {
             return 1;
         }
     }
-    (void) fclose(f);
+    fclose(f);
     return 0;
 }
 
-double current_time(void) {
+double current_time(void)
+{
     struct timeval t;
-    (void) gettimeofday(&t, NULL);
-    return (double) (t.tv_sec + (double) (t.tv_usec / 1000000.0));
+    gettimeofday(&t, NULL);
+    return t.tv_sec + (double) (t.tv_usec / 1000000.0);
 }
 

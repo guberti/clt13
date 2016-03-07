@@ -1,22 +1,13 @@
 #include "clt13.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 int g_verbose = 1;
 
-int expect(char * desc, int expected, int recieved) {
-    if (expected != recieved) {
-        printf("\033[1;41m");
-    }
-    printf("%s = %d", desc, recieved);
-    if (expected != recieved) {
-        printf("\033[0m");
-    }
-    puts("");
-    return expected == recieved;
-}
+int expect(char * desc, int expected, int recieved);
 
 int main()
 {
@@ -24,17 +15,40 @@ int main()
 
     ulong nzs     = 10;
     ulong lambda  = 30;
-    ulong kappa   = 2;
+    ulong kappa   = 8;
 
-    clt_state mmap;
-    clt_public_parameters pp;
+    clt_state mmap, mmap_;
+    clt_pp pp_, pp;
 
     int pows [nzs];
     for (ulong i = 0; i < nzs; i++) pows[i] = 1;
 
-    clt_state_init(&mmap, kappa, lambda, nzs, pows);
+    // make test directories
+    const char *mmap_dir = "test.mmap";
+    const char *pp_dir   = "test.pp";
+    if (mkdir(mmap_dir, S_IRWXU | S_IRWXG) != 0) {
+        if (errno != EEXIST) {
+            fprintf(stderr, "couldn't make dir \"%s\"", mmap_dir);
+            return -1;
+        }
+    }
+    if (mkdir(pp_dir, S_IRWXU | S_IRWXG) != 0) {
+        if (errno != EEXIST) {
+            fprintf(stderr, "couldn't make dir \"%s\"", pp_dir);
+            return -1;
+        }
+    }
 
-    clt_pp_init(&pp, &mmap);
+    // test initialization & serialization
+    clt_state_init(&mmap_, kappa, lambda, nzs, pows);
+    clt_state_save(&mmap_, mmap_dir);
+    clt_state_clear(&mmap_);
+    clt_state_read(&mmap, mmap_dir);
+
+    clt_pp_init(&pp_, &mmap);
+    clt_pp_save(&pp_, pp_dir);
+    clt_pp_clear(&pp_);
+    clt_pp_read(&pp, pp_dir);
 
     mpz_t x [1];
     mpz_init_set_ui(x[0], 0);
@@ -182,4 +196,17 @@ int main()
     clt_pp_clear(&pp);
     mpz_clears(c, x0, x1, xp, x[0], zero[0], one[0], in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
     return !ok;
+}
+
+int expect(char * desc, int expected, int recieved)
+{
+    if (expected != recieved) {
+        printf("\033[1;41m");
+    }
+    printf("%s = %d", desc, recieved);
+    if (expected != recieved) {
+        printf("\033[0m");
+    }
+    puts("");
+    return expected == recieved;
 }
