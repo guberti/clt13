@@ -82,6 +82,7 @@ void clt_state_init(clt_state *s, ulong kappa, ulong lambda, ulong nzs, const in
     // Generate p_i's and g_i's, as well as x0 = \prod p_i
     if (g_verbose) fprintf(stderr, "  Generating p_i's and g_i's");
     start_time = current_time();
+    // TODO: add chunking optimization
 GEN_PIS:
 #pragma omp parallel for
     for (ulong i = 0; i < s->n; ++i) {

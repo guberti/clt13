@@ -5,8 +5,8 @@ CFLAGS = -Wall \
 IFLAGS = -Isrc -Isrc/parser
 LFLAGS = -lgmp -lm
 
-SRCS   = clt13.c 
-HEADS  = clt13.h
+SRCS   = src/clt13.c 
+HEADS  = src/clt13.h
 OBJS   = $(addsuffix .o, $(basename $(SRCS)))
 
 all: test_mmap
