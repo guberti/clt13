@@ -13,28 +13,32 @@
 #  define RANDFILE "/dev/urandom"
 #endif
 
-static int  crt_tree_init(crt_tree *crt, const mpz_t *ps, size_t nps);
-static void crt_tree_clear(crt_tree *crt);
-static void crt_tree_do_crt(mpz_t rop, const crt_tree *crt, const mpz_t *cs);
+#if OPTIMIZATION_CRT_TREE
+static int  crt_tree_init   (crt_tree *crt, const mpz_t *ps, size_t nps);
+static void crt_tree_clear  (crt_tree *crt);
+static void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, const mpz_t *cs);
+static void crt_tree_save   (const char *fname, crt_tree *crt, size_t n);
+static void crt_tree_load   (const char *fname, crt_tree *crt, size_t n);
+#endif
 
-static int seed_rng(gmp_randstate_t *rng);
+static int seed_rng (gmp_randstate_t *rng);
 
 static double current_time();
 
-static int load_ulong(const char *fname, ulong *x);
-static int save_ulong(const char *fname, const ulong x);
-static int load_mpz_scalar(const char *fname, mpz_t x);
-static int save_mpz_scalar(const char *fname, const mpz_t x);
-static int load_mpz_vector(const char *fname, mpz_t *m, const int len);
-static int save_mpz_vector(const char *fname, const mpz_t *m, const int len);
+static int load_ulong (const char *fname, ulong *x);
+static int save_ulong (const char *fname, const ulong x);
+static int load_mpz_scalar (const char *fname, mpz_t x);
+static int save_mpz_scalar (const char *fname, const mpz_t x);
+static int load_mpz_vector (const char *fname, mpz_t *m, const int len);
+static int save_mpz_vector (const char *fname, const mpz_t *m, const int len);
 
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
-void clt_state_init(clt_state *s, ulong kappa, ulong lambda, ulong nzs, const int *pows)
+void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const int *pows)
 {
     ulong alpha, beta, eta, rho_f;
-    mpz_t *zs;
+    mpz_t *ps, *zs;
     double start_time;
 
     // calculate CLT parameters
@@ -60,11 +64,19 @@ void clt_state_init(clt_state *s, ulong kappa, ulong lambda, ulong nzs, const in
         fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
     }
 
-    s->ps    = malloc(sizeof(mpz_t) * s->n);
+    ps       = malloc(sizeof(mpz_t) * s->n);
     s->gs    = malloc(sizeof(mpz_t) * s->n);
     zs       = malloc(sizeof(mpz_t) * s->nzs);
     s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
-    s->crt   = malloc(sizeof(crt_tree));
+
+#if OPTIMIZATION_CRT_TREE
+    s->crt = malloc(sizeof(crt_tree));
+#else
+    s->crt_coeffs = malloc(s->n * sizeof(mpz_t));
+    for (ulong i = 0; i < s->n; i++) {
+        mpz_init(s->crt_coeffs[i]);
+    }
+#endif
 
     seed_rng(&s->rng);
 
@@ -72,7 +84,7 @@ void clt_state_init(clt_state *s, ulong kappa, ulong lambda, ulong nzs, const in
     mpz_init_set_ui(s->x0,  1);
     mpz_init_set_ui(s->pzt, 0);
     for (ulong i = 0; i < s->n; ++i) {
-        mpz_init_set_ui(s->ps[i], 1);
+        mpz_init_set_ui(ps[i], 1);
         mpz_init(s->gs[i]);
     }
     for (ulong i = 0; i < s->nzs; ++i) {
@@ -82,21 +94,26 @@ void clt_state_init(clt_state *s, ulong kappa, ulong lambda, ulong nzs, const in
     // Generate p_i's and g_i's, as well as x0 = \prod p_i
     if (g_verbose) fprintf(stderr, "  Generating p_i's and g_i's");
     start_time = current_time();
-    // TODO: add chunking optimization
 GEN_PIS:
 #pragma omp parallel for
-    for (ulong i = 0; i < s->n; ++i) {
+#if OPTIMIZATION_COMPOSITE_PS
+    for (ulong i = 0; i < s->n; i++) {
+        // TODO: add chunking optimization
+    }
+#else
+    for (ulong i = 0; i < s->n; i++) {
         mpz_t p_unif;
         mpz_init(p_unif);
-        // XXX: the primes generated here aren't officially uniform
         mpz_urandomb(p_unif, s->rng, eta);
-        mpz_nextprime(s->ps[i], p_unif);
+        mpz_nextprime(ps[i], p_unif);
         mpz_urandomb(p_unif, s->rng, alpha);
         mpz_nextprime(s->gs[i], p_unif);
         mpz_clear(p_unif);
     }
+#endif
+#if OPTIMIZATION_CRT_TREE
     // use crt_tree to find x0
-    int ok = crt_tree_init(s->crt, s->ps, s->n);
+    int ok = crt_tree_init(s->crt, ps, s->n);
     if (!ok) {
         // if crt_tree_init fails, regenerate with new p_i's
         crt_tree_clear(s->crt);
@@ -105,8 +122,29 @@ GEN_PIS:
     }
     // crt_tree_init succeeded, set x0
     mpz_set(s->x0, s->crt->mod);
-
     if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
+#else
+    // find x0 the hard way
+    for (ulong i = 0; i < s->n; i++) {
+        mpz_mul(s->x0, s->x0, ps[i]);
+    }
+    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
+
+    // Compute CRT coefficients
+    if (g_verbose) fprintf(stderr, "  Generating CRT coefficients: ");
+    start_time = current_time();
+#pragma omp parallel for
+    for (unsigned long i = 0; i < s->n; i++) {
+        mpz_t q;
+        mpz_init(q);
+        mpz_tdiv_q(q, s->x0, ps[i]);
+        mpz_invert(s->crt_coeffs[i], q, ps[i]);
+        mpz_mul(s->crt_coeffs[i], s->crt_coeffs[i], q);
+        mpz_mod(s->crt_coeffs[i], s->crt_coeffs[i], s->x0);
+        mpz_clear(q);
+    }
+    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
+#endif
 
     // Compute z_i's
     if (g_verbose) fprintf(stderr, "  Generating z_i's");
@@ -139,12 +177,12 @@ GEN_PIS:
             mpz_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
             // compute (((g_i)^{-1} mod p_i) * z^k mod p_i) * r_i * (q / p_i)
-            mpz_invert(tmp, s->gs[i], s->ps[i]);
+            mpz_invert(tmp, s->gs[i], ps[i]);
             mpz_mul(tmp, tmp, zk);
-            mpz_mod(tmp, tmp, s->ps[i]);
+            mpz_mod(tmp, tmp, ps[i]);
             mpz_urandomb(rnd, s->rng, beta);
             mpz_mul(tmp, tmp, rnd);
-            mpz_div(qpi, s->x0, s->ps[i]);
+            mpz_div(qpi, s->x0, ps[i]);
             mpz_mul(tmp, tmp, qpi);
             mpz_mod(tmp, tmp, s->x0);
 #pragma omp critical
@@ -158,6 +196,10 @@ GEN_PIS:
     }
     if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
 
+    for (ulong i = 0; i < s->n; i++)
+        mpz_clear(ps[i]);
+    free(ps);
+
     for (ulong i = 0; i < s->nzs; ++i)
         mpz_clear(zs[i]);
     free(zs);
@@ -167,19 +209,23 @@ void clt_state_clear(clt_state *s)
 {
     gmp_randclear(s->rng);
     mpz_clears(s->x0, s->pzt, NULL);
-    for (ulong i = 0; i < s->n; ++i) {
+    for (ulong i = 0; i < s->n; i++) {
         mpz_clear(s->gs[i]);
     }
     free(s->gs);
-    for (ulong i = 0; i < s->n; ++i)
-        mpz_clear(s->ps[i]);
-    free(s->ps);
-    for (ulong i = 0; i < s->nzs; ++i) {
+    for (ulong i = 0; i < s->nzs; i++) {
         mpz_clear(s->zinvs[i]);
     }
     free(s->zinvs);
+#if OPTIMIZATION_CRT_TREE
     crt_tree_clear(s->crt);
     free(s->crt);
+#else
+    for (ulong i = 0; i < s->n; i++) {
+        mpz_clear(s->crt_coeffs[i]);
+    }
+    free(s->crt_coeffs);
+#endif
 }
 
 void clt_state_read(clt_state *s, const char *dir)
@@ -202,15 +248,13 @@ void clt_state_read(clt_state *s, const char *dir)
     snprintf(fname, len, "%s/nu", dir);
     load_ulong(fname, &s->nu);
 
-    s->ps    = malloc(sizeof(mpz_t) * s->n);
     s->gs    = malloc(sizeof(mpz_t) * s->n);
     s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
-    s->crt   = malloc(sizeof(crt_tree));
 
     mpz_inits(s->x0, s->pzt, NULL);
-    for (ulong i = 0; i < s->n; ++i)
-        mpz_inits(s->ps[i], s->gs[i], NULL);
-    for (ulong i = 0; i < s->nzs; ++i)
+    for (ulong i = 0; i < s->n; i++)
+        mpz_init(s->gs[i]);
+    for (ulong i = 0; i < s->nzs; i++)
         mpz_init(s->zinvs[i]);
 
     snprintf(fname, len, "%s/x0", dir);
@@ -222,13 +266,20 @@ void clt_state_read(clt_state *s, const char *dir)
     snprintf(fname, len, "%s/gs", dir);
     load_mpz_vector(fname, s->gs, s->n);
 
-    snprintf(fname, len, "%s/ps", dir);
-    load_mpz_vector(fname, s->ps, s->n);
-
     snprintf(fname, len, "%s/zinvs", dir);
     load_mpz_vector(fname, s->zinvs, s->nzs);
 
-    crt_tree_init(s->crt, s->ps, s->n);
+#if OPTIMIZATION_CRT_TREE
+    s->crt = malloc(sizeof(crt_tree));
+    snprintf(fname, len, "%s/crt_tree", dir);
+    crt_tree_load(fname, s->crt, s->n);
+#else
+    s->crt_coeffs = malloc(sizeof(mpz_t) * s->n);
+    for (ulong i = 0; i < s->n; i++)
+        mpz_init(s->crt_coeffs[i]);
+    snprintf(fname, len, "%s/crt_coeffs", dir);
+    load_mpz_vector(fname, s->crt_coeffs, s->n);
+#endif
 }
 
 
@@ -259,11 +310,16 @@ void clt_state_save(const clt_state *s, const char *dir)
     snprintf(fname, len, "%s/gs", dir);
     save_mpz_vector(fname, s->gs, s->n);
 
-    snprintf(fname, len, "%s/ps", dir);
-    save_mpz_vector(fname, s->ps, s->n);
-
     snprintf(fname, len, "%s/zinvs", dir);
     save_mpz_vector(fname, s->zinvs, s->nzs);
+
+#if OPTIMIZATION_CRT_TREE
+    snprintf(fname, len, "%s/crt_tree", dir);
+    crt_tree_save(fname, s->crt, s->n);
+#else
+    snprintf(fname, len, "%s/crt_coeffs", dir);
+    save_mpz_vector(fname, s->crt_coeffs, s->n);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -329,6 +385,7 @@ void clt_pp_save(const clt_pp *pp, const char *dir)
 ////////////////////////////////////////////////////////////////////////////////
 // encodings
 
+#if OPTIMIZATION_CRT_TREE
 void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const int *pows)
 {
     // slots[i] = m[i] + r*g[i]
@@ -364,6 +421,30 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const in
 
     mpz_clears(tmp, zinv, NULL);
 }
+#else
+void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const int *pows)
+{
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpz_set_ui(rop, 0);
+    for (unsigned long i = 0; i < s->n; ++i) {
+        mpz_urandomb(tmp, s->rng, s->rho);
+        mpz_mul(tmp, tmp, s->gs[i]);
+        if (i < nins)
+            mpz_add(tmp, tmp, ins[i]);
+        mpz_mul(tmp, tmp, s->crt_coeffs[i]);
+        mpz_add(rop, rop, tmp);
+    }
+    for (unsigned long i = 0; i < s->nzs; ++i) {
+        if (pows[i] <= 0)
+            continue;
+        mpz_powm_ui(tmp, s->zinvs[i], pows[i], s->x0);
+        mpz_mul(rop, rop, tmp);
+        mpz_mod(rop, rop, s->x0);
+    }
+    mpz_clear(tmp);
+}
+#endif
 
 int clt_is_zero(clt_pp *pp, const mpz_t c)
 {
@@ -387,7 +468,9 @@ int clt_is_zero(clt_pp *pp, const mpz_t c)
 ////////////////////////////////////////////////////////////////////////////////
 // crt_tree
 
-int crt_tree_init(crt_tree *crt, const mpz_t *ps, size_t nps)
+#if OPTIMIZATION_CRT_TREE
+
+int crt_tree_init (crt_tree *crt, const mpz_t *ps, size_t nps)
 {
     int ok = 1;
     crt->n  = nps;
@@ -424,7 +507,7 @@ int crt_tree_init(crt_tree *crt, const mpz_t *ps, size_t nps)
     return ok;
 }
 
-void crt_tree_clear(crt_tree *crt)
+void crt_tree_clear (crt_tree *crt)
 {
     if (crt->n != 1) {
         crt_tree_clear(crt->left);
@@ -436,7 +519,7 @@ void crt_tree_clear(crt_tree *crt)
     mpz_clear(crt->mod);
 }
 
-void crt_tree_do_crt(mpz_t rop, const crt_tree *crt, const mpz_t *cs)
+void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, const mpz_t *cs)
 {
     if (crt->n == 1) {
         mpz_set(rop, cs[0]);
@@ -458,10 +541,51 @@ void crt_tree_do_crt(mpz_t rop, const crt_tree *crt, const mpz_t *cs)
     mpz_clears(val_left, val_right, val, tmp, NULL);
 }
 
+void _crt_tree_get_leafs (mpz_t *leafs, int *i, crt_tree *crt)
+{
+    if (crt->n == 1) {
+        mpz_set(leafs[(*i)++], crt->mod);
+        return;
+    }
+    _crt_tree_get_leafs(leafs, i, crt->left);
+    _crt_tree_get_leafs(leafs, i, crt->right);
+}
+
+void crt_tree_save (const char *fname, crt_tree *crt, size_t n)
+{
+    mpz_t *ps = malloc(n * sizeof(mpz_t));
+    for (int i = 0; i < n; i++)
+        mpz_init(ps[i]);
+    int ctr = 0;
+
+    _crt_tree_get_leafs(ps, &ctr, crt);
+    save_mpz_vector(fname, ps, n);
+
+    for (int i = 0; i < n; i++)
+        mpz_clear(ps[i]);
+    free(ps);
+}
+
+void crt_tree_load (const char *fname, crt_tree *crt, size_t n)
+{
+    mpz_t *ps = malloc(n * sizeof(mpz_t));
+    for (int i = 0; i < n; i++)
+        mpz_init(ps[i]);
+
+    load_mpz_vector(fname, ps, n);
+    crt_tree_init(crt, ps, n);
+
+    for (int i = 0; i < n; i++)
+        mpz_clear(ps[i]);
+    free(ps);
+}
+
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 // helper functions
 
-int seed_rng(gmp_randstate_t *rng)
+int seed_rng (gmp_randstate_t *rng)
 {
     int file;
     if ((file = open(RANDFILE, O_RDONLY)) == -1) {

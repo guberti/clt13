@@ -15,7 +15,7 @@ int main()
 
     ulong nzs     = 10;
     ulong lambda  = 30;
-    ulong kappa   = 8;
+    ulong kappa   = 2;
 
     clt_state mmap, mmap_;
     clt_pp pp_, pp;

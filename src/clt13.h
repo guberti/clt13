@@ -1,12 +1,16 @@
 #ifndef __CLT13_H__
 #define __CLT13_H__
 
+#define OPTIMIZATION_CRT_TREE 1
+#define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
+
 #include <gmp.h>
 
 extern int g_verbose;
 
 typedef unsigned long ulong;
 
+#if OPTIMIZATION_CRT_TREE
 typedef struct crt_tree {
     ulong n, n2;
     mpz_t mod;
@@ -15,6 +19,7 @@ typedef struct crt_tree {
     struct crt_tree *left;
     struct crt_tree *right;
 } crt_tree;
+#endif
 
 // state
 
@@ -27,9 +32,12 @@ typedef struct {
     mpz_t x0;
     mpz_t pzt;
     mpz_t *gs;
-    mpz_t *ps;
     mpz_t *zinvs;
+#if OPTIMIZATION_CRT_TREE
     crt_tree *crt;
+#else
+    mpz_t *crt_coeffs;
+#endif
 } clt_state;
 
 void clt_state_init(clt_state *s, ulong kappa, ulong lambda, ulong nzs, const int *pows);
