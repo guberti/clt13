@@ -526,19 +526,18 @@ void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, const mpz_t *cs)
         return;
     }
 
-    mpz_t val_left, val_right, val, tmp;
-    mpz_inits(val_left, val_right, val, tmp, NULL);
+    mpz_t val_left, val_right, tmp;
+    mpz_inits(val_left, val_right, tmp, NULL);
 
     crt_tree_do_crt(val_left,  crt->left,  cs);
     crt_tree_do_crt(val_right, crt->right, cs + crt->n2);
 
-    mpz_mul(val, val_left,  crt->crt_left);
+    mpz_mul(rop, val_left,  crt->crt_left);
     mpz_mul(tmp, val_right, crt->crt_right);
-    mpz_add(val, val, tmp);
-    mpz_mod(val, val, crt->mod);
+    mpz_add(rop, rop, tmp);
+    mpz_mod(rop, rop, crt->mod);
 
-    mpz_set(rop, val);
-    mpz_clears(val_left, val_right, val, tmp, NULL);
+    mpz_clears(val_left, val_right, tmp, NULL);
 }
 
 void _crt_tree_get_leafs (mpz_t *leafs, int *i, crt_tree *crt)
