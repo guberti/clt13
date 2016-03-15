@@ -280,6 +280,7 @@ void clt_state_read(clt_state *s, const char *dir)
     snprintf(fname, len, "%s/crt_coeffs", dir);
     load_mpz_vector(fname, s->crt_coeffs, s->n);
 #endif
+    free(fname);
 }
 
 
@@ -320,6 +321,7 @@ void clt_state_save(const clt_state *s, const char *dir)
     snprintf(fname, len, "%s/crt_coeffs", dir);
     save_mpz_vector(fname, s->crt_coeffs, s->n);
 #endif
+    free(fname);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
