@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <omp.h>
 
 #ifndef RANDFILE
 #  define RANDFILE "/dev/urandom"
@@ -23,7 +24,7 @@ static void crt_tree_load   (const char *fname, crt_tree *crt, size_t n);
 
 static int seed_rng (gmp_randstate_t *rng);
 
-static double current_time();
+static double current_time(void);
 
 static int load_ulong (const char *fname, ulong *x);
 static int save_ulong (const char *fname, const ulong x);
@@ -94,7 +95,9 @@ void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const i
     // Generate p_i's and g_i's, as well as x0 = \prod p_i
     if (g_verbose) fprintf(stderr, "  Generating p_i's and g_i's");
     start_time = current_time();
+#if OPTIMIZATION_CRT_TREE
 GEN_PIS:
+#endif
 #pragma omp parallel for
 #if OPTIMIZATION_COMPOSITE_PS
     for (ulong i = 0; i < s->n; i++) {
@@ -424,7 +427,8 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const in
     mpz_clears(tmp, zinv, NULL);
 }
 #else
-void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const int *pows)
+void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins,
+                ulong nzs, const int *indices, const int *pows)
 {
     mpz_t tmp;
     mpz_init(tmp);
@@ -437,10 +441,10 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const in
         mpz_mul(tmp, tmp, s->crt_coeffs[i]);
         mpz_add(rop, rop, tmp);
     }
-    for (unsigned long i = 0; i < s->nzs; ++i) {
-        if (pows[i] <= 0)
+    for (unsigned long i = 0; i < nzs; ++i) {
+        if (indices[i] < 0)
             continue;
-        mpz_powm_ui(tmp, s->zinvs[i], pows[i], s->x0);
+        mpz_powm_ui(tmp, s->zinvs[indices[i]], pows[i], s->x0);
         mpz_mul(rop, rop, tmp);
         mpz_mod(rop, rop, s->x0);
     }
@@ -464,7 +468,7 @@ int clt_is_zero(clt_pp *pp, const mpz_t c)
 
     ret = mpz_sizeinbase(tmp, 2) < mpz_sizeinbase(pp->x0, 2) - pp->nu;
     mpz_clears(tmp, x0_, NULL);
-    return ret;
+    return ret ? 1 : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -693,7 +697,7 @@ int save_mpz_vector(const char *fname, const mpz_t *m, const int len)
     return 0;
 }
 
-double current_time(void)
+static double current_time(void)
 {
     struct timeval t;
     gettimeofday(&t, NULL);

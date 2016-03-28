@@ -1,7 +1,11 @@
 #ifndef __CLT13_H__
 #define __CLT13_H__
 
-#define OPTIMIZATION_CRT_TREE 1
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define OPTIMIZATION_CRT_TREE 0
 #define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
 
 #include <gmp.h>
@@ -60,7 +64,12 @@ void clt_pp_save(const clt_pp *pp, const char *dir);
 
 // encodings
 
-void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const int *pows);
+void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins,
+                ulong nzs, const int *indices, const int *pows);
 int clt_is_zero(clt_pp *pp, const mpz_t c);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
