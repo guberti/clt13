@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define OPTIMIZATION_CRT_TREE 0
+#define OPTIMIZATION_CRT_TREE 1
 #define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
 
 #include <gmp.h>

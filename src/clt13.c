@@ -396,7 +396,7 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins,
 {
     // slots[i] = m[i] + r*g[i]
     mpz_t *slots = malloc(s->n * sizeof(mpz_t));
-    for (int i = 0; i < s->n; i++) {
+    for (ulong i = 0; i < s->n; i++) {
         mpz_init(slots[i]);
         mpz_urandomb(slots[i], s->rng, s->rho);
         mpz_mul(slots[i], slots[i], s->gs[i]);
@@ -406,7 +406,7 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins,
 
     crt_tree_do_crt(rop, s->crt, slots);
 
-    for (int i = 0; i < s->n; i++)
+    for (ulong i = 0; i < s->n; i++)
         mpz_clear(slots[i]);
     free(slots);
 
@@ -414,7 +414,7 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins,
     mpz_t tmp, zinv;
     mpz_inits(tmp, zinv, NULL);
     mpz_set_ui(zinv, 1);
-    for (int i = 0; i < nzs; i++) {
+    for (ulong i = 0; i < nzs; i++) {
         if (indices[i] < 0)
             continue;
         mpz_powm_ui(tmp, s->zinvs[indices[i]], pows[i], s->x0);
@@ -477,7 +477,7 @@ int clt_is_zero(clt_pp *pp, const mpz_t c)
 
 #if OPTIMIZATION_CRT_TREE
 
-int crt_tree_init (crt_tree *crt, const mpz_t *ps, size_t nps)
+static int crt_tree_init (crt_tree *crt, const mpz_t *ps, size_t nps)
 {
     int ok = 1;
     crt->n  = nps;
@@ -514,7 +514,7 @@ int crt_tree_init (crt_tree *crt, const mpz_t *ps, size_t nps)
     return ok;
 }
 
-void crt_tree_clear (crt_tree *crt)
+static void crt_tree_clear (crt_tree *crt)
 {
     if (crt->n != 1) {
         crt_tree_clear(crt->left);
@@ -526,7 +526,7 @@ void crt_tree_clear (crt_tree *crt)
     mpz_clear(crt->mod);
 }
 
-void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, const mpz_t *cs)
+static void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, const mpz_t *cs)
 {
     if (crt->n == 1) {
         mpz_set(rop, cs[0]);
@@ -547,7 +547,7 @@ void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, const mpz_t *cs)
     mpz_clears(val_left, val_right, tmp, NULL);
 }
 
-void _crt_tree_get_leafs (mpz_t *leafs, int *i, crt_tree *crt)
+static void _crt_tree_get_leafs (mpz_t *leafs, int *i, crt_tree *crt)
 {
     if (crt->n == 1) {
         mpz_set(leafs[(*i)++], crt->mod);
@@ -557,31 +557,31 @@ void _crt_tree_get_leafs (mpz_t *leafs, int *i, crt_tree *crt)
     _crt_tree_get_leafs(leafs, i, crt->right);
 }
 
-void crt_tree_save (const char *fname, crt_tree *crt, size_t n)
+static void crt_tree_save (const char *fname, crt_tree *crt, size_t n)
 {
     mpz_t *ps = malloc(n * sizeof(mpz_t));
-    for (int i = 0; i < n; i++)
+    for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
     int ctr = 0;
 
     _crt_tree_get_leafs(ps, &ctr, crt);
     save_mpz_vector(fname, ps, n);
 
-    for (int i = 0; i < n; i++)
+    for (ulong i = 0; i < n; i++)
         mpz_clear(ps[i]);
     free(ps);
 }
 
-void crt_tree_load (const char *fname, crt_tree *crt, size_t n)
+static void crt_tree_load (const char *fname, crt_tree *crt, size_t n)
 {
     mpz_t *ps = malloc(n * sizeof(mpz_t));
-    for (int i = 0; i < n; i++)
+    for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
 
     load_mpz_vector(fname, ps, n);
     crt_tree_init(crt, ps, n);
 
-    for (int i = 0; i < n; i++)
+    for (ulong i = 0; i < n; i++)
         mpz_clear(ps[i]);
     free(ps);
 }
