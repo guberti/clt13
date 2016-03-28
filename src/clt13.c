@@ -27,11 +27,11 @@ static int seed_rng (gmp_randstate_t *rng);
 static double current_time(void);
 
 static int load_ulong (const char *fname, ulong *x);
-static int save_ulong (const char *fname, const ulong x);
+static int save_ulong (const char *fname, ulong x);
 static int load_mpz_scalar (const char *fname, mpz_t x);
 static int save_mpz_scalar (const char *fname, const mpz_t x);
-static int load_mpz_vector (const char *fname, mpz_t *m, const int len);
-static int save_mpz_vector (const char *fname, const mpz_t *m, const int len);
+static int load_mpz_vector (const char *fname, mpz_t *m, ulong len);
+static int save_mpz_vector (const char *fname, mpz_t *m, ulong len);
 
 ////////////////////////////////////////////////////////////////////////////////
 // state
@@ -391,7 +391,8 @@ void clt_pp_save(const clt_pp *pp, const char *dir)
 // encodings
 
 #if OPTIMIZATION_CRT_TREE
-void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const int *pows)
+void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins,
+                ulong nzs, const int *indices, const int *pows)
 {
     // slots[i] = m[i] + r*g[i]
     mpz_t *slots = malloc(s->n * sizeof(mpz_t));
@@ -413,10 +414,10 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins, const in
     mpz_t tmp, zinv;
     mpz_inits(tmp, zinv, NULL);
     mpz_set_ui(zinv, 1);
-    for (int i = 0; i < s->nzs; i++) {
-        if (pows[i] <= 0)
+    for (int i = 0; i < nzs; i++) {
+        if (indices[i] < 0)
             continue;
-        mpz_powm_ui(tmp, s->zinvs[i], pows[i], s->x0);
+        mpz_powm_ui(tmp, s->zinvs[indices[i]], pows[i], s->x0);
         mpz_mul(zinv, zinv, tmp);
         mpz_mod(zinv, zinv, s->x0);
     }
@@ -590,7 +591,7 @@ void crt_tree_load (const char *fname, crt_tree *crt, size_t n)
 ////////////////////////////////////////////////////////////////////////////////
 // helper functions
 
-int seed_rng (gmp_randstate_t *rng)
+static int seed_rng (gmp_randstate_t *rng)
 {
     int file;
     if ((file = open(RANDFILE, O_RDONLY)) == -1) {
@@ -627,7 +628,7 @@ static int load_ulong(const char *fname, ulong *x)
     return 0;
 }
 
-static int save_ulong(const char *fname, const ulong x)
+static int save_ulong(const char *fname, ulong x)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
@@ -639,7 +640,7 @@ static int save_ulong(const char *fname, const ulong x)
     return 0;
 }
 
-int load_mpz_scalar(const char *fname, mpz_t x)
+static int load_mpz_scalar(const char *fname, mpz_t x)
 {
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
@@ -651,7 +652,7 @@ int load_mpz_scalar(const char *fname, mpz_t x)
     return 0;
 }
 
-int save_mpz_scalar(const char *fname, const mpz_t x)
+static int save_mpz_scalar(const char *fname, const mpz_t x)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
@@ -666,28 +667,28 @@ int save_mpz_scalar(const char *fname, const mpz_t x)
     return 0;
 }
 
-int load_mpz_vector(const char *fname, mpz_t *m, const int len)
+static int load_mpz_vector(const char *fname, mpz_t *m, ulong len)
 {
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
         perror(fname);
         return 1;
     }
-    for (int i = 0; i < len; ++i) {
+    for (ulong i = 0; i < len; ++i) {
         mpz_inp_raw(m[i], f);
     }
     fclose(f);
     return 0;
 }
 
-int save_mpz_vector(const char *fname, const mpz_t *m, const int len)
+static int save_mpz_vector(const char *fname, mpz_t *m, ulong len)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
         perror(fname);
         return 1;
     }
-    for (int i = 0; i < len; ++i) {
+    for (ulong i = 0; i < len; ++i) {
         if (mpz_out_raw(f, m[i]) == 0) {
             (void) fclose(f);
             return 1;

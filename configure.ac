@@ -23,7 +23,7 @@ AC_CHECK_HEADERS([gmp.h omp.h])
 CFLAGS="$CFLAGS -Wall -Wformat -Wformat-security -Wextra -Wunused \
 -Wshadow -Wmissing-prototypes -Wfloat-equal -Wpointer-arith -Wcast-align \
 -Wstrict-prototypes -Wredundant-decls -Wendif-labels -Wcast-qual -march=native \
--std=gnu11 -Wpedantic -lgmp -lgomp"
+-std=gnu11 -Wpedantic -lgmp -lgomp -fopenmp"
 
 AC_FUNC_MALLOC
 
