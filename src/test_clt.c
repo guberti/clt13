@@ -9,8 +9,20 @@ int g_verbose = 1;
 
 int expect(char * desc, int expected, int recieved);
 
-int main()
+#ifdef ENABLE_EXTENDED_API
+int main(void)
 {
+    puts("TEST_CLT not compatible with extended encoding api");
+    return(1);
+}
+#else
+int main(void)
+{
+#ifdef DISABLE_CRT_TREE
+    puts("CRT TREE DISABLED");
+#else
+    puts("CRT TREE ENABLED");
+#endif
     srand(time(NULL));
 
     ulong nzs     = 10;
@@ -197,6 +209,7 @@ int main()
     mpz_clears(c, x0, x1, xp, x[0], zero[0], one[0], in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
     return !ok;
 }
+#endif
 
 int expect(char * desc, int expected, int recieved)
 {

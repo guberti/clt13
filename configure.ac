@@ -1,5 +1,5 @@
 AC_PREREQ(2.65)
-AC_INIT([libclt], [0.1.0], [???])
+AC_INIT([libclt], [0.1.0], [bcarmer@gmail.com])
 
 AC_CONFIG_HEADERS([config.h])
 
@@ -16,8 +16,6 @@ AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
 
-CFLAGS=
-
 AC_CHECK_HEADERS([gmp.h omp.h])
 
 CFLAGS="$CFLAGS -Wall -Wformat -Wformat-security -Wextra -Wunused \
@@ -28,4 +26,17 @@ CFLAGS="$CFLAGS -Wall -Wformat -Wformat-security -Wextra -Wunused \
 AC_FUNC_MALLOC
 
 AC_CONFIG_FILES([Makefile src/Makefile])
+
+AC_ARG_ENABLE(crt-tree, 
+AS_HELP_STRING([--disable-crt-tree], [disable the CRT tree optimization]),
+[if test "$enableval" = no; then
+    AC_DEFINE(DISABLE_CRT_TREE, [1], [disable CRT tree])
+ fi])
+
+AC_ARG_ENABLE(extended-api,
+AS_HELP_STRING([--enable-extended-api], [enable the extended encoding api]),
+[if test "$enableval" = yes; then
+    AC_DEFINE(ENABLE_EXTENDED_API, [1], [enable the extended encoding api])
+ fi])
+
 AC_OUTPUT
