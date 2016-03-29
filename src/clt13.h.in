@@ -6,8 +6,8 @@ extern "C" {
 #endif
 
 #define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
-#define ENABLE_EXTENDED_API @ENABLE_EXTENDED_API@
-#define DISABLE_CRT_TREE @DISABLE_CRT_TREE@
+@ENABLE_EXTENDED_API@
+@DISABLE_CRT_TREE@
 
 #include <gmp.h>
 
