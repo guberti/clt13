@@ -16,7 +16,7 @@ AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
 
-AC_CHECK_HEADERS([gmp.h omp.h])
+AC_CHECK_HEADERS([gmp.h omp.h aesrand.h])
 
 CFLAGS="$CFLAGS -Wall -Wformat -Wformat-security -Wextra -Wunused \
 -Wshadow -Wmissing-prototypes -Wfloat-equal -Wpointer-arith -Wcast-align \

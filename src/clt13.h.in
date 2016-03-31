@@ -8,6 +8,7 @@ extern "C" {
 #define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
 @DISABLE_CRT_TREE@
 
+#include <aesrand.h>
 #include <gmp.h>
 
 extern int g_verbose;
@@ -28,7 +29,7 @@ typedef struct crt_tree {
 // state
 
 typedef struct {
-    gmp_randstate_t rng;
+    aes_randstate_t rng;
     ulong n;
     ulong nzs;
     ulong rho;

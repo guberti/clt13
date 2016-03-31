@@ -22,7 +22,7 @@ static void crt_tree_save   (const char *fname, crt_tree *crt, size_t n);
 static void crt_tree_load   (const char *fname, crt_tree *crt, size_t n);
 #endif
 
-static int seed_rng (gmp_randstate_t *rng);
+static int seed_rng (aes_randstate_t rng);
 
 static double current_time(void);
 
@@ -79,7 +79,7 @@ void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const i
     }
 #endif
 
-    seed_rng(&s->rng);
+    seed_rng(s->rng);
 
     // initialize gmp variables
     mpz_init_set_ui(s->x0,  1);
@@ -96,7 +96,7 @@ void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const i
     if (g_verbose) fprintf(stderr, "  Generating p_i's and g_i's");
     start_time = current_time();
 #ifndef DISABLE_CRT_TREE
-GEN_PIS:
+GEN_PIS:;
 #endif
 #pragma omp parallel for
 #if OPTIMIZATION_COMPOSITE_PS
@@ -107,9 +107,9 @@ GEN_PIS:
     for (ulong i = 0; i < s->n; i++) {
         mpz_t p_unif;
         mpz_init(p_unif);
-        mpz_urandomb(p_unif, s->rng, eta);
+        mpz_urandomb_aes(p_unif, s->rng, eta);
         mpz_nextprime(ps[i], p_unif);
-        mpz_urandomb(p_unif, s->rng, alpha);
+        mpz_urandomb_aes(p_unif, s->rng, alpha);
         mpz_nextprime(s->gs[i], p_unif);
         mpz_clear(p_unif);
     }
@@ -155,7 +155,7 @@ GEN_PIS:
 #pragma omp parallel for
     for (ulong i = 0; i < s->nzs; ++i) {
         do {
-            mpz_urandomm(zs[i], s->rng, s->x0);
+            mpz_urandomm_aes(zs[i], s->rng, s->x0);
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
     }
     if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
@@ -183,7 +183,7 @@ GEN_PIS:
             mpz_invert(tmp, s->gs[i], ps[i]);
             mpz_mul(tmp, tmp, zk);
             mpz_mod(tmp, tmp, ps[i]);
-            mpz_urandomb(rnd, s->rng, beta);
+            mpz_urandomb_aes(rnd, s->rng, beta);
             mpz_mul(tmp, tmp, rnd);
             mpz_div(qpi, s->x0, ps[i]);
             mpz_mul(tmp, tmp, qpi);
@@ -210,7 +210,7 @@ GEN_PIS:
 
 void clt_state_clear(clt_state *s)
 {
-    gmp_randclear(s->rng);
+    aes_randclear(s->rng);
     mpz_clears(s->x0, s->pzt, NULL);
     for (ulong i = 0; i < s->n; i++) {
         mpz_clear(s->gs[i]);
@@ -237,7 +237,7 @@ void clt_state_read(clt_state *s, const char *dir)
     int len = strlen(dir) + 10;
     fname = malloc(sizeof(char) + len);
 
-    seed_rng(&s->rng);
+    seed_rng(s->rng);
 
     snprintf(fname, len, "%s/n", dir);
     load_ulong(fname, &s->n);
@@ -399,7 +399,7 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pow
     mpz_t *slots = malloc(s->n * sizeof(mpz_t));
     for (ulong i = 0; i < s->n; i++) {
         mpz_init(slots[i]);
-        mpz_urandomb(slots[i], s->rng, s->rho);
+        mpz_urandomb_aes(slots[i], s->rng, s->rho);
         mpz_mul(slots[i], slots[i], s->gs[i]);
         if (i < nins)
             mpz_add(slots[i], slots[i], ins[i]);
@@ -570,24 +570,20 @@ static void crt_tree_load (const char *fname, crt_tree *crt, size_t n)
 ////////////////////////////////////////////////////////////////////////////////
 // helper functions
 
-static int seed_rng (gmp_randstate_t *rng)
+static int seed_rng (aes_randstate_t rng)
 {
     int file;
     if ((file = open(RANDFILE, O_RDONLY)) == -1) {
         fprintf(stderr, "Error opening %s\n", RANDFILE);
         return 1;
     } else {
-        ulong seed;
-        if (read(file, &seed, sizeof seed) == -1) {
+        char seed[8];
+        if (read(file, seed, 8) == -1) {
             fprintf(stderr, "Error reading from %s\n", RANDFILE);
             close(file);
             return 1;
         } else {
-            if (g_verbose)
-                fprintf(stderr, "  Seed: %lu\n", seed);
-
-            gmp_randinit_default(*rng);
-            gmp_randseed_ui(*rng, seed);
+            aes_randinit_seed(rng, seed, NULL);
         }
     }
     if (file != -1)

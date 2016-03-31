@@ -1,9 +1,10 @@
 #include "clt13.h"
+#include <aesrand.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <sys/stat.h>
-#include <errno.h>
+#include <time.h>
 
 int g_verbose = 1;
 
@@ -150,14 +151,14 @@ int main(void)
 
     mpz_inits(c, in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
 
-    mpz_urandomb(in1[0], mmap.rng, lambda);
+    mpz_urandomb_aes(in1[0], mmap.rng, lambda);
     mpz_mod(in1[0], in1[0], mmap.gs[0]);
 
     mpz_set_ui(in0[0], 0);
     mpz_set_ui(cin[0], 0);
 
-    mpz_urandomb(in0[1], mmap.rng, 16);
-    mpz_urandomb(in1[1], mmap.rng, 16);
+    mpz_urandomb_aes(in0[1], mmap.rng, 16);
+    mpz_urandomb_aes(in1[1], mmap.rng, 16);
     mpz_mul(cin[1], in0[1], in1[1]);
 
     clt_encode(x0, &mmap, 2, in0, ix0);
@@ -176,14 +177,14 @@ int main(void)
     mpz_set_ui(in1[0], 1);
     mpz_set_ui(cin[0], 0);
 
-    mpz_urandomb(in0[0], mmap.rng, lambda);
+    mpz_urandomb_aes(in0[0], mmap.rng, lambda);
     mpz_mod(in0[0], in0[0], mmap.gs[0]);
 
-    mpz_urandomb(in1[0], mmap.rng, lambda);
+    mpz_urandomb_aes(in1[0], mmap.rng, lambda);
     mpz_mod(in1[0], in1[0], mmap.gs[0]);
 
-    mpz_urandomb(in0[1], mmap.rng, 16);
-    mpz_urandomb(in1[1], mmap.rng, 16);
+    mpz_urandomb_aes(in0[1], mmap.rng, 16);
+    mpz_urandomb_aes(in1[1], mmap.rng, 16);
     mpz_mul(cin[1], in0[1], in1[1]);
 
     clt_encode(x0, &mmap, 2, in0, ix0);
