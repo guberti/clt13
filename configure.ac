@@ -25,7 +25,7 @@ CFLAGS="$CFLAGS -Wall -Wformat -Wformat-security -Wextra -Wunused \
 
 AC_FUNC_MALLOC
 
-AC_CONFIG_FILES([Makefile src/Makefile src/clt13.h])
+AC_CONFIG_FILES([Makefile src/Makefile test/Makefile src/clt13.h])
 
 AC_ARG_ENABLE(crt-tree, 
 AS_HELP_STRING([--disable-crt-tree], [disable the CRT tree optimization]),
