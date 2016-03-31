@@ -34,4 +34,12 @@ AS_HELP_STRING([--disable-crt-tree], [disable the CRT tree optimization]),
  fi]
  )
 
+AC_ARG_ENABLE(parallel-encode,
+AS_HELP_STRING([--enable-parallel-encode], [parallelize the encode function]),
+[if test "$enableval" = yes; then
+    AC_SUBST(PARALLEL_ENCODE, ["#define PARALLEL_ENCODE 1"])
+ fi]
+ )
+
+
 AC_OUTPUT

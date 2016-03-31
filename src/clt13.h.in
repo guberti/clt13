@@ -7,6 +7,7 @@ extern "C" {
 
 #define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
 @DISABLE_CRT_TREE@
+@PARALLEL_ENCODE@
 
 #include <aesrand.h>
 #include <gmp.h>

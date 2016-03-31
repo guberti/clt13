@@ -397,6 +397,9 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pow
 #ifndef DISABLE_CRT_TREE
     // slots[i] = m[i] + r*g[i]
     mpz_t *slots = malloc(s->n * sizeof(mpz_t));
+#ifdef PARALLEL_ENCODE
+#pragma omp parallel for
+#endif
     for (ulong i = 0; i < s->n; i++) {
         mpz_init(slots[i]);
         mpz_urandomb_aes(slots[i], s->rng, s->rho);
