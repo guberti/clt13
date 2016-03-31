@@ -390,12 +390,7 @@ void clt_pp_save(const clt_pp *pp, const char *dir)
 ////////////////////////////////////////////////////////////////////////////////
 // encodings
 
-#ifdef ENABLE_EXTENDED_API
-void clt_encode(mpz_t rop, clt_state *s, size_t nins, const mpz_t *ins,
-                ulong nzs, const int *indices, const int *pows)
-#else
 void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pows)
-#endif
 {
     mpz_t tmp;
     mpz_init(tmp);
@@ -427,17 +422,10 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pow
     }
 #endif
     // multiply by appropriate zinvs
-#ifdef ENABLE_EXTENDED_API
-    for (ulong i = 0; i < nzs; i++) {
-        if (indices[i] < 0)
-            continue;
-        mpz_powm_ui(tmp, s->zinvs[indices[i]], pows[i], s->x0);
-#else
     for (unsigned long i = 0; i < s->nzs; ++i) {
         if (pows[i] <= 0)
             continue;
         mpz_powm_ui(tmp, s->zinvs[i], pows[i], s->x0);
-#endif
         mpz_mul(rop, rop, tmp);
         mpz_mod(rop, rop, s->x0);
     }

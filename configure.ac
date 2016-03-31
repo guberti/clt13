@@ -34,11 +34,4 @@ AS_HELP_STRING([--disable-crt-tree], [disable the CRT tree optimization]),
  fi]
  )
 
-AC_ARG_ENABLE(extended-api,
-AS_HELP_STRING([--enable-extended-api], [enable the extended encoding api]),
-[if test "$enableval" = yes; then
-    AC_SUBST(ENABLE_EXTENDED_API, ["#define ENABLE_EXTENDED_API 1"])
- fi]
-)
-
 AC_OUTPUT
