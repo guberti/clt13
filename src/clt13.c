@@ -499,7 +499,7 @@ void fread_clt_pp (FILE *const fp, clt_pp *pp)
     fread_mpz_scalar(fp, pp->pzt);
 }
 
-void fwrite_clt_pp (FILE *const fp, clt_pp *pp)
+void fwrite_clt_pp (FILE *const fp, const clt_pp *pp)
 {
     fwrite_ulong(fp, pp->nu);
     PUT_NEWLINE(fp);

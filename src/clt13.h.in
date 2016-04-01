@@ -68,7 +68,7 @@ void clt_pp_read   (clt_pp *pp, const char *dir);
 void clt_pp_save   (const clt_pp *pp, const char *dir);
 
 void fread_clt_pp  (FILE *const fp, clt_pp *pp);
-void fwrite_clt_pp (FILE *const fp, clt_pp *pp);
+void fwrite_clt_pp (FILE *const fp, const clt_pp *pp);
 
 // encodings
 
