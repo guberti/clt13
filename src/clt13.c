@@ -14,12 +14,19 @@
 #  define RANDFILE "/dev/urandom"
 #endif
 
+#define GET_NEWLINE(fp) if(fscanf(fp, "\n") < 0) { \
+    puts("ERROR: fscanf() error encountered when trying to read from file\n"); }
+
+#define PUT_NEWLINE(fp) fprintf(fp, "\n");
+
 #ifndef DISABLE_CRT_TREE
 static int  crt_tree_init   (crt_tree *crt, mpz_t *ps, size_t nps);
 static void crt_tree_clear  (crt_tree *crt);
 static void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, mpz_t *cs);
 static void crt_tree_save   (const char *fname, crt_tree *crt, size_t n);
 static void crt_tree_load   (const char *fname, crt_tree *crt, size_t n);
+static void fread_crt_tree  (FILE *const fp, crt_tree *crt, size_t n);
+static void fwrite_crt_tree (FILE *const fp, crt_tree *crt, size_t n);
 #endif
 
 static int seed_rng (aes_randstate_t rng);
@@ -28,10 +35,18 @@ static double current_time(void);
 
 static int load_ulong (const char *fname, ulong *x);
 static int save_ulong (const char *fname, ulong x);
-static int load_mpz_scalar (const char *fname, mpz_t x);
-static int save_mpz_scalar (const char *fname, const mpz_t x);
-static int load_mpz_vector (const char *fname, mpz_t *m, ulong len);
-static int save_mpz_vector (const char *fname, mpz_t *m, ulong len);
+static int fread_ulong  (FILE *const fp, ulong *x);
+static int fwrite_ulong (FILE *const fp, ulong x);
+
+static int load_mpz_scalar   (const char *fname, mpz_t x);
+static int save_mpz_scalar   (const char *fname, const mpz_t x);
+static int fread_mpz_scalar  (FILE *const fp, mpz_t x);
+static int fwrite_mpz_scalar (FILE *const fp, const mpz_t x);
+
+static int load_mpz_vector   (const char *fname, mpz_t *m, ulong len);
+static int save_mpz_vector   (const char *fname, mpz_t *m, ulong len);
+static int fread_mpz_vector  (FILE *const fp, mpz_t *m, ulong len);
+static int fwrite_mpz_vector (FILE *const fp, mpz_t *m, ulong len);
 
 ////////////////////////////////////////////////////////////////////////////////
 // state
@@ -327,6 +342,90 @@ void clt_state_save(const clt_state *s, const char *dir)
     free(fname);
 }
 
+void fread_clt_state (FILE *const fp, clt_state *s)
+{
+    seed_rng(s->rng);
+
+    fread_ulong(fp, &s->n);
+    printf("n = %lu\n", s->n);
+    GET_NEWLINE(fp);
+
+    fread_ulong(fp, &s->nzs);
+    printf("nzs = %lu\n", s->nzs);
+    GET_NEWLINE(fp);
+
+    fread_ulong(fp, &s->rho);
+    printf("rho = %lu\n", s->rho);
+    GET_NEWLINE(fp);
+
+    fread_ulong(fp, &s->nu);
+    printf("nu = %lu\n", s->nu);
+    GET_NEWLINE(fp);
+
+    mpz_init(s->x0);
+    fread_mpz_scalar(fp, s->x0);
+    GET_NEWLINE(fp);
+
+    mpz_init(s->pzt);
+    fread_mpz_scalar(fp, s->pzt);
+    GET_NEWLINE(fp);
+
+    s->gs = malloc(sizeof(mpz_t) * s->n);
+    for (ulong i = 0; i < s->n; i++)
+        mpz_init(s->gs[i]);
+    fread_mpz_vector(fp, s->gs, s->n);
+    GET_NEWLINE(fp);
+
+    s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
+    for (ulong i = 0; i < s->nzs; i++)
+        mpz_init(s->zinvs[i]);
+    fread_mpz_vector(fp, s->zinvs, s->nzs);
+    GET_NEWLINE(fp);
+
+#ifndef DISABLE_CRT_TREE
+    s->crt = malloc(sizeof(crt_tree));
+    fread_crt_tree(fp, s->crt, s->n);
+#else
+    s->crt_coeffs = malloc(sizeof(mpz_t) * s->n);
+    for (ulong i = 0; i < s->n; i++)
+        mpz_init(s->crt_coeffs[i]);
+    fread_mpz_vector(fp, s->crt_coeffs, s->n);
+#endif
+}
+
+void fwrite_clt_state (FILE *const fp, const clt_state *s)
+{
+    fwrite_ulong(fp, s->n);
+    PUT_NEWLINE(fp);
+
+    fwrite_ulong(fp, s->nzs);
+    PUT_NEWLINE(fp);
+
+    fwrite_ulong(fp, s->rho);
+    PUT_NEWLINE(fp);
+
+    fwrite_ulong(fp, s->nu);
+    PUT_NEWLINE(fp);
+
+    fwrite_mpz_scalar(fp, s->x0);
+    PUT_NEWLINE(fp);
+
+    fwrite_mpz_scalar(fp, s->pzt);
+    PUT_NEWLINE(fp);
+
+    fwrite_mpz_vector(fp, s->gs, s->n);
+    PUT_NEWLINE(fp);
+
+    fwrite_mpz_vector(fp, s->zinvs, s->nzs);
+    PUT_NEWLINE(fp);
+
+#ifndef DISABLE_CRT_TREE
+    fwrite_crt_tree(fp, s->crt, s->n);
+#else
+    fwrite_mpz_vector(fp, s->crt_coeffs, s->n);
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // public parameters
 
@@ -385,6 +484,30 @@ void clt_pp_save(const clt_pp *pp, const char *dir)
     save_mpz_scalar(fname, pp->pzt);
 
     free(fname);
+}
+
+void fread_clt_pp (FILE *const fp, clt_pp *pp)
+{
+    mpz_inits(pp->x0, pp->pzt, NULL);
+
+    fread_ulong(fp, &pp->nu);
+    GET_NEWLINE(fp);
+
+    fread_mpz_scalar(fp, pp->x0);
+    GET_NEWLINE(fp);
+
+    fread_mpz_scalar(fp, pp->pzt);
+}
+
+void fwrite_clt_pp (FILE *const fp, clt_pp *pp)
+{
+    fwrite_ulong(fp, pp->nu);
+    PUT_NEWLINE(fp);
+
+    fwrite_mpz_scalar(fp, pp->x0);
+    PUT_NEWLINE(fp);
+
+    fwrite_mpz_scalar(fp, pp->pzt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -568,6 +691,35 @@ static void crt_tree_load (const char *fname, crt_tree *crt, size_t n)
     free(ps);
 }
 
+static void fread_crt_tree (FILE *const fp, crt_tree *crt, size_t n)
+{
+    mpz_t *ps = malloc(n * sizeof(mpz_t));
+    for (ulong i = 0; i < n; i++)
+        mpz_init(ps[i]);
+
+    fread_mpz_vector(fp, ps, n);
+    crt_tree_init(crt, ps, n);
+
+    for (ulong i = 0; i < n; i++)
+        mpz_clear(ps[i]);
+    free(ps);
+}
+
+static void fwrite_crt_tree (FILE *const fp, crt_tree *crt, size_t n)
+{
+    mpz_t *ps = malloc(n * sizeof(mpz_t));
+    for (ulong i = 0; i < n; i++)
+        mpz_init(ps[i]);
+    int ctr = 0;
+
+    _crt_tree_get_leafs(ps, &ctr, crt);
+    fwrite_mpz_vector(fp, ps, n);
+
+    for (ulong i = 0; i < n; i++)
+        mpz_clear(ps[i]);
+    free(ps);
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -601,7 +753,7 @@ static int load_ulong(const char *fname, ulong *x)
         perror(fname);
         return 1;
     }
-    fscanf(f, "%lu", x);
+    fread_ulong(f, x);
     fclose(f);
     return 0;
 }
@@ -613,9 +765,19 @@ static int save_ulong(const char *fname, ulong x)
         perror(fname);
         return 1;
     }
-    fprintf(f, "%lu", x);
+    fwrite_ulong(f, x);
     fclose(f);
     return 0;
+}
+
+static int fread_ulong (FILE *const fp, ulong *x)
+{
+    return fscanf(fp, "%lu", x);
+}
+
+static int fwrite_ulong (FILE *const fp, ulong x)
+{
+    return fprintf(fp, "%lu", x);
 }
 
 static int load_mpz_scalar(const char *fname, mpz_t x)
@@ -625,7 +787,7 @@ static int load_mpz_scalar(const char *fname, mpz_t x)
         perror(fname);
         return 1;
     }
-    mpz_inp_raw(x, f);
+    fread_mpz_scalar(f, x);
     fclose(f);
     return 0;
 }
@@ -637,12 +799,22 @@ static int save_mpz_scalar(const char *fname, const mpz_t x)
         perror(fname);
         return 1;
     }
-    if (mpz_out_raw(f, x) == 0) {
+    if (fwrite_mpz_scalar(f, x) == 0) {
         fclose(f);
         return 1;
     }
     fclose(f);
     return 0;
+}
+
+static int fread_mpz_scalar (FILE *const fp, mpz_t x)
+{
+    return mpz_inp_raw(x, fp);
+}
+
+static int fwrite_mpz_scalar (FILE *const fp, const mpz_t x)
+{
+    return mpz_out_raw(fp, x);
 }
 
 static int load_mpz_vector(const char *fname, mpz_t *m, ulong len)
@@ -673,6 +845,24 @@ static int save_mpz_vector(const char *fname, mpz_t *m, ulong len)
         }
     }
     fclose(f);
+    return 0;
+}
+
+static int fread_mpz_vector (FILE *const fp, mpz_t *m, ulong len)
+{
+    for (ulong i = 0; i < len; ++i) {
+        if (mpz_inp_raw(m[i], fp) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+static int fwrite_mpz_vector (FILE *const fp, mpz_t *m, ulong len)
+{
+    for (ulong i = 0; i < len; ++i) {
+        if (mpz_out_raw(fp, m[i]) == 0)
+            return 1;
+    }
     return 0;
 }
 
