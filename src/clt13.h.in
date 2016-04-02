@@ -6,17 +6,17 @@ extern "C" {
 #endif
 
 #define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
-@DISABLE_CRT_TREE@
-@PARALLEL_ENCODE@
+#define CRT_TREE @CRT_TREE@
+#define PARALLEL_ENCODE @PARALLEL_ENCODE@
+#define VERBOSE @VERBOSE@
+#define INTERNAL_RNG @INTERNAL_RNG@
 
 #include <aesrand.h>
 #include <gmp.h>
 
-extern int g_verbose;
-
 typedef unsigned long ulong;
 
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
 typedef struct crt_tree {
     ulong n, n2;
     mpz_t mod;
@@ -39,7 +39,7 @@ typedef struct {
     mpz_t pzt;
     mpz_t *gs;
     mpz_t *zinvs;
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     crt_tree *crt;
 #else
     mpz_t *crt_coeffs;
@@ -73,7 +73,7 @@ void fwrite_clt_pp (FILE *const fp, const clt_pp *pp);
 // encodings
 
 void clt_encode  (mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pows);
-int  clt_is_zero (clt_pp *pp, const mpz_t c);
+int  clt_is_zero (const clt_pp *pp, const mpz_t c);
 
 #ifdef __cplusplus
 }

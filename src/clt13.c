@@ -19,7 +19,7 @@
 
 #define PUT_NEWLINE(fp) fprintf(fp, "\n");
 
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
 static int  crt_tree_init   (crt_tree *crt, mpz_t *ps, size_t nps);
 static void crt_tree_clear  (crt_tree *crt);
 static void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, mpz_t *cs);
@@ -31,7 +31,9 @@ static void fwrite_crt_tree (FILE *const fp, crt_tree *crt, size_t n);
 
 static int seed_rng (aes_randstate_t rng);
 
+#if VERBOSE
 static double current_time(void);
+#endif
 
 static int load_ulong (const char *fname, ulong *x);
 static int save_ulong (const char *fname, ulong x);
@@ -55,7 +57,10 @@ void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const i
 {
     ulong alpha, beta, eta, rho_f;
     mpz_t *ps, *zs;
+
+#if VERBOSE
     double start_time;
+#endif
 
     // calculate CLT parameters
     s->nzs = nzs;
@@ -67,25 +72,25 @@ void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const i
     s->nu  = eta - beta - rho_f - lambda - 3;
     s->n   = eta * log2((float) lambda);
 
-    if (g_verbose) {
-        fprintf(stderr, "  Security Parameter: %ld\n", lambda);
-        fprintf(stderr, "  Kappa: %ld\n", kappa);
-        fprintf(stderr, "  Alpha: %ld\n", alpha);
-        fprintf(stderr, "  Beta: %ld\n", beta);
-        fprintf(stderr, "  Eta: %ld\n", eta);
-        fprintf(stderr, "  Nu: %ld\n", s->nu);
-        fprintf(stderr, "  Rho: %ld\n", s->rho);
-        fprintf(stderr, "  Rho_f: %ld\n", rho_f);
-        fprintf(stderr, "  N: %ld\n", s->n);
-        fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
-    }
+#if VERBOSE
+    fprintf(stderr, "  Security Parameter: %ld\n", lambda);
+    fprintf(stderr, "  Kappa: %ld\n", kappa);
+    fprintf(stderr, "  Alpha: %ld\n", alpha);
+    fprintf(stderr, "  Beta: %ld\n", beta);
+    fprintf(stderr, "  Eta: %ld\n", eta);
+    fprintf(stderr, "  Nu: %ld\n", s->nu);
+    fprintf(stderr, "  Rho: %ld\n", s->rho);
+    fprintf(stderr, "  Rho_f: %ld\n", rho_f);
+    fprintf(stderr, "  N: %ld\n", s->n);
+    fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
+#endif
 
     ps       = malloc(sizeof(mpz_t) * s->n);
     s->gs    = malloc(sizeof(mpz_t) * s->n);
     zs       = malloc(sizeof(mpz_t) * s->nzs);
     s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
 
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     s->crt = malloc(sizeof(crt_tree));
 #else
     s->crt_coeffs = malloc(s->n * sizeof(mpz_t));
@@ -108,9 +113,11 @@ void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const i
     }
 
     // Generate p_i's and g_i's, as well as x0 = \prod p_i
-    if (g_verbose) fprintf(stderr, "  Generating p_i's and g_i's");
+#if VERBOSE
+    fprintf(stderr, "  Generating p_i's and g_i's");
     start_time = current_time();
-#ifndef DISABLE_CRT_TREE
+#endif
+#if CRT_TREE
 GEN_PIS:;
 #endif
 #pragma omp parallel for
@@ -129,28 +136,36 @@ GEN_PIS:;
         mpz_clear(p_unif);
     }
 #endif
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     // use crt_tree to find x0
     int ok = crt_tree_init(s->crt, ps, s->n);
     if (!ok) {
         // if crt_tree_init fails, regenerate with new p_i's
         crt_tree_clear(s->crt);
-        if (g_verbose) fprintf(stderr, " (restarting)");
+#if VERBOSE
+        fprintf(stderr, " (restarting)");
+#endif
         goto GEN_PIS;
     }
     // crt_tree_init succeeded, set x0
     mpz_set(s->x0, s->crt->mod);
-    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
+#if VERBOSE
+    fprintf(stderr, ": %f\n", current_time() - start_time);
+#endif
 #else
     // find x0 the hard way
     for (ulong i = 0; i < s->n; i++) {
         mpz_mul(s->x0, s->x0, ps[i]);
     }
-    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
+#if VERBOSE
+    fprintf(stderr, ": %f\n", current_time() - start_time);
+#endif
 
     // Compute CRT coefficients
-    if (g_verbose) fprintf(stderr, "  Generating CRT coefficients: ");
+#if VERBOSE
+    fprintf(stderr, "  Generating CRT coefficients: ");
     start_time = current_time();
+#endif
 #pragma omp parallel for
     for (unsigned long i = 0; i < s->n; i++) {
         mpz_t q;
@@ -161,23 +176,31 @@ GEN_PIS:;
         mpz_mod(s->crt_coeffs[i], s->crt_coeffs[i], s->x0);
         mpz_clear(q);
     }
-    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
+#if VERBOSE
+    fprintf(stderr, ": %f\n", current_time() - start_time);
+#endif
 #endif
 
     // Compute z_i's
-    if (g_verbose) fprintf(stderr, "  Generating z_i's");
+#if VERBOSE
+    fprintf(stderr, "  Generating z_i's");
     start_time = current_time();
+#endif
 #pragma omp parallel for
     for (ulong i = 0; i < s->nzs; ++i) {
         do {
             mpz_urandomm_aes(zs[i], s->rng, s->x0);
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
     }
-    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
+#if VERBOSE
+    fprintf(stderr, ": %f\n", current_time() - start_time);
+#endif
 
     // Compute pzt
-    if (g_verbose) fprintf(stderr, "  Generating pzt");
+#if VERBOSE
+    fprintf(stderr, "  Generating pzt");
     start_time = current_time();
+#endif
     {
         mpz_t zk;
         mpz_init_set_ui(zk, 1);
@@ -212,7 +235,9 @@ GEN_PIS:;
         mpz_mod(s->pzt, s->pzt, s->x0);
         mpz_clear(zk);
     }
-    if (g_verbose) fprintf(stderr, ": %f\n", current_time() - start_time);
+#if VERBOSE
+    fprintf(stderr, ": %f\n", current_time() - start_time);
+#endif
 
     for (ulong i = 0; i < s->n; i++)
         mpz_clear(ps[i]);
@@ -235,7 +260,7 @@ void clt_state_clear(clt_state *s)
         mpz_clear(s->zinvs[i]);
     }
     free(s->zinvs);
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     crt_tree_clear(s->crt);
     free(s->crt);
 #else
@@ -287,7 +312,7 @@ void clt_state_read(clt_state *s, const char *dir)
     snprintf(fname, len, "%s/zinvs", dir);
     load_mpz_vector(fname, s->zinvs, s->nzs);
 
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     s->crt = malloc(sizeof(crt_tree));
     snprintf(fname, len, "%s/crt_tree", dir);
     crt_tree_load(fname, s->crt, s->n);
@@ -332,7 +357,7 @@ void clt_state_save(const clt_state *s, const char *dir)
     snprintf(fname, len, "%s/zinvs", dir);
     save_mpz_vector(fname, s->zinvs, s->nzs);
 
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     snprintf(fname, len, "%s/crt_tree", dir);
     crt_tree_save(fname, s->crt, s->n);
 #else
@@ -382,7 +407,7 @@ void fread_clt_state (FILE *const fp, clt_state *s)
     fread_mpz_vector(fp, s->zinvs, s->nzs);
     GET_NEWLINE(fp);
 
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     s->crt = malloc(sizeof(crt_tree));
     fread_crt_tree(fp, s->crt, s->n);
 #else
@@ -419,7 +444,7 @@ void fwrite_clt_state (FILE *const fp, const clt_state *s)
     fwrite_mpz_vector(fp, s->zinvs, s->nzs);
     PUT_NEWLINE(fp);
 
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     fwrite_crt_tree(fp, s->crt, s->n);
 #else
     fwrite_mpz_vector(fp, s->crt_coeffs, s->n);
@@ -517,10 +542,10 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pow
 {
     mpz_t tmp;
     mpz_init(tmp);
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
     // slots[i] = m[i] + r*g[i]
     mpz_t *slots = malloc(s->n * sizeof(mpz_t));
-#ifdef PARALLEL_ENCODE
+#if PARALLEL_ENCODE
 #pragma omp parallel for
 #endif
     for (ulong i = 0; i < s->n; i++) {
@@ -558,7 +583,7 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pow
     mpz_clear(tmp);
 }
 
-int clt_is_zero(clt_pp *pp, const mpz_t c)
+int clt_is_zero(const clt_pp *pp, const mpz_t c)
 {
     int ret;
 
@@ -580,7 +605,7 @@ int clt_is_zero(clt_pp *pp, const mpz_t c)
 ////////////////////////////////////////////////////////////////////////////////
 // crt_tree
 
-#ifndef DISABLE_CRT_TREE
+#if CRT_TREE
 
 static int crt_tree_init (crt_tree *crt, mpz_t *ps, size_t nps)
 {
@@ -866,10 +891,11 @@ static int fwrite_mpz_vector (FILE *const fp, mpz_t *m, ulong len)
     return 0;
 }
 
+#if VERBOSE
 static double current_time(void)
 {
     struct timeval t;
     gettimeofday(&t, NULL);
     return t.tv_sec + (double) (t.tv_usec / 1000000.0);
 }
-
+#endif

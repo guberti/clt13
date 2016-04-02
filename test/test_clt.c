@@ -6,8 +6,6 @@
 #include <sys/stat.h>
 #include <time.h>
 
-int g_verbose = 1;
-
 int expect(char * desc, int expected, int recieved);
 
 int main(void)

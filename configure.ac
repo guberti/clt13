@@ -30,15 +30,33 @@ AC_CONFIG_FILES([Makefile src/Makefile test/Makefile src/clt13.h])
 AC_ARG_ENABLE(crt-tree, 
 AS_HELP_STRING([--disable-crt-tree], [disable the CRT tree optimization]),
 [if test "$enableval" = no; then
-    AC_SUBST(DISABLE_CRT_TREE, ["#define DISABLE_CRT_TREE 1"])
- fi]
+    AC_SUBST(CRT_TREE, 0)
+ fi],
+ AC_SUBST(CRT_TREE, 1)
  )
 
 AC_ARG_ENABLE(parallel-encode,
 AS_HELP_STRING([--enable-parallel-encode], [parallelize the encode function]),
 [if test "$enableval" = yes; then
-    AC_SUBST(PARALLEL_ENCODE, ["#define PARALLEL_ENCODE 1"])
- fi]
+    AC_SUBST(PARALLEL_ENCODE, 1)
+ fi],
+ AC_SUBST(PARALLEL_ENCODE, 0)
+ )
+
+AC_ARG_ENABLE(verbosity,
+AS_HELP_STRING([--disable-verbosity], [disable status print statements]),
+[if test "$enableval" = no; then
+    AC_SUBST(VERBOSE, 0)
+ fi],
+ AC_SUBST(VERBOSE, 1)
+ )
+
+AC_ARG_ENABLE(internal-rng,
+AS_HELP_STRING([--disable-internal-rng], [disable internal rng state]),
+[if test "$enableval" = no; then
+    AC_SUBST(INTERNAL_RNG, 0)
+ fi],
+ AC_SUBST(INTERNAL_RNG, 1)
  )
 
 
