@@ -429,7 +429,7 @@ void fwrite_clt_state (FILE *const fp, const clt_state *s)
 ////////////////////////////////////////////////////////////////////////////////
 // public parameters
 
-void clt_pp_init(clt_pp *pp, clt_state *mmap)
+void clt_pp_init(clt_pp *pp, const clt_state *mmap)
 {
     mpz_inits(pp->x0, pp->pzt, NULL);
     mpz_set(pp->x0, mmap->x0);
