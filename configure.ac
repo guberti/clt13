@@ -51,13 +51,4 @@ AS_HELP_STRING([--disable-verbosity], [disable status print statements]),
  AC_SUBST(VERBOSE, 1)
  )
 
-AC_ARG_ENABLE(internal-rng,
-AS_HELP_STRING([--disable-internal-rng], [disable internal rng state]),
-[if test "$enableval" = no; then
-    AC_SUBST(INTERNAL_RNG, 0)
- fi],
- AC_SUBST(INTERNAL_RNG, 1)
- )
-
-
 AC_OUTPUT

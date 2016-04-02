@@ -9,7 +9,6 @@ extern "C" {
 #define CRT_TREE @CRT_TREE@
 #define PARALLEL_ENCODE @PARALLEL_ENCODE@
 #define VERBOSE @VERBOSE@
-#define INTERNAL_RNG @INTERNAL_RNG@
 
 #include <aesrand.h>
 #include <gmp.h>
@@ -62,10 +61,10 @@ typedef struct {
     ulong nu;
 } clt_pp;
 
-void clt_pp_init   (clt_pp *pp, const clt_state *mmap);
-void clt_pp_clear  (clt_pp *pp);
-void clt_pp_read   (clt_pp *pp, const char *dir);
-void clt_pp_save   (const clt_pp *pp, const char *dir);
+void clt_pp_init  (clt_pp *pp, const clt_state *mmap);
+void clt_pp_clear (clt_pp *pp);
+void clt_pp_read  (clt_pp *pp, const char *dir);
+void clt_pp_save  (const clt_pp *pp, const char *dir);
 
 void fread_clt_pp  (FILE *const fp, clt_pp *pp);
 void fwrite_clt_pp (FILE *const fp, const clt_pp *pp);
