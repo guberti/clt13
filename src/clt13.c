@@ -10,10 +10,6 @@
 #include <unistd.h>
 #include <omp.h>
 
-#ifndef RANDFILE
-#  define RANDFILE "/dev/urandom"
-#endif
-
 #define GET_NEWLINE(fp) if(fscanf(fp, "\n") < 0) { \
     puts("ERROR: fscanf() error encountered when trying to read from file\n"); }
 
@@ -28,8 +24,6 @@ static void crt_tree_load   (const char *fname, crt_tree *crt, size_t n);
 static void fread_crt_tree  (FILE *const fp, crt_tree *crt, size_t n);
 static void fwrite_crt_tree (FILE *const fp, crt_tree *crt, size_t n);
 #endif
-
-static int seed_rng (aes_randstate_t rng);
 
 #if VERBOSE
 static double current_time(void);
@@ -53,7 +47,9 @@ static int fwrite_mpz_vector (FILE *const fp, mpz_t *m, ulong len);
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
-void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const int *pows)
+void
+clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
+                const int *pows, aes_randstate_t rng)
 {
     ulong alpha, beta, eta, rho_f;
     mpz_t *ps, *zs;
@@ -99,8 +95,6 @@ void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const i
     }
 #endif
 
-    seed_rng(s->rng);
-
     // initialize gmp variables
     mpz_init_set_ui(s->x0,  1);
     mpz_init_set_ui(s->pzt, 0);
@@ -129,9 +123,9 @@ GEN_PIS:;
     for (ulong i = 0; i < s->n; i++) {
         mpz_t p_unif;
         mpz_init(p_unif);
-        mpz_urandomb_aes(p_unif, s->rng, eta);
+        mpz_urandomb_aes(p_unif, rng, eta);
         mpz_nextprime(ps[i], p_unif);
-        mpz_urandomb_aes(p_unif, s->rng, alpha);
+        mpz_urandomb_aes(p_unif, rng, alpha);
         mpz_nextprime(s->gs[i], p_unif);
         mpz_clear(p_unif);
     }
@@ -189,7 +183,7 @@ GEN_PIS:;
 #pragma omp parallel for
     for (ulong i = 0; i < s->nzs; ++i) {
         do {
-            mpz_urandomm_aes(zs[i], s->rng, s->x0);
+            mpz_urandomm_aes(zs[i], rng, s->x0);
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
     }
 #if VERBOSE
@@ -221,7 +215,7 @@ GEN_PIS:;
             mpz_invert(tmp, s->gs[i], ps[i]);
             mpz_mul(tmp, tmp, zk);
             mpz_mod(tmp, tmp, ps[i]);
-            mpz_urandomb_aes(rnd, s->rng, beta);
+            mpz_urandomb_aes(rnd, rng, beta);
             mpz_mul(tmp, tmp, rnd);
             mpz_div(qpi, s->x0, ps[i]);
             mpz_mul(tmp, tmp, qpi);
@@ -250,7 +244,6 @@ GEN_PIS:;
 
 void clt_state_clear(clt_state *s)
 {
-    aes_randclear(s->rng);
     mpz_clears(s->x0, s->pzt, NULL);
     for (ulong i = 0; i < s->n; i++) {
         mpz_clear(s->gs[i]);
@@ -276,8 +269,6 @@ void clt_state_read(clt_state *s, const char *dir)
     char *fname;
     int len = strlen(dir) + 10;
     fname = malloc(sizeof(char) + len);
-
-    seed_rng(s->rng);
 
     snprintf(fname, len, "%s/n", dir);
     load_ulong(fname, &s->n);
@@ -369,8 +360,6 @@ void clt_state_save(const clt_state *s, const char *dir)
 
 void fread_clt_state (FILE *const fp, clt_state *s)
 {
-    seed_rng(s->rng);
-
     fread_ulong(fp, &s->n);
     printf("n = %lu\n", s->n);
     GET_NEWLINE(fp);
@@ -538,7 +527,9 @@ void fwrite_clt_pp (FILE *const fp, const clt_pp *pp)
 ////////////////////////////////////////////////////////////////////////////////
 // encodings
 
-void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pows)
+void
+clt_encode (mpz_t rop, clt_state *s, size_t nins, mpz_t *ins,
+            const int *pows, aes_randstate_t rng)
 {
     mpz_t tmp;
     mpz_init(tmp);
@@ -550,7 +541,7 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pow
 #endif
     for (ulong i = 0; i < s->n; i++) {
         mpz_init(slots[i]);
-        mpz_urandomb_aes(slots[i], s->rng, s->rho);
+        mpz_urandomb_aes(slots[i], rng, s->rho);
         mpz_mul(slots[i], slots[i], s->gs[i]);
         if (i < nins)
             mpz_add(slots[i], slots[i], ins[i]);
@@ -564,7 +555,7 @@ void clt_encode(mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pow
 #else
     mpz_set_ui(rop, 0);
     for (unsigned long i = 0; i < s->n; ++i) {
-        mpz_urandomb(tmp, s->rng, s->rho);
+        mpz_urandomb(tmp, rng, s->rho);
         mpz_mul(tmp, tmp, s->gs[i]);
         if (i < nins)
             mpz_add(tmp, tmp, ins[i]);
@@ -749,27 +740,6 @@ static void fwrite_crt_tree (FILE *const fp, crt_tree *crt, size_t n)
 
 ////////////////////////////////////////////////////////////////////////////////
 // helper functions
-
-static int seed_rng (aes_randstate_t rng)
-{
-    int file;
-    if ((file = open(RANDFILE, O_RDONLY)) == -1) {
-        fprintf(stderr, "Error opening %s\n", RANDFILE);
-        return 1;
-    } else {
-        char seed[8];
-        if (read(file, seed, 8) == -1) {
-            fprintf(stderr, "Error reading from %s\n", RANDFILE);
-            close(file);
-            return 1;
-        } else {
-            aes_randinit_seed(rng, seed, NULL);
-        }
-    }
-    if (file != -1)
-        close(file);
-    return 0;
-}
 
 static int load_ulong(const char *fname, ulong *x)
 {

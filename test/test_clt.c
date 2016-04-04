@@ -10,11 +10,6 @@ int expect(char * desc, int expected, int recieved);
 
 int main(void)
 {
-#ifdef DISABLE_CRT_TREE
-    puts("CRT TREE DISABLED");
-#else
-    puts("CRT TREE ENABLED");
-#endif
     srand(time(NULL));
 
     ulong nzs     = 10;
@@ -23,6 +18,9 @@ int main(void)
 
     clt_state mmap, mmap_;
     clt_pp pp_, pp;
+
+    aes_randstate_t rng;
+    aes_randinit(rng);
 
     int pows [nzs];
     for (ulong i = 0; i < nzs; i++) pows[i] = 1;
@@ -47,7 +45,7 @@ int main(void)
     FILE *pp_f   = fopen("test.pp", "w+");
 
     // test initialization & serialization
-    clt_state_init(&mmap_, kappa, lambda, nzs, pows);
+    clt_state_init(&mmap_, kappa, lambda, nzs, pows, rng);
 
     /*clt_state_save(&mmap_, mmap_dir);*/
     /*clt_state_clear(&mmap_);*/
@@ -89,38 +87,38 @@ int main(void)
 
     mpz_t x0, x1, xp;
     mpz_inits(x0, x1, xp, NULL);
-    clt_encode(x0, &mmap, 1, zero, top_level);
-    clt_encode(x1, &mmap, 1, zero, top_level);
+    clt_encode(x0, &mmap, 1, zero, top_level, rng);
+    clt_encode(x1, &mmap, 1, zero, top_level, rng);
     mpz_add(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     int ok = expect("is_zero(0 + 0)", 1, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, zero, top_level);
-    clt_encode(x1, &mmap, 1, one,  top_level);
+    clt_encode(x0, &mmap, 1, zero, top_level, rng);
+    clt_encode(x1, &mmap, 1, one,  top_level, rng);
     mpz_add(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(0 + 1)", 0, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, zero, top_level);
-    clt_encode(x1, &mmap, 1, x,    top_level);
+    clt_encode(x0, &mmap, 1, zero, top_level, rng);
+    clt_encode(x1, &mmap, 1, x,    top_level, rng);
     mpz_add(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(0 + x)", 0, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, x, top_level);
-    clt_encode(x1, &mmap, 1, x, top_level);
+    clt_encode(x0, &mmap, 1, x, top_level, rng);
+    clt_encode(x1, &mmap, 1, x, top_level, rng);
     mpz_sub(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(x - x)", 1, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, zero, top_level);
-    clt_encode(x1, &mmap, 1, x,    top_level);
+    clt_encode(x0, &mmap, 1, zero, top_level, rng);
+    clt_encode(x1, &mmap, 1, x,    top_level, rng);
     mpz_sub(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(0 - x)", 0, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, one,  top_level);
-    clt_encode(x1, &mmap, 1, zero, top_level);
+    clt_encode(x0, &mmap, 1, one,  top_level, rng);
+    clt_encode(x1, &mmap, 1, zero, top_level, rng);
     mpz_sub(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(1 - 0)", 0, clt_is_zero(&pp, xp));
@@ -136,20 +134,20 @@ int main(void)
             ix1[i] = 1;
         }
     }
-    clt_encode(x0, &mmap, 1, x   , ix0);
-    clt_encode(x1, &mmap, 1, zero, ix1);
+    clt_encode(x0, &mmap, 1, x   , ix0, rng);
+    clt_encode(x1, &mmap, 1, zero, ix1, rng);
     mpz_mul(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(x * 0)", 1, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, x  , ix0);
-    clt_encode(x1, &mmap, 1, one, ix1);
+    clt_encode(x0, &mmap, 1, x  , ix0, rng);
+    clt_encode(x1, &mmap, 1, one, ix1, rng);
     mpz_mul(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(x * 1)", 0, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, x, ix0);
-    clt_encode(x1, &mmap, 1, x, ix1);
+    clt_encode(x0, &mmap, 1, x, ix0, rng);
+    clt_encode(x1, &mmap, 1, x, ix1, rng);
     mpz_mul(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(x * x)", 0, clt_is_zero(&pp, xp));
@@ -163,19 +161,19 @@ int main(void)
 
     mpz_inits(c, in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
 
-    mpz_urandomb_aes(in1[0], mmap.rng, lambda);
+    mpz_urandomb_aes(in1[0], rng, lambda);
     mpz_mod(in1[0], in1[0], mmap.gs[0]);
 
     mpz_set_ui(in0[0], 0);
     mpz_set_ui(cin[0], 0);
 
-    mpz_urandomb_aes(in0[1], mmap.rng, 16);
-    mpz_urandomb_aes(in1[1], mmap.rng, 16);
+    mpz_urandomb_aes(in0[1], rng, 16);
+    mpz_urandomb_aes(in1[1], rng, 16);
     mpz_mul(cin[1], in0[1], in1[1]);
 
-    clt_encode(x0, &mmap, 2, in0, ix0);
-    clt_encode(x1, &mmap, 2, in1, ix1);
-    clt_encode(c,  &mmap, 2, cin, top_level);
+    clt_encode(x0, &mmap, 2, in0, ix0, rng);
+    clt_encode(x1, &mmap, 2, in1, ix1, rng);
+    clt_encode(c,  &mmap, 2, cin, top_level, rng);
 
     mpz_mul(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
@@ -189,19 +187,19 @@ int main(void)
     mpz_set_ui(in1[0], 1);
     mpz_set_ui(cin[0], 0);
 
-    mpz_urandomb_aes(in0[0], mmap.rng, lambda);
+    mpz_urandomb_aes(in0[0], rng, lambda);
     mpz_mod(in0[0], in0[0], mmap.gs[0]);
 
-    mpz_urandomb_aes(in1[0], mmap.rng, lambda);
+    mpz_urandomb_aes(in1[0], rng, lambda);
     mpz_mod(in1[0], in1[0], mmap.gs[0]);
 
-    mpz_urandomb_aes(in0[1], mmap.rng, 16);
-    mpz_urandomb_aes(in1[1], mmap.rng, 16);
+    mpz_urandomb_aes(in0[1], rng, 16);
+    mpz_urandomb_aes(in1[1], rng, 16);
     mpz_mul(cin[1], in0[1], in1[1]);
 
-    clt_encode(x0, &mmap, 2, in0, ix0);
-    clt_encode(x1, &mmap, 2, in1, ix1);
-    clt_encode(c,  &mmap, 2, cin, top_level);
+    clt_encode(x0, &mmap, 2, in0, ix0, rng);
+    clt_encode(x1, &mmap, 2, in1, ix1, rng);
+    clt_encode(c,  &mmap, 2, cin, top_level, rng);
 
     mpz_mul(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);

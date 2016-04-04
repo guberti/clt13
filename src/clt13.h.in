@@ -29,7 +29,6 @@ typedef struct crt_tree {
 // state
 
 typedef struct {
-    aes_randstate_t rng;
     ulong n;
     ulong nzs;
     ulong rho;
@@ -45,7 +44,9 @@ typedef struct {
 #endif
 } clt_state;
 
-void clt_state_init  (clt_state *s, ulong kappa, ulong lambda, ulong nzs, const int *pows);
+void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, 
+                     const int *pows, aes_randstate_t rng);
+
 void clt_state_clear (clt_state *s);
 void clt_state_read  (clt_state *s, const char *dir);
 void clt_state_save  (const clt_state *s, const char *dir);
@@ -71,8 +72,10 @@ void fwrite_clt_pp (FILE *const fp, const clt_pp *pp);
 
 // encodings
 
-void clt_encode  (mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, const int *pows);
-int  clt_is_zero (const clt_pp *pp, const mpz_t c);
+void clt_encode (mpz_t rop, clt_state *s, size_t nins, mpz_t *ins, 
+                 const int *pows, aes_randstate_t rng);
+
+int clt_is_zero (const clt_pp *pp, const mpz_t c);
 
 #ifdef __cplusplus
 }
