@@ -528,7 +528,7 @@ void fwrite_clt_pp (FILE *const fp, const clt_pp *pp)
 // encodings
 
 void
-clt_encode (mpz_t rop, clt_state *s, size_t nins, mpz_t *ins,
+clt_encode (mpz_t rop, const clt_state *s, size_t nins, mpz_t *ins,
             const int *pows, aes_randstate_t rng)
 {
     mpz_t tmp;
