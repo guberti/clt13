@@ -51,20 +51,20 @@ int main(void)
     /*clt_state_clear(&mmap_);*/
     /*clt_state_read(&mmap, mmap_dir);*/
 
-    fwrite_clt_state(mmap_f, &mmap_);
+    clt_state_fsave(mmap_f, &mmap_);
     rewind(mmap_f);
     clt_state_clear(&mmap_);
-    fread_clt_state(mmap_f, &mmap);
+    clt_state_fread(mmap_f, &mmap);
 
     clt_pp_init(&pp_, &mmap);
     /*clt_pp_save(&pp_, pp_dir);*/
     /*clt_pp_clear(&pp_);*/
     /*clt_pp_read(&pp, pp_dir);*/
 
-    fwrite_clt_pp(pp_f, &pp_);
+    clt_pp_fsave(pp_f, &pp_);
     rewind(pp_f);
     clt_pp_clear(&pp_);
-    fread_clt_pp(pp_f, &pp);
+    clt_pp_fread(pp_f, &pp);
 
     mpz_t x [1];
     mpz_init_set_ui(x[0], 0);
