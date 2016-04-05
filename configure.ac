@@ -25,22 +25,6 @@ CFLAGS="$CFLAGS -Wall -Wformat -Wformat-security -Wextra -Wunused \
 
 AC_FUNC_MALLOC
 
-AC_CONFIG_FILES([Makefile src/Makefile test/Makefile src/clt13.h])
-
-AC_ARG_ENABLE(crt-tree, 
-AS_HELP_STRING([--disable-crt-tree], [disable the CRT tree optimization]),
-[if test "$enableval" = no; then
-    AC_SUBST(CRT_TREE, 0)
- fi],
- AC_SUBST(CRT_TREE, 1)
- )
-
-AC_ARG_ENABLE(parallel-encode,
-AS_HELP_STRING([--enable-parallel-encode], [parallelize the encode function]),
-[if test "$enableval" = yes; then
-    AC_SUBST(PARALLEL_ENCODE, 1)
- fi],
- AC_SUBST(PARALLEL_ENCODE, 0)
- )
+AC_CONFIG_FILES([Makefile src/Makefile test/Makefile])
 
 AC_OUTPUT

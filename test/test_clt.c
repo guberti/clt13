@@ -8,7 +8,7 @@
 
 int expect(char * desc, int expected, int recieved);
 
-int main(void)
+static int test(ulong flags)
 {
     srand(time(NULL));
 
@@ -45,7 +45,7 @@ int main(void)
     FILE *pp_f   = fopen("test.pp", "w+");
 
     // test initialization & serialization
-    clt_state_init(&mmap_, kappa, lambda, nzs, pows, CLT_FLAG_VERBOSE, rng);
+    clt_state_init(&mmap_, kappa, lambda, nzs, pows, flags, rng);
 
     /*clt_state_save(&mmap_, mmap_dir);*/
     /*clt_state_clear(&mmap_);*/
@@ -212,6 +212,23 @@ int main(void)
     clt_pp_clear(&pp);
     mpz_clears(c, x0, x1, xp, x[0], zero[0], one[0], in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
     return !ok;
+}
+
+int main(void)
+{
+    ulong flags = CLT_FLAG_DEFAULT;
+    printf("* No optimizations\n");
+    if (test(flags) == 1)
+        return 1;
+    flags |= CLT_FLAG_OPT_CRT_TREE;
+    printf("* CRT tree\n");
+    if (test(flags) == 1)
+        return 1;
+    printf("* CRT tree + parallel encode\n");
+    flags |= CLT_FLAG_OPT_PARALLEL_ENCODE;
+    if (test(flags) == 1)
+        return 1;
+    return 0;
 }
 
 int expect(char * desc, int expected, int recieved)

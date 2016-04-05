@@ -6,6 +6,7 @@ AM_LDFLAGS = \
 
 check_PROGRAMS = test_clt
 
-test_clt_SOURCES = test_clt.c
+TESTS = $(check_PROGRAMS)
 
+test_clt_SOURCES = test_clt.c
 test_clt_LDADD   = -lm

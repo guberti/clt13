@@ -10,12 +10,20 @@
 #include <unistd.h>
 #include <omp.h>
 
+typedef struct crt_tree {
+    ulong n, n2;
+    mpz_t mod;
+    mpz_t crt_left;
+    mpz_t crt_right;
+    struct crt_tree *left;
+    struct crt_tree *right;
+} crt_tree;
+
 #define GET_NEWLINE(fp) if(fscanf(fp, "\n") < 0) { \
     puts("ERROR: fscanf() error encountered when trying to read from file\n"); }
 
 #define PUT_NEWLINE(fp) fprintf(fp, "\n");
 
-#if CRT_TREE
 static int  crt_tree_init   (crt_tree *crt, mpz_t *ps, size_t nps);
 static void crt_tree_clear  (crt_tree *crt);
 static void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, mpz_t *cs);
@@ -23,7 +31,6 @@ static void crt_tree_read   (const char *fname, crt_tree *crt, size_t n);
 static void crt_tree_save   (const char *fname, crt_tree *crt, size_t n);
 static void crt_tree_fread  (FILE *const fp, crt_tree *crt, size_t n);
 static void crt_tree_fsave  (FILE *const fp, crt_tree *crt, size_t n);
-#endif
 
 static double current_time(void);
 
@@ -82,14 +89,14 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     zs       = malloc(sizeof(mpz_t) * s->nzs);
     s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
 
-#if CRT_TREE
-    s->crt = malloc(sizeof(crt_tree));
-#else
-    s->crt_coeffs = malloc(s->n * sizeof(mpz_t));
-    for (ulong i = 0; i < s->n; i++) {
-        mpz_init(s->crt_coeffs[i]);
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        s->crt = malloc(sizeof(crt_tree));
+    } else {
+        s->crt_coeffs = malloc(s->n * sizeof(mpz_t));
+        for (ulong i = 0; i < s->n; i++) {
+            mpz_init(s->crt_coeffs[i]);
+        }
     }
-#endif
 
     // initialize gmp variables
     mpz_init_set_ui(s->x0,  1);
@@ -107,69 +114,70 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         fprintf(stderr, "  Generating p_i's and g_i's");
         start_time = current_time();
     }
-#if CRT_TREE
-GEN_PIS:;
-#endif
+
+GEN_PIS:
+    if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
 #pragma omp parallel for
-#if OPTIMIZATION_COMPOSITE_PS
-    for (ulong i = 0; i < s->n; i++) {
-        // TODO: add chunking optimization
-    }
-#else
-    for (ulong i = 0; i < s->n; i++) {
-        mpz_t p_unif;
-        mpz_init(p_unif);
-        mpz_urandomb_aes(p_unif, rng, eta);
-        mpz_nextprime(ps[i], p_unif);
-        mpz_urandomb_aes(p_unif, rng, alpha);
-        mpz_nextprime(s->gs[i], p_unif);
-        mpz_clear(p_unif);
-    }
-#endif
-#if CRT_TREE
-    // use crt_tree to find x0
-    int ok = crt_tree_init(s->crt, ps, s->n);
-    if (!ok) {
-        // if crt_tree_init fails, regenerate with new p_i's
-        crt_tree_clear(s->crt);
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, " (restarting)");
+        for (ulong i = 0; i < s->n; i++) {
+            // TODO: add chunking optimization
         }
-        goto GEN_PIS;
-    }
-    // crt_tree_init succeeded, set x0
-    mpz_set(s->x0, s->crt->mod);
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, ": %f\n", current_time() - start_time);
-    }
-#else
-    // find x0 the hard way
-    for (ulong i = 0; i < s->n; i++) {
-        mpz_mul(s->x0, s->x0, ps[i]);
-    }
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, ": %f\n", current_time() - start_time);
+    } else {
+#pragma omp parallel for
+        for (ulong i = 0; i < s->n; i++) {
+            mpz_t p_unif;
+            mpz_init(p_unif);
+            mpz_urandomb_aes(p_unif, rng, eta);
+            mpz_nextprime(ps[i], p_unif);
+            mpz_urandomb_aes(p_unif, rng, alpha);
+            mpz_nextprime(s->gs[i], p_unif);
+            mpz_clear(p_unif);
+        }
     }
 
-    // Compute CRT coefficients
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating CRT coefficients: ");
-        start_time = current_time();
-    }
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        // use crt_tree to find x0
+        int ok = crt_tree_init(s->crt, ps, s->n);
+        if (!ok) {
+            // if crt_tree_init fails, regenerate with new p_i's
+            crt_tree_clear(s->crt);
+            if (s->flags & CLT_FLAG_VERBOSE) {
+                fprintf(stderr, " (restarting)");
+            }
+            goto GEN_PIS;
+        }
+        // crt_tree_init succeeded, set x0
+        mpz_set(s->x0, s->crt->mod);
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, ": %f\n", current_time() - start_time);
+        }
+    } else {
+        // find x0 the hard way
+        for (ulong i = 0; i < s->n; i++) {
+            mpz_mul(s->x0, s->x0, ps[i]);
+        }
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, ": %f\n", current_time() - start_time);
+        }
+
+        // Compute CRT coefficients
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, "  Generating CRT coefficients: ");
+            start_time = current_time();
+        }
 #pragma omp parallel for
-    for (unsigned long i = 0; i < s->n; i++) {
-        mpz_t q;
-        mpz_init(q);
-        mpz_tdiv_q(q, s->x0, ps[i]);
-        mpz_invert(s->crt_coeffs[i], q, ps[i]);
-        mpz_mul(s->crt_coeffs[i], s->crt_coeffs[i], q);
-        mpz_mod(s->crt_coeffs[i], s->crt_coeffs[i], s->x0);
-        mpz_clear(q);
+        for (unsigned long i = 0; i < s->n; i++) {
+            mpz_t q;
+            mpz_init(q);
+            mpz_tdiv_q(q, s->x0, ps[i]);
+            mpz_invert(s->crt_coeffs[i], q, ps[i]);
+            mpz_mul(s->crt_coeffs[i], s->crt_coeffs[i], q);
+            mpz_mod(s->crt_coeffs[i], s->crt_coeffs[i], s->x0);
+            mpz_clear(q);
+        }
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, ": %f\n", current_time() - start_time);
+        }
     }
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, ": %f\n", current_time() - start_time);
-    }
-#endif
 
     // Compute z_i's
     if (s->flags & CLT_FLAG_VERBOSE) {
@@ -249,15 +257,15 @@ void clt_state_clear(clt_state *s)
         mpz_clear(s->zinvs[i]);
     }
     free(s->zinvs);
-#if CRT_TREE
-    crt_tree_clear(s->crt);
-    free(s->crt);
-#else
-    for (ulong i = 0; i < s->n; i++) {
-        mpz_clear(s->crt_coeffs[i]);
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        crt_tree_clear(s->crt);
+        free(s->crt);
+    } else {
+        for (ulong i = 0; i < s->n; i++) {
+            mpz_clear(s->crt_coeffs[i]);
+        }
+        free(s->crt_coeffs);
     }
-    free(s->crt_coeffs);
-#endif
 }
 
 void clt_state_read(clt_state *s, const char *dir)
@@ -302,17 +310,17 @@ void clt_state_read(clt_state *s, const char *dir)
     snprintf(fname, len, "%s/zinvs", dir);
     mpz_vector_read(fname, s->zinvs, s->nzs);
 
-#if CRT_TREE
-    s->crt = malloc(sizeof(crt_tree));
-    snprintf(fname, len, "%s/crt_tree", dir);
-    crt_tree_read(fname, s->crt, s->n);
-#else
-    s->crt_coeffs = malloc(sizeof(mpz_t) * s->n);
-    for (ulong i = 0; i < s->n; i++)
-        mpz_init(s->crt_coeffs[i]);
-    snprintf(fname, len, "%s/crt_coeffs", dir);
-    mpz_vector_read(fname, s->crt_coeffs, s->n);
-#endif
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        s->crt = malloc(sizeof(crt_tree));
+        snprintf(fname, len, "%s/crt_tree", dir);
+        crt_tree_read(fname, s->crt, s->n);
+    } else {
+        s->crt_coeffs = malloc(sizeof(mpz_t) * s->n);
+        for (ulong i = 0; i < s->n; i++)
+            mpz_init(s->crt_coeffs[i]);
+        snprintf(fname, len, "%s/crt_coeffs", dir);
+        mpz_vector_read(fname, s->crt_coeffs, s->n);
+    }
     free(fname);
 }
 
@@ -350,13 +358,13 @@ void clt_state_save(const clt_state *s, const char *dir)
     snprintf(fname, len, "%s/zinvs", dir);
     mpz_vector_save(fname, s->zinvs, s->nzs);
 
-#if CRT_TREE
-    snprintf(fname, len, "%s/crt_tree", dir);
-    crt_tree_save(fname, s->crt, s->n);
-#else
-    snprintf(fname, len, "%s/crt_coeffs", dir);
-    mpz_vector_save(fname, s->crt_coeffs, s->n);
-#endif
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        snprintf(fname, len, "%s/crt_tree", dir);
+        crt_tree_save(fname, s->crt, s->n);
+    } else {
+        snprintf(fname, len, "%s/crt_coeffs", dir);
+        mpz_vector_save(fname, s->crt_coeffs, s->n);
+    }
     free(fname);
 }
 
@@ -398,15 +406,15 @@ clt_state_fread(FILE *const fp, clt_state *s)
     mpz_vector_fread(fp, s->zinvs, s->nzs);
     GET_NEWLINE(fp);
 
-#if CRT_TREE
-    s->crt = malloc(sizeof(crt_tree));
-    crt_tree_fread(fp, s->crt, s->n);
-#else
-    s->crt_coeffs = malloc(sizeof(mpz_t) * s->n);
-    for (ulong i = 0; i < s->n; i++)
-        mpz_init(s->crt_coeffs[i]);
-    mpz_vector_fread(fp, s->crt_coeffs, s->n);
-#endif
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        s->crt = malloc(sizeof(crt_tree));
+        crt_tree_fread(fp, s->crt, s->n);
+    } else {
+        s->crt_coeffs = malloc(sizeof(mpz_t) * s->n);
+        for (ulong i = 0; i < s->n; i++)
+            mpz_init(s->crt_coeffs[i]);
+        mpz_vector_fread(fp, s->crt_coeffs, s->n);
+    }
 }
 
 void
@@ -439,11 +447,11 @@ clt_state_fsave(FILE *const fp, const clt_state *s)
     mpz_vector_fsave(fp, s->zinvs, s->nzs);
     PUT_NEWLINE(fp);
 
-#if CRT_TREE
-    crt_tree_fsave(fp, s->crt, s->n);
-#else
-    mpz_vector_fsave(fp, s->crt_coeffs, s->n);
-#endif
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        crt_tree_fsave(fp, s->crt, s->n);
+    } else {
+        mpz_vector_fsave(fp, s->crt_coeffs, s->n);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -545,36 +553,45 @@ clt_encode(mpz_t rop, const clt_state *s, size_t nins, mpz_t *ins,
 {
     mpz_t tmp;
     mpz_init(tmp);
-#if CRT_TREE
-    // slots[i] = m[i] + r*g[i]
-    mpz_t *slots = malloc(s->n * sizeof(mpz_t));
-#if PARALLEL_ENCODE
+
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        // slots[i] = m[i] + r*g[i]
+        mpz_t *slots = malloc(s->n * sizeof(mpz_t));
+        if (s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE) {
 #pragma omp parallel for
-#endif
-    for (ulong i = 0; i < s->n; i++) {
-        mpz_init(slots[i]);
-        mpz_urandomb_aes(slots[i], rng, s->rho);
-        mpz_mul(slots[i], slots[i], s->gs[i]);
-        if (i < nins)
-            mpz_add(slots[i], slots[i], ins[i]);
-    }
+            for (ulong i = 0; i < s->n; i++) {
+                mpz_init(slots[i]);
+                mpz_urandomb_aes(slots[i], rng, s->rho);
+                mpz_mul(slots[i], slots[i], s->gs[i]);
+                if (i < nins)
+                    mpz_add(slots[i], slots[i], ins[i]);
+            }
+        } else {
+            for (ulong i = 0; i < s->n; i++) {
+                mpz_init(slots[i]);
+                mpz_urandomb_aes(slots[i], rng, s->rho);
+                mpz_mul(slots[i], slots[i], s->gs[i]);
+                if (i < nins)
+                    mpz_add(slots[i], slots[i], ins[i]);
+            }
+        }
 
-    crt_tree_do_crt(rop, s->crt, slots);
+        crt_tree_do_crt(rop, s->crt, slots);
 
-    for (ulong i = 0; i < s->n; i++)
-        mpz_clear(slots[i]);
-    free(slots);
-#else
-    mpz_set_ui(rop, 0);
-    for (unsigned long i = 0; i < s->n; ++i) {
-        mpz_urandomb(tmp, rng, s->rho);
-        mpz_mul(tmp, tmp, s->gs[i]);
-        if (i < nins)
-            mpz_add(tmp, tmp, ins[i]);
-        mpz_mul(tmp, tmp, s->crt_coeffs[i]);
-        mpz_add(rop, rop, tmp);
+        for (ulong i = 0; i < s->n; i++)
+            mpz_clear(slots[i]);
+        free(slots);
+    } else {
+        mpz_set_ui(rop, 0);
+        for (unsigned long i = 0; i < s->n; ++i) {
+            mpz_urandomb_aes(tmp, rng, s->rho);
+            mpz_mul(tmp, tmp, s->gs[i]);
+            if (i < nins)
+                mpz_add(tmp, tmp, ins[i]);
+            mpz_mul(tmp, tmp, s->crt_coeffs[i]);
+            mpz_add(rop, rop, tmp);
+        }
     }
-#endif
     // multiply by appropriate zinvs
     for (unsigned long i = 0; i < s->nzs; ++i) {
         if (pows[i] <= 0)
@@ -608,8 +625,6 @@ clt_is_zero(const clt_pp *pp, const mpz_t c)
 
 ////////////////////////////////////////////////////////////////////////////////
 // crt_tree
-
-#if CRT_TREE
 
 static int
 crt_tree_init(crt_tree *crt, mpz_t *ps, size_t nps)
@@ -756,8 +771,6 @@ crt_tree_fsave(FILE *const fp, crt_tree *crt, size_t n)
         mpz_clear(ps[i]);
     free(ps);
 }
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // helper functions

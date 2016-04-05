@@ -5,25 +5,11 @@
 extern "C" {
 #endif
 
-#define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
-#define CRT_TREE @CRT_TREE@
-#define PARALLEL_ENCODE @PARALLEL_ENCODE@
-
 #include <aesrand.h>
 #include <gmp.h>
 
 typedef unsigned long ulong;
-
-#if CRT_TREE
-typedef struct crt_tree {
-    ulong n, n2;
-    mpz_t mod;
-    mpz_t crt_left;
-    mpz_t crt_right;
-    struct crt_tree *left;
-    struct crt_tree *right;
-} crt_tree;
-#endif
+typedef struct crt_tree crt_tree;
 
 // state
 
@@ -36,20 +22,21 @@ typedef struct {
     mpz_t pzt;
     mpz_t *gs;
     mpz_t *zinvs;
-#if CRT_TREE
-    crt_tree *crt;
-#else
-    mpz_t *crt_coeffs;
-#endif
+    union {
+        crt_tree *crt;
+        mpz_t *crt_coeffs;
+    };
     ulong flags;
 } clt_state;
 
 #define CLT_FLAG_DEFAULT 0x00
 #define CLT_FLAG_VERBOSE 0x01
+#define CLT_FLAG_OPT_CRT_TREE 0x02
+#define CLT_FLAG_OPT_PARALLEL_ENCODE 0x04
+#define CLT_FLAG_OPT_COMPOSITE_PS 0x08 // XXX: unimplemented
 
 void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, 
                      const int *pows, ulong flags, aes_randstate_t rng);
-
 void clt_state_clear (clt_state *s);
 void clt_state_read  (clt_state *s, const char *dir);
 void clt_state_save  (const clt_state *s, const char *dir);
