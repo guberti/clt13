@@ -264,8 +264,11 @@ void clt_state_clear(clt_state *s)
 void clt_state_read(clt_state *s, const char *dir)
 {
     char *fname;
-    int len = strlen(dir) + 10;
+    int len = strlen(dir) + 13;
     fname = malloc(sizeof(char) + len);
+
+    snprintf(fname, len, "%s/flags", dir);
+    load_ulong(fname, &s->flags);
 
     snprintf(fname, len, "%s/n", dir);
     load_ulong(fname, &s->n);
@@ -318,8 +321,11 @@ void clt_state_read(clt_state *s, const char *dir)
 void clt_state_save(const clt_state *s, const char *dir)
 {
     char *fname;
-    int len = strlen(dir) + 10;
+    int len = strlen(dir) + 13;
     fname = malloc(sizeof(char) + len);
+
+    snprintf(fname, len, "%s/flags", dir);
+    save_ulong(fname, s->flags);
 
     snprintf(fname, len, "%s/n", dir);
     save_ulong(fname, s->n);
@@ -357,20 +363,19 @@ void clt_state_save(const clt_state *s, const char *dir)
 
 void fread_clt_state (FILE *const fp, clt_state *s)
 {
+    fread_ulong(fp, &s->flags);
+    GET_NEWLINE(fp);
+
     fread_ulong(fp, &s->n);
-    printf("n = %lu\n", s->n);
     GET_NEWLINE(fp);
 
     fread_ulong(fp, &s->nzs);
-    printf("nzs = %lu\n", s->nzs);
     GET_NEWLINE(fp);
 
     fread_ulong(fp, &s->rho);
-    printf("rho = %lu\n", s->rho);
     GET_NEWLINE(fp);
 
     fread_ulong(fp, &s->nu);
-    printf("nu = %lu\n", s->nu);
     GET_NEWLINE(fp);
 
     mpz_init(s->x0);
@@ -406,6 +411,9 @@ void fread_clt_state (FILE *const fp, clt_state *s)
 
 void fwrite_clt_state (FILE *const fp, const clt_state *s)
 {
+    fwrite_ulong(fp, s->flags);
+    PUT_NEWLINE(fp);
+
     fwrite_ulong(fp, s->n);
     PUT_NEWLINE(fp);
 
