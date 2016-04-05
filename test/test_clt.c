@@ -45,7 +45,7 @@ int main(void)
     FILE *pp_f   = fopen("test.pp", "w+");
 
     // test initialization & serialization
-    clt_state_init(&mmap_, kappa, lambda, nzs, pows, rng);
+    clt_state_init(&mmap_, kappa, lambda, nzs, pows, CLT_FLAG_VERBOSE, rng);
 
     /*clt_state_save(&mmap_, mmap_dir);*/
     /*clt_state_clear(&mmap_);*/

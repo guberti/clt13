@@ -25,9 +25,7 @@ static void fread_crt_tree  (FILE *const fp, crt_tree *crt, size_t n);
 static void fwrite_crt_tree (FILE *const fp, crt_tree *crt, size_t n);
 #endif
 
-#if VERBOSE
 static double current_time(void);
-#endif
 
 static int load_ulong (const char *fname, ulong *x);
 static int save_ulong (const char *fname, ulong x);
@@ -44,19 +42,17 @@ static int save_mpz_vector   (const char *fname, mpz_t *m, ulong len);
 static int fread_mpz_vector  (FILE *const fp, mpz_t *m, ulong len);
 static int fwrite_mpz_vector (FILE *const fp, mpz_t *m, ulong len);
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
 void
 clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
-                const int *pows, aes_randstate_t rng)
+                const int *pows, ulong flags, aes_randstate_t rng)
 {
     ulong alpha, beta, eta, rho_f;
     mpz_t *ps, *zs;
-
-#if VERBOSE
-    double start_time;
-#endif
+    double start_time = 0.0;
 
     // calculate CLT parameters
     s->nzs = nzs;
@@ -67,19 +63,20 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     eta    = rho_f + alpha + 2 * beta + lambda + 8;
     s->nu  = eta - beta - rho_f - lambda - 3;
     s->n   = eta * log2((float) lambda);
+    s->flags = flags;
 
-#if VERBOSE
-    fprintf(stderr, "  Security Parameter: %ld\n", lambda);
-    fprintf(stderr, "  Kappa: %ld\n", kappa);
-    fprintf(stderr, "  Alpha: %ld\n", alpha);
-    fprintf(stderr, "  Beta: %ld\n", beta);
-    fprintf(stderr, "  Eta: %ld\n", eta);
-    fprintf(stderr, "  Nu: %ld\n", s->nu);
-    fprintf(stderr, "  Rho: %ld\n", s->rho);
-    fprintf(stderr, "  Rho_f: %ld\n", rho_f);
-    fprintf(stderr, "  N: %ld\n", s->n);
-    fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, "  Security Parameter: %ld\n", lambda);
+        fprintf(stderr, "  Kappa: %ld\n", kappa);
+        fprintf(stderr, "  Alpha: %ld\n", alpha);
+        fprintf(stderr, "  Beta: %ld\n", beta);
+        fprintf(stderr, "  Eta: %ld\n", eta);
+        fprintf(stderr, "  Nu: %ld\n", s->nu);
+        fprintf(stderr, "  Rho: %ld\n", s->rho);
+        fprintf(stderr, "  Rho_f: %ld\n", rho_f);
+        fprintf(stderr, "  N: %ld\n", s->n);
+        fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
+    }
 
     ps       = malloc(sizeof(mpz_t) * s->n);
     s->gs    = malloc(sizeof(mpz_t) * s->n);
@@ -107,10 +104,10 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     }
 
     // Generate p_i's and g_i's, as well as x0 = \prod p_i
-#if VERBOSE
-    fprintf(stderr, "  Generating p_i's and g_i's");
-    start_time = current_time();
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, "  Generating p_i's and g_i's");
+        start_time = current_time();
+    }
 #if CRT_TREE
 GEN_PIS:;
 #endif
@@ -136,30 +133,30 @@ GEN_PIS:;
     if (!ok) {
         // if crt_tree_init fails, regenerate with new p_i's
         crt_tree_clear(s->crt);
-#if VERBOSE
-        fprintf(stderr, " (restarting)");
-#endif
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, " (restarting)");
+        }
         goto GEN_PIS;
     }
     // crt_tree_init succeeded, set x0
     mpz_set(s->x0, s->crt->mod);
-#if VERBOSE
-    fprintf(stderr, ": %f\n", current_time() - start_time);
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, ": %f\n", current_time() - start_time);
+    }
 #else
     // find x0 the hard way
     for (ulong i = 0; i < s->n; i++) {
         mpz_mul(s->x0, s->x0, ps[i]);
     }
-#if VERBOSE
-    fprintf(stderr, ": %f\n", current_time() - start_time);
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, ": %f\n", current_time() - start_time);
+    }
 
     // Compute CRT coefficients
-#if VERBOSE
-    fprintf(stderr, "  Generating CRT coefficients: ");
-    start_time = current_time();
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, "  Generating CRT coefficients: ");
+        start_time = current_time();
+    }
 #pragma omp parallel for
     for (unsigned long i = 0; i < s->n; i++) {
         mpz_t q;
@@ -170,31 +167,31 @@ GEN_PIS:;
         mpz_mod(s->crt_coeffs[i], s->crt_coeffs[i], s->x0);
         mpz_clear(q);
     }
-#if VERBOSE
-    fprintf(stderr, ": %f\n", current_time() - start_time);
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, ": %f\n", current_time() - start_time);
+    }
 #endif
 
     // Compute z_i's
-#if VERBOSE
-    fprintf(stderr, "  Generating z_i's");
-    start_time = current_time();
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, "  Generating z_i's");
+        start_time = current_time();
+    }
 #pragma omp parallel for
     for (ulong i = 0; i < s->nzs; ++i) {
         do {
             mpz_urandomm_aes(zs[i], rng, s->x0);
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
     }
-#if VERBOSE
-    fprintf(stderr, ": %f\n", current_time() - start_time);
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, ": %f\n", current_time() - start_time);
+    }
 
     // Compute pzt
-#if VERBOSE
-    fprintf(stderr, "  Generating pzt");
-    start_time = current_time();
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, "  Generating pzt");
+        start_time = current_time();
+    }
     {
         mpz_t zk;
         mpz_init_set_ui(zk, 1);
@@ -229,9 +226,9 @@ GEN_PIS:;
         mpz_mod(s->pzt, s->pzt, s->x0);
         mpz_clear(zk);
     }
-#if VERBOSE
-    fprintf(stderr, ": %f\n", current_time() - start_time);
-#endif
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, ": %f\n", current_time() - start_time);
+    }
 
     for (ulong i = 0; i < s->n; i++)
         mpz_clear(ps[i]);
@@ -861,11 +858,9 @@ static int fwrite_mpz_vector (FILE *const fp, mpz_t *m, ulong len)
     return 0;
 }
 
-#if VERBOSE
 static double current_time(void)
 {
     struct timeval t;
     gettimeofday(&t, NULL);
     return t.tv_sec + (double) (t.tv_usec / 1000000.0);
 }
-#endif

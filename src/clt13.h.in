@@ -8,7 +8,6 @@ extern "C" {
 #define OPTIMIZATION_COMPOSITE_PS 0 // XXX: unimplimented
 #define CRT_TREE @CRT_TREE@
 #define PARALLEL_ENCODE @PARALLEL_ENCODE@
-#define VERBOSE @VERBOSE@
 
 #include <aesrand.h>
 #include <gmp.h>
@@ -42,10 +41,14 @@ typedef struct {
 #else
     mpz_t *crt_coeffs;
 #endif
+    ulong flags;
 } clt_state;
 
+#define CLT_FLAG_DEFAULT 0x00
+#define CLT_FLAG_VERBOSE 0x01
+
 void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, 
-                     const int *pows, aes_randstate_t rng);
+                     const int *pows, ulong flags, aes_randstate_t rng);
 
 void clt_state_clear (clt_state *s);
 void clt_state_read  (clt_state *s, const char *dir);

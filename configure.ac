@@ -43,12 +43,4 @@ AS_HELP_STRING([--enable-parallel-encode], [parallelize the encode function]),
  AC_SUBST(PARALLEL_ENCODE, 0)
  )
 
-AC_ARG_ENABLE(verbosity,
-AS_HELP_STRING([--disable-verbosity], [disable status print statements]),
-[if test "$enableval" = no; then
-    AC_SUBST(VERBOSE, 0)
- fi],
- AC_SUBST(VERBOSE, 1)
- )
-
 AC_OUTPUT
