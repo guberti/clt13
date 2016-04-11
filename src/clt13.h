@@ -36,8 +36,7 @@ typedef struct {
 #define CLT_FLAG_OPT_COMPOSITE_PS 0x08 // XXX: unimplemented
 
 #define CLT_FLAG_DEFAULT \
-    ( CLT_FLAG_VERBOSE \
-    & CLT_FLAG_OPT_CRT_TREE \
+    ( CLT_FLAG_OPT_CRT_TREE \
     & CLT_FLAG_OPT_COMPOSITE_PS \
     )
 
