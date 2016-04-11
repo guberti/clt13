@@ -29,13 +29,19 @@ typedef struct {
     ulong flags;
 } clt_state;
 
-#define CLT_FLAG_DEFAULT 0x00
+#define CLT_FLAG_NONE 0x00
 #define CLT_FLAG_VERBOSE 0x01
 #define CLT_FLAG_OPT_CRT_TREE 0x02
 #define CLT_FLAG_OPT_PARALLEL_ENCODE 0x04
 #define CLT_FLAG_OPT_COMPOSITE_PS 0x08 // XXX: unimplemented
 
-void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs, 
+#define CLT_FLAG_DEFAULT \
+    ( CLT_FLAG_VERBOSE \
+    & CLT_FLAG_OPT_CRT_TREE \
+    & CLT_FLAG_OPT_COMPOSITE_PS \
+    )
+
+void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
                      const int *pows, ulong flags, aes_randstate_t rng);
 void clt_state_clear (clt_state *s);
 void clt_state_read  (clt_state *s, const char *dir);
@@ -60,7 +66,7 @@ void clt_pp_fsave (FILE *const fp, const clt_pp *pp);
 
 // encodings
 
-void clt_encode (mpz_t rop, const clt_state *s, size_t nins, mpz_t *ins, 
+void clt_encode (mpz_t rop, const clt_state *s, size_t nins, mpz_t *ins,
                  const int *pows, aes_randstate_t rng);
 
 int clt_is_zero (const clt_pp *pp, const mpz_t c);
