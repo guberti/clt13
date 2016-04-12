@@ -58,10 +58,10 @@ typedef struct {
 
 void clt_pp_init  (clt_pp *pp, const clt_state *mmap);
 void clt_pp_clear (clt_pp *pp);
-void clt_pp_read  (clt_pp *pp, const char *dir);
-void clt_pp_save  (const clt_pp *pp, const char *dir);
-void clt_pp_fread (FILE *const fp, clt_pp *pp);
-void clt_pp_fsave (FILE *const fp, const clt_pp *pp);
+int clt_pp_read  (clt_pp *pp, const char *dir);
+int clt_pp_save  (const clt_pp *pp, const char *dir);
+int clt_pp_fread (FILE *const fp, clt_pp *pp);
+int clt_pp_fsave (FILE *const fp, const clt_pp *pp);
 
 // encodings
 

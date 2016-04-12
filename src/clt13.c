@@ -472,10 +472,11 @@ clt_pp_clear( clt_pp *pp )
     mpz_clears(pp->x0, pp->pzt, NULL);
 }
 
-void
+int
 clt_pp_read(clt_pp *pp, const char *dir)
 {
     char *fname;
+    int ret = 1;
     int len = strlen(dir) + 10;
     fname = malloc(sizeof(char) + len);
 
@@ -483,65 +484,96 @@ clt_pp_read(clt_pp *pp, const char *dir)
 
     // load nu
     snprintf(fname, len, "%s/nu", dir);
-    ulong_read(fname, &pp->nu);
+    if (ulong_read(fname, &pp->nu) != 0)
+        goto cleanup;
 
     // load x0
     snprintf(fname, len, "%s/x0", dir);
-    mpz_scalar_read(fname, pp->x0);
+    if (mpz_scalar_read(fname, pp->x0) != 0)
+        goto cleanup;
 
     // load pzt
     snprintf(fname, len, "%s/pzt", dir);
-    mpz_scalar_read(fname, pp->pzt);
+    if (mpz_scalar_read(fname, pp->pzt) != 0)
+        goto cleanup;
 
+    ret = 0;
+cleanup:
     free(fname);
+    return ret;
 }
 
-void
+int
 clt_pp_save(const clt_pp *pp, const char *dir)
 {
     char *fname;
+    int ret = 1;
     int len = strlen(dir) + 10;
     fname = malloc(sizeof(char) * len);
 
     // save nu
     snprintf(fname, len, "%s/nu", dir);
-    ulong_save(fname, pp->nu);
+    if (ulong_save(fname, pp->nu) != 0)
+        goto cleanup;
 
     // save x0
     snprintf(fname, len, "%s/x0", dir);
-    mpz_scalar_save(fname, pp->x0);
+    if (mpz_scalar_save(fname, pp->x0) != 0)
+        goto cleanup;
 
     // save pzt
     snprintf(fname, len, "%s/pzt", dir);
-    mpz_scalar_save(fname, pp->pzt);
+    if (mpz_scalar_save(fname, pp->pzt) != 0)
+        goto cleanup;
 
+    ret = 0;
+cleanup:
     free(fname);
+    return ret;
 }
 
-void
+int
 clt_pp_fread(FILE *const fp, clt_pp *pp)
 {
+    int ret = 1;
+
     mpz_inits(pp->x0, pp->pzt, NULL);
 
-    ulong_fread(fp, &pp->nu);
+    if (ulong_fread(fp, &pp->nu) != 0)
+        goto cleanup;
     GET_NEWLINE(fp);
 
-    mpz_scalar_fread(fp, pp->x0);
+    if (mpz_scalar_fread(fp, pp->x0) != 0)
+        goto cleanup;
     GET_NEWLINE(fp);
 
-    mpz_scalar_fread(fp, pp->pzt);
+    if (mpz_scalar_fread(fp, pp->pzt) != 0)
+        goto cleanup;
+
+    ret = 0;
+cleanup:
+    return ret;
 }
 
-void
+int
 clt_pp_fsave(FILE *const fp, const clt_pp *pp)
 {
-    ulong_fsave(fp, pp->nu);
+    int ret = 1;
+
+    if (ulong_fsave(fp, pp->nu) != 0)
+        goto cleanup;
     PUT_NEWLINE(fp);
 
-    mpz_scalar_fsave(fp, pp->x0);
+    if (mpz_scalar_fsave(fp, pp->x0) != 0)
+        goto cleanup;
     PUT_NEWLINE(fp);
 
-    mpz_scalar_fsave(fp, pp->pzt);
+    if (mpz_scalar_fsave(fp, pp->pzt) != 0)
+        goto cleanup;
+
+    ret = 0;
+cleanup:
+    return ret;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
