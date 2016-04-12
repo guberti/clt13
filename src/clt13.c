@@ -12,9 +12,9 @@
 
 typedef struct crt_tree {
     ulong n, n2;
-    mpz_t mod;
-    mpz_t crt_left;
-    mpz_t crt_right;
+    clt_elem_t mod;
+    clt_elem_t crt_left;
+    clt_elem_t crt_right;
     struct crt_tree *left;
     struct crt_tree *right;
 } crt_tree;
@@ -24,9 +24,9 @@ typedef struct crt_tree {
 
 #define PUT_NEWLINE(fp) fprintf(fp, "\n");
 
-static int  crt_tree_init   (crt_tree *crt, mpz_t *ps, size_t nps);
+static int  crt_tree_init   (crt_tree *crt, clt_elem_t *ps, size_t nps);
 static void crt_tree_clear  (crt_tree *crt);
-static void crt_tree_do_crt (mpz_t rop, const crt_tree *crt, mpz_t *cs);
+static void crt_tree_do_crt (clt_elem_t rop, const crt_tree *crt, clt_elem_t *cs);
 static void crt_tree_read   (const char *fname, crt_tree *crt, size_t n);
 static void crt_tree_save   (const char *fname, crt_tree *crt, size_t n);
 static void crt_tree_fread  (FILE *const fp, crt_tree *crt, size_t n);
@@ -39,15 +39,15 @@ static int ulong_save  (const char *fname, ulong x);
 static int ulong_fread (FILE *const fp, ulong *x);
 static int ulong_fsave (FILE *const fp, ulong x);
 
-static int mpz_scalar_read  (const char *fname, mpz_t x);
-static int mpz_scalar_save  (const char *fname, const mpz_t x);
-static int mpz_scalar_fread (FILE *const fp, mpz_t x);
-static int mpz_scalar_fsave (FILE *const fp, const mpz_t x);
+static int mpz_scalar_read  (const char *fname, clt_elem_t x);
+static int mpz_scalar_save  (const char *fname, const clt_elem_t x);
+static int mpz_scalar_fread (FILE *const fp, clt_elem_t x);
+static int mpz_scalar_fsave (FILE *const fp, const clt_elem_t x);
 
-static int mpz_vector_read  (const char *fname, mpz_t *m, ulong len);
-static int mpz_vector_save  (const char *fname, mpz_t *m, ulong len);
-static int mpz_vector_fread (FILE *const fp, mpz_t *m, ulong len);
-static int mpz_vector_fsave (FILE *const fp, mpz_t *m, ulong len);
+static int mpz_vector_read  (const char *fname, clt_elem_t *m, ulong len);
+static int mpz_vector_save  (const char *fname, clt_elem_t *m, ulong len);
+static int mpz_vector_fread (FILE *const fp, clt_elem_t *m, ulong len);
+static int mpz_vector_fsave (FILE *const fp, clt_elem_t *m, ulong len);
 
 ////////////////////////////////////////////////////////////////////////////////
 // state
@@ -57,7 +57,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
                 const int *pows, ulong flags, aes_randstate_t rng)
 {
     ulong alpha, beta, eta, rho_f;
-    mpz_t *ps, *zs;
+    clt_elem_t *ps, *zs;
     double start_time = 0.0;
 
     // calculate CLT parameters
@@ -84,15 +84,15 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
     }
 
-    ps       = malloc(sizeof(mpz_t) * s->n);
-    s->gs    = malloc(sizeof(mpz_t) * s->n);
-    zs       = malloc(sizeof(mpz_t) * s->nzs);
-    s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
+    ps       = malloc(sizeof(clt_elem_t) * s->n);
+    s->gs    = malloc(sizeof(clt_elem_t) * s->n);
+    zs       = malloc(sizeof(clt_elem_t) * s->nzs);
+    s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         s->crt = malloc(sizeof(crt_tree));
     } else {
-        s->crt_coeffs = malloc(s->n * sizeof(mpz_t));
+        s->crt_coeffs = malloc(s->n * sizeof(clt_elem_t));
         for (ulong i = 0; i < s->n; i++) {
             mpz_init(s->crt_coeffs[i]);
         }
@@ -124,7 +124,7 @@ GEN_PIS:
     } else {
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
-            mpz_t p_unif;
+            clt_elem_t p_unif;
             mpz_init(p_unif);
             mpz_urandomb_aes(p_unif, rng, eta);
             mpz_nextprime(ps[i], p_unif);
@@ -166,7 +166,7 @@ GEN_PIS:
         }
 #pragma omp parallel for
         for (unsigned long i = 0; i < s->n; i++) {
-            mpz_t q;
+            clt_elem_t q;
             mpz_init(q);
             mpz_tdiv_q(q, s->x0, ps[i]);
             mpz_invert(s->crt_coeffs[i], q, ps[i]);
@@ -200,11 +200,11 @@ GEN_PIS:
         start_time = current_time();
     }
     {
-        mpz_t zk;
+        clt_elem_t zk;
         mpz_init_set_ui(zk, 1);
         // compute z_1^t_1 ... z_k^t_k mod q
         for (ulong i = 0; i < s->nzs; ++i) {
-            mpz_t tmp;
+            clt_elem_t tmp;
             mpz_init(tmp);
             mpz_powm_ui(tmp, zs[i], pows[i], s->x0);
             mpz_mul(zk, zk, tmp);
@@ -213,7 +213,7 @@ GEN_PIS:
         }
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; ++i) {
-            mpz_t tmp, qpi, rnd;
+            clt_elem_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
             // compute (((g_i)^{-1} mod p_i) * z^k mod p_i) * r_i * (q / p_i)
             mpz_invert(tmp, s->gs[i], ps[i]);
@@ -289,8 +289,8 @@ void clt_state_read(clt_state *s, const char *dir)
     snprintf(fname, len, "%s/nu", dir);
     ulong_read(fname, &s->nu);
 
-    s->gs    = malloc(sizeof(mpz_t) * s->n);
-    s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
+    s->gs    = malloc(sizeof(clt_elem_t) * s->n);
+    s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
 
     mpz_inits(s->x0, s->pzt, NULL);
     for (ulong i = 0; i < s->n; i++)
@@ -315,7 +315,7 @@ void clt_state_read(clt_state *s, const char *dir)
         snprintf(fname, len, "%s/crt_tree", dir);
         crt_tree_read(fname, s->crt, s->n);
     } else {
-        s->crt_coeffs = malloc(sizeof(mpz_t) * s->n);
+        s->crt_coeffs = malloc(sizeof(clt_elem_t) * s->n);
         for (ulong i = 0; i < s->n; i++)
             mpz_init(s->crt_coeffs[i]);
         snprintf(fname, len, "%s/crt_coeffs", dir);
@@ -394,13 +394,13 @@ clt_state_fread(FILE *const fp, clt_state *s)
     mpz_scalar_fread(fp, s->pzt);
     GET_NEWLINE(fp);
 
-    s->gs = malloc(sizeof(mpz_t) * s->n);
+    s->gs = malloc(sizeof(clt_elem_t) * s->n);
     for (ulong i = 0; i < s->n; i++)
         mpz_init(s->gs[i]);
     mpz_vector_fread(fp, s->gs, s->n);
     GET_NEWLINE(fp);
 
-    s->zinvs = malloc(sizeof(mpz_t) * s->nzs);
+    s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
     for (ulong i = 0; i < s->nzs; i++)
         mpz_init(s->zinvs[i]);
     mpz_vector_fread(fp, s->zinvs, s->nzs);
@@ -410,7 +410,7 @@ clt_state_fread(FILE *const fp, clt_state *s)
         s->crt = malloc(sizeof(crt_tree));
         crt_tree_fread(fp, s->crt, s->n);
     } else {
-        s->crt_coeffs = malloc(sizeof(mpz_t) * s->n);
+        s->crt_coeffs = malloc(sizeof(clt_elem_t) * s->n);
         for (ulong i = 0; i < s->n; i++)
             mpz_init(s->crt_coeffs[i]);
         mpz_vector_fread(fp, s->crt_coeffs, s->n);
@@ -580,15 +580,15 @@ cleanup:
 // encodings
 
 void
-clt_encode(mpz_t rop, const clt_state *s, size_t nins, mpz_t *ins,
+clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, clt_elem_t *ins,
            const int *pows, aes_randstate_t rng)
 {
-    mpz_t tmp;
+    clt_elem_t tmp;
     mpz_init(tmp);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         // slots[i] = m[i] + r*g[i]
-        mpz_t *slots = malloc(s->n * sizeof(mpz_t));
+        clt_elem_t *slots = malloc(s->n * sizeof(clt_elem_t));
         if (s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE) {
 #pragma omp parallel for
             for (ulong i = 0; i < s->n; i++) {
@@ -636,11 +636,11 @@ clt_encode(mpz_t rop, const clt_state *s, size_t nins, mpz_t *ins,
 }
 
 int
-clt_is_zero(const clt_pp *pp, const mpz_t c)
+clt_is_zero(const clt_pp *pp, const clt_elem_t c)
 {
     int ret;
 
-    mpz_t tmp, x0_;
+    clt_elem_t tmp, x0_;
     mpz_inits(tmp, x0_, NULL);
 
     mpz_mul(tmp, c, pp->pzt);
@@ -659,7 +659,7 @@ clt_is_zero(const clt_pp *pp, const mpz_t c)
 // crt_tree
 
 static int
-crt_tree_init(crt_tree *crt, mpz_t *ps, size_t nps)
+crt_tree_init(crt_tree *crt, clt_elem_t *ps, size_t nps)
 {
     int ok = 1;
     crt->n  = nps;
@@ -679,7 +679,7 @@ crt_tree_init(crt_tree *crt, mpz_t *ps, size_t nps)
         ok &= crt_tree_init(crt->left,  ps,           crt->n2);
         ok &= crt_tree_init(crt->right, ps + crt->n2, crt->n - crt->n2);
 
-        mpz_t g;
+        clt_elem_t g;
         mpz_inits(g, crt->crt_left, crt->crt_right, NULL);
 
         mpz_set_ui(g, 0);
@@ -710,14 +710,14 @@ crt_tree_clear(crt_tree *crt)
 }
 
 static void
-crt_tree_do_crt(mpz_t rop, const crt_tree *crt, mpz_t *cs)
+crt_tree_do_crt(clt_elem_t rop, const crt_tree *crt, clt_elem_t *cs)
 {
     if (crt->n == 1) {
         mpz_set(rop, cs[0]);
         return;
     }
 
-    mpz_t val_left, val_right, tmp;
+    clt_elem_t val_left, val_right, tmp;
     mpz_inits(val_left, val_right, tmp, NULL);
 
     crt_tree_do_crt(val_left,  crt->left,  cs);
@@ -732,7 +732,7 @@ crt_tree_do_crt(mpz_t rop, const crt_tree *crt, mpz_t *cs)
 }
 
 static void
-_crt_tree_get_leafs(mpz_t *leafs, int *i, crt_tree *crt)
+_crt_tree_get_leafs(clt_elem_t *leafs, int *i, crt_tree *crt)
 {
     if (crt->n == 1) {
         mpz_set(leafs[(*i)++], crt->mod);
@@ -745,7 +745,7 @@ _crt_tree_get_leafs(mpz_t *leafs, int *i, crt_tree *crt)
 static void
 crt_tree_save(const char *fname, crt_tree *crt, size_t n)
 {
-    mpz_t *ps = malloc(n * sizeof(mpz_t));
+    clt_elem_t *ps = malloc(n * sizeof(clt_elem_t));
     for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
     int ctr = 0;
@@ -761,7 +761,7 @@ crt_tree_save(const char *fname, crt_tree *crt, size_t n)
 static void
 crt_tree_read(const char *fname, crt_tree *crt, size_t n)
 {
-    mpz_t *ps = malloc(n * sizeof(mpz_t));
+    clt_elem_t *ps = malloc(n * sizeof(clt_elem_t));
     for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
 
@@ -776,7 +776,7 @@ crt_tree_read(const char *fname, crt_tree *crt, size_t n)
 static void
 crt_tree_fread (FILE *const fp, crt_tree *crt, size_t n)
 {
-    mpz_t *ps = malloc(n * sizeof(mpz_t));
+    clt_elem_t *ps = malloc(n * sizeof(clt_elem_t));
     for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
 
@@ -791,7 +791,7 @@ crt_tree_fread (FILE *const fp, crt_tree *crt, size_t n)
 static void
 crt_tree_fsave(FILE *const fp, crt_tree *crt, size_t n)
 {
-    mpz_t *ps = malloc(n * sizeof(mpz_t));
+    clt_elem_t *ps = malloc(n * sizeof(clt_elem_t));
     for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
     int ctr = 0;
@@ -846,7 +846,7 @@ ulong_fsave(FILE *const fp, ulong x)
 }
 
 static int
-mpz_scalar_read(const char *fname, mpz_t x)
+mpz_scalar_read(const char *fname, clt_elem_t x)
 {
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
@@ -859,7 +859,7 @@ mpz_scalar_read(const char *fname, mpz_t x)
 }
 
 static int
-mpz_scalar_save(const char *fname, const mpz_t x)
+mpz_scalar_save(const char *fname, const clt_elem_t x)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
@@ -875,19 +875,19 @@ mpz_scalar_save(const char *fname, const mpz_t x)
 }
 
 static int
-mpz_scalar_fread(FILE *const fp, mpz_t x)
+mpz_scalar_fread(FILE *const fp, clt_elem_t x)
 {
     return mpz_inp_raw(x, fp);
 }
 
 static int
-mpz_scalar_fsave(FILE *const fp, const mpz_t x)
+mpz_scalar_fsave(FILE *const fp, const clt_elem_t x)
 {
     return mpz_out_raw(fp, x);
 }
 
 static int
-mpz_vector_read(const char *fname, mpz_t *m, ulong len)
+mpz_vector_read(const char *fname, clt_elem_t *m, ulong len)
 {
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
@@ -902,7 +902,7 @@ mpz_vector_read(const char *fname, mpz_t *m, ulong len)
 }
 
 static int
-mpz_vector_save(const char *fname, mpz_t *m, ulong len)
+mpz_vector_save(const char *fname, clt_elem_t *m, ulong len)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
@@ -920,7 +920,7 @@ mpz_vector_save(const char *fname, mpz_t *m, ulong len)
 }
 
 static int
-mpz_vector_fread(FILE *const fp, mpz_t *m, ulong len)
+mpz_vector_fread(FILE *const fp, clt_elem_t *m, ulong len)
 {
     for (ulong i = 0; i < len; ++i) {
         if (mpz_inp_raw(m[i], fp) == 0)
@@ -930,7 +930,7 @@ mpz_vector_fread(FILE *const fp, mpz_t *m, ulong len)
 }
 
 static int
-mpz_vector_fsave(FILE *const fp, mpz_t *m, ulong len)
+mpz_vector_fsave(FILE *const fp, clt_elem_t *m, ulong len)
 {
     for (ulong i = 0; i < len; ++i) {
         if (mpz_out_raw(fp, m[i]) == 0)

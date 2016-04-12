@@ -8,6 +8,7 @@ extern "C" {
 #include <aesrand.h>
 #include <gmp.h>
 
+typedef mpz_t clt_elem_t;
 typedef unsigned long ulong;
 typedef struct crt_tree crt_tree;
 
@@ -18,13 +19,13 @@ typedef struct {
     ulong nzs;
     ulong rho;
     ulong nu;
-    mpz_t x0;
-    mpz_t pzt;
-    mpz_t *gs;
-    mpz_t *zinvs;
+    clt_elem_t x0;
+    clt_elem_t pzt;
+    clt_elem_t *gs;
+    clt_elem_t *zinvs;
     union {
         crt_tree *crt;
-        mpz_t *crt_coeffs;
+        clt_elem_t *crt_coeffs;
     };
     ulong flags;
 } clt_state;
@@ -51,8 +52,8 @@ void clt_state_fsave (FILE *const fp, const clt_state *s);
 // public parameters
 
 typedef struct {
-    mpz_t x0;
-    mpz_t pzt;
+    clt_elem_t x0;
+    clt_elem_t pzt;
     ulong nu;
 } clt_pp;
 
@@ -65,10 +66,10 @@ int clt_pp_fsave (FILE *const fp, const clt_pp *pp);
 
 // encodings
 
-void clt_encode (mpz_t rop, const clt_state *s, size_t nins, mpz_t *ins,
-                 const int *pows, aes_randstate_t rng);
+void clt_encode (clt_elem_t rop, const clt_state *s, size_t nins,
+                 clt_elem_t *ins, const int *pows, aes_randstate_t rng);
 
-int clt_is_zero (const clt_pp *pp, const mpz_t c);
+int clt_is_zero (const clt_pp *pp, const clt_elem_t c);
 
 #ifdef __cplusplus
 }
