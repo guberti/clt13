@@ -14,6 +14,10 @@ typedef struct crt_tree crt_tree;
 
 #define clt_elem_init mpz_init
 #define clt_elem_clear mpz_clear
+#define clt_elem_mul mpz_mul
+#define clt_elem_add mpz_add
+#define clt_elem_mod mpz_mod
+#define clt_elem_set mpz_set
 
 // state
 
