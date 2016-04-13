@@ -39,16 +39,6 @@ static int ulong_save  (const char *fname, ulong x);
 static int ulong_fread (FILE *const fp, ulong *x);
 static int ulong_fsave (FILE *const fp, ulong x);
 
-static int mpz_scalar_read  (const char *fname, clt_elem_t x);
-static int mpz_scalar_save  (const char *fname, const clt_elem_t x);
-static int mpz_scalar_fread (FILE *const fp, clt_elem_t x);
-static int mpz_scalar_fsave (FILE *const fp, const clt_elem_t x);
-
-static int mpz_vector_read  (const char *fname, clt_elem_t *m, ulong len);
-static int mpz_vector_save  (const char *fname, clt_elem_t *m, ulong len);
-static int mpz_vector_fread (FILE *const fp, clt_elem_t *m, ulong len);
-static int mpz_vector_fsave (FILE *const fp, clt_elem_t *m, ulong len);
-
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
@@ -299,16 +289,16 @@ void clt_state_read(clt_state *s, const char *dir)
         mpz_init(s->zinvs[i]);
 
     snprintf(fname, len, "%s/x0", dir);
-    mpz_scalar_read(fname, s->x0);
+    clt_elem_read(fname, s->x0);
 
     snprintf(fname, len, "%s/pzt", dir);
-    mpz_scalar_read(fname, s->pzt);
+    clt_elem_read(fname, s->pzt);
 
     snprintf(fname, len, "%s/gs", dir);
-    mpz_vector_read(fname, s->gs, s->n);
+    clt_vector_read(fname, s->gs, s->n);
 
     snprintf(fname, len, "%s/zinvs", dir);
-    mpz_vector_read(fname, s->zinvs, s->nzs);
+    clt_vector_read(fname, s->zinvs, s->nzs);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         s->crt = malloc(sizeof(crt_tree));
@@ -319,7 +309,7 @@ void clt_state_read(clt_state *s, const char *dir)
         for (ulong i = 0; i < s->n; i++)
             mpz_init(s->crt_coeffs[i]);
         snprintf(fname, len, "%s/crt_coeffs", dir);
-        mpz_vector_read(fname, s->crt_coeffs, s->n);
+        clt_vector_read(fname, s->crt_coeffs, s->n);
     }
     free(fname);
 }
@@ -347,23 +337,23 @@ void clt_state_save(const clt_state *s, const char *dir)
     ulong_save(fname, s->nu);
 
     snprintf(fname, len, "%s/x0", dir);
-    mpz_scalar_save(fname, s->x0);
+    clt_elem_save(fname, s->x0);
 
     snprintf(fname, len, "%s/pzt", dir);
-    mpz_scalar_save(fname, s->pzt);
+    clt_elem_save(fname, s->pzt);
 
     snprintf(fname, len, "%s/gs", dir);
-    mpz_vector_save(fname, s->gs, s->n);
+    clt_vector_save(fname, s->gs, s->n);
 
     snprintf(fname, len, "%s/zinvs", dir);
-    mpz_vector_save(fname, s->zinvs, s->nzs);
+    clt_vector_save(fname, s->zinvs, s->nzs);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         snprintf(fname, len, "%s/crt_tree", dir);
         crt_tree_save(fname, s->crt, s->n);
     } else {
         snprintf(fname, len, "%s/crt_coeffs", dir);
-        mpz_vector_save(fname, s->crt_coeffs, s->n);
+        clt_vector_save(fname, s->crt_coeffs, s->n);
     }
     free(fname);
 }
@@ -387,23 +377,23 @@ clt_state_fread(FILE *const fp, clt_state *s)
     GET_NEWLINE(fp);
 
     mpz_init(s->x0);
-    mpz_scalar_fread(fp, s->x0);
+    clt_elem_fread(fp, s->x0);
     GET_NEWLINE(fp);
 
     mpz_init(s->pzt);
-    mpz_scalar_fread(fp, s->pzt);
+    clt_elem_fread(fp, s->pzt);
     GET_NEWLINE(fp);
 
     s->gs = malloc(sizeof(clt_elem_t) * s->n);
     for (ulong i = 0; i < s->n; i++)
         mpz_init(s->gs[i]);
-    mpz_vector_fread(fp, s->gs, s->n);
+    clt_vector_fread(fp, s->gs, s->n);
     GET_NEWLINE(fp);
 
     s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
     for (ulong i = 0; i < s->nzs; i++)
         mpz_init(s->zinvs[i]);
-    mpz_vector_fread(fp, s->zinvs, s->nzs);
+    clt_vector_fread(fp, s->zinvs, s->nzs);
     GET_NEWLINE(fp);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
@@ -413,7 +403,7 @@ clt_state_fread(FILE *const fp, clt_state *s)
         s->crt_coeffs = malloc(sizeof(clt_elem_t) * s->n);
         for (ulong i = 0; i < s->n; i++)
             mpz_init(s->crt_coeffs[i]);
-        mpz_vector_fread(fp, s->crt_coeffs, s->n);
+        clt_vector_fread(fp, s->crt_coeffs, s->n);
     }
 }
 
@@ -435,22 +425,22 @@ clt_state_fsave(FILE *const fp, const clt_state *s)
     ulong_fsave(fp, s->nu);
     PUT_NEWLINE(fp);
 
-    mpz_scalar_fsave(fp, s->x0);
+    clt_elem_fsave(fp, s->x0);
     PUT_NEWLINE(fp);
 
-    mpz_scalar_fsave(fp, s->pzt);
+    clt_elem_fsave(fp, s->pzt);
     PUT_NEWLINE(fp);
 
-    mpz_vector_fsave(fp, s->gs, s->n);
+    clt_vector_fsave(fp, s->gs, s->n);
     PUT_NEWLINE(fp);
 
-    mpz_vector_fsave(fp, s->zinvs, s->nzs);
+    clt_vector_fsave(fp, s->zinvs, s->nzs);
     PUT_NEWLINE(fp);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         crt_tree_fsave(fp, s->crt, s->n);
     } else {
-        mpz_vector_fsave(fp, s->crt_coeffs, s->n);
+        clt_vector_fsave(fp, s->crt_coeffs, s->n);
     }
 }
 
@@ -489,12 +479,12 @@ clt_pp_read(clt_pp *pp, const char *dir)
 
     // load x0
     snprintf(fname, len, "%s/x0", dir);
-    if (mpz_scalar_read(fname, pp->x0) != 0)
+    if (clt_elem_read(fname, pp->x0) != 0)
         goto cleanup;
 
     // load pzt
     snprintf(fname, len, "%s/pzt", dir);
-    if (mpz_scalar_read(fname, pp->pzt) != 0)
+    if (clt_elem_read(fname, pp->pzt) != 0)
         goto cleanup;
 
     ret = 0;
@@ -518,12 +508,12 @@ clt_pp_save(const clt_pp *pp, const char *dir)
 
     // save x0
     snprintf(fname, len, "%s/x0", dir);
-    if (mpz_scalar_save(fname, pp->x0) != 0)
+    if (clt_elem_save(fname, pp->x0) != 0)
         goto cleanup;
 
     // save pzt
     snprintf(fname, len, "%s/pzt", dir);
-    if (mpz_scalar_save(fname, pp->pzt) != 0)
+    if (clt_elem_save(fname, pp->pzt) != 0)
         goto cleanup;
 
     ret = 0;
@@ -543,11 +533,11 @@ clt_pp_fread(FILE *const fp, clt_pp *pp)
         goto cleanup;
     GET_NEWLINE(fp);
 
-    if (mpz_scalar_fread(fp, pp->x0) != 0)
+    if (clt_elem_fread(fp, pp->x0) != 0)
         goto cleanup;
     GET_NEWLINE(fp);
 
-    if (mpz_scalar_fread(fp, pp->pzt) != 0)
+    if (clt_elem_fread(fp, pp->pzt) != 0)
         goto cleanup;
 
     ret = 0;
@@ -564,11 +554,11 @@ clt_pp_fsave(FILE *const fp, const clt_pp *pp)
         goto cleanup;
     PUT_NEWLINE(fp);
 
-    if (mpz_scalar_fsave(fp, pp->x0) != 0)
+    if (clt_elem_fsave(fp, pp->x0) != 0)
         goto cleanup;
     PUT_NEWLINE(fp);
 
-    if (mpz_scalar_fsave(fp, pp->pzt) != 0)
+    if (clt_elem_fsave(fp, pp->pzt) != 0)
         goto cleanup;
 
     ret = 0;
@@ -751,7 +741,7 @@ crt_tree_save(const char *fname, crt_tree *crt, size_t n)
     int ctr = 0;
 
     _crt_tree_get_leafs(ps, &ctr, crt);
-    mpz_vector_save(fname, ps, n);
+    clt_vector_save(fname, ps, n);
 
     for (ulong i = 0; i < n; i++)
         mpz_clear(ps[i]);
@@ -765,7 +755,7 @@ crt_tree_read(const char *fname, crt_tree *crt, size_t n)
     for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
 
-    mpz_vector_read(fname, ps, n);
+    clt_vector_read(fname, ps, n);
     crt_tree_init(crt, ps, n);
 
     for (ulong i = 0; i < n; i++)
@@ -780,7 +770,7 @@ crt_tree_fread (FILE *const fp, crt_tree *crt, size_t n)
     for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
 
-    mpz_vector_fread(fp, ps, n);
+    clt_vector_fread(fp, ps, n);
     crt_tree_init(crt, ps, n);
 
     for (ulong i = 0; i < n; i++)
@@ -797,7 +787,7 @@ crt_tree_fsave(FILE *const fp, crt_tree *crt, size_t n)
     int ctr = 0;
 
     _crt_tree_get_leafs(ps, &ctr, crt);
-    mpz_vector_fsave(fp, ps, n);
+    clt_vector_fsave(fp, ps, n);
 
     for (ulong i = 0; i < n; i++)
         mpz_clear(ps[i]);
@@ -845,28 +835,28 @@ ulong_fsave(FILE *const fp, ulong x)
     return fprintf(fp, "%lu", x);
 }
 
-static int
-mpz_scalar_read(const char *fname, clt_elem_t x)
+int
+clt_elem_read(const char *fname, clt_elem_t x)
 {
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
         perror(fname);
         return 1;
     }
-    mpz_scalar_fread(f, x);
+    clt_elem_fread(f, x);
     fclose(f);
     return 0;
 }
 
-static int
-mpz_scalar_save(const char *fname, const clt_elem_t x)
+int
+clt_elem_save(const char *fname, const clt_elem_t x)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
         perror(fname);
         return 1;
     }
-    if (mpz_scalar_fsave(f, x) == 0) {
+    if (clt_elem_fsave(f, x) == 0) {
         fclose(f);
         return 1;
     }
@@ -874,20 +864,20 @@ mpz_scalar_save(const char *fname, const clt_elem_t x)
     return 0;
 }
 
-static int
-mpz_scalar_fread(FILE *const fp, clt_elem_t x)
+int
+clt_elem_fread(FILE *const fp, clt_elem_t x)
 {
     return mpz_inp_raw(x, fp);
 }
 
-static int
-mpz_scalar_fsave(FILE *const fp, const clt_elem_t x)
+int
+clt_elem_fsave(FILE *const fp, const clt_elem_t x)
 {
     return mpz_out_raw(fp, x);
 }
 
-static int
-mpz_vector_read(const char *fname, clt_elem_t *m, ulong len)
+int
+clt_vector_read(const char *fname, clt_elem_t *m, ulong len)
 {
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
@@ -901,8 +891,8 @@ mpz_vector_read(const char *fname, clt_elem_t *m, ulong len)
     return 0;
 }
 
-static int
-mpz_vector_save(const char *fname, clt_elem_t *m, ulong len)
+int
+clt_vector_save(const char *fname, clt_elem_t *m, ulong len)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
@@ -919,8 +909,8 @@ mpz_vector_save(const char *fname, clt_elem_t *m, ulong len)
     return 0;
 }
 
-static int
-mpz_vector_fread(FILE *const fp, clt_elem_t *m, ulong len)
+int
+clt_vector_fread(FILE *const fp, clt_elem_t *m, ulong len)
 {
     for (ulong i = 0; i < len; ++i) {
         if (mpz_inp_raw(m[i], fp) == 0)
@@ -929,8 +919,8 @@ mpz_vector_fread(FILE *const fp, clt_elem_t *m, ulong len)
     return 0;
 }
 
-static int
-mpz_vector_fsave(FILE *const fp, clt_elem_t *m, ulong len)
+int
+clt_vector_fsave(FILE *const fp, clt_elem_t *m, ulong len)
 {
     for (ulong i = 0; i < len; ++i) {
         if (mpz_out_raw(fp, m[i]) == 0)

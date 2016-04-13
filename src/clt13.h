@@ -12,6 +12,9 @@ typedef mpz_t clt_elem_t;
 typedef unsigned long ulong;
 typedef struct crt_tree crt_tree;
 
+#define clt_elem_init mpz_init
+#define clt_elem_clear mpz_clear
+
 // state
 
 typedef struct {
@@ -70,6 +73,18 @@ void clt_encode (clt_elem_t rop, const clt_state *s, size_t nins,
                  clt_elem_t *ins, const int *pows, aes_randstate_t rng);
 
 int clt_is_zero (const clt_pp *pp, const clt_elem_t c);
+
+// elements
+
+int clt_elem_read (const char *fname, clt_elem_t x);
+int clt_elem_save (const char *fname, const clt_elem_t x);
+int clt_elem_fread (FILE *const fp, clt_elem_t x);
+int clt_elem_fsave (FILE *const fp, const clt_elem_t x);
+int clt_vector_read  (const char *fname, clt_elem_t *m, ulong len);
+int clt_vector_save  (const char *fname, clt_elem_t *m, ulong len);
+int clt_vector_fread (FILE *const fp, clt_elem_t *m, ulong len);
+int clt_vector_fsave (FILE *const fp, clt_elem_t *m, ulong len);
+
 
 #ifdef __cplusplus
 }
