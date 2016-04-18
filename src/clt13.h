@@ -53,8 +53,8 @@ void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 void clt_state_clear (clt_state *s);
 void clt_state_read  (clt_state *s, const char *dir);
 void clt_state_save  (const clt_state *s, const char *dir);
-void clt_state_fread (FILE *const fp, clt_state *s);
-void clt_state_fsave (FILE *const fp, const clt_state *s);
+int clt_state_fread  (FILE *const fp, clt_state *s);
+int clt_state_fsave  (FILE *const fp, const clt_state *s);
 
 // public parameters
 

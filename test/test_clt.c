@@ -42,7 +42,16 @@ static int test(ulong flags)
     /*}*/
 
     FILE *mmap_f = fopen("test.mmap", "w+");
-    FILE *pp_f   = fopen("test.pp", "w+");
+    if (mmap_f == NULL) {
+        fprintf(stderr, "Couldn't open test.map!\n");
+        exit(1);
+    }
+
+    FILE *pp_f = fopen("test.pp", "w+");
+    if (pp_f == NULL) {
+        fprintf(stderr, "Couldn't open test.pp!\n");
+        exit(1);
+    }
 
     // test initialization & serialization
     clt_state_init(&mmap_, kappa, lambda, nzs, pows, flags, rng);
@@ -51,20 +60,32 @@ static int test(ulong flags)
     /*clt_state_clear(&mmap_);*/
     /*clt_state_read(&mmap, mmap_dir);*/
 
-    clt_state_fsave(mmap_f, &mmap_);
+    if (clt_state_fsave(mmap_f, &mmap_) != 0) {
+        fprintf(stderr, "clt_state_fsave failed!\n");
+        exit(1);
+    }
     rewind(mmap_f);
     clt_state_clear(&mmap_);
-    clt_state_fread(mmap_f, &mmap);
+    if (clt_state_fread(mmap_f, &mmap) != 0) {
+        fprintf(stderr, "clt_state_fread failed!\n");
+        exit(1);
+    }
 
     clt_pp_init(&pp_, &mmap);
     /*clt_pp_save(&pp_, pp_dir);*/
     /*clt_pp_clear(&pp_);*/
     /*clt_pp_read(&pp, pp_dir);*/
 
-    clt_pp_fsave(pp_f, &pp_);
+    if (clt_pp_fsave(pp_f, &pp_) != 0) {
+        fprintf(stderr, "clt_pp_fsave failed!\n");
+        exit(1);
+    }
     rewind(pp_f);
     clt_pp_clear(&pp_);
-    clt_pp_fread(pp_f, &pp);
+    if (clt_pp_fread(pp_f, &pp) != 0) {
+        fprintf(stderr, "clt_pp_fread failed!\n");
+        exit(1);
+    }
 
     mpz_t x [1];
     mpz_init_set_ui(x[0], 0);
@@ -216,7 +237,7 @@ static int test(ulong flags)
 
 int main(void)
 {
-    ulong flags = CLT_FLAG_DEFAULT;
+    ulong flags = CLT_FLAG_DEFAULT || CLT_FLAG_VERBOSE;
     printf("* No optimizations\n");
     if (test(flags) == 1)
         return 1;
