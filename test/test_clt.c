@@ -25,29 +25,13 @@ static int test(ulong flags)
     int pows [nzs];
     for (ulong i = 0; i < nzs; i++) pows[i] = 1;
 
-    // make test directories
-    /*const char *mmap_dir = "test.mmap";*/
-    /*const char *pp_dir   = "test.pp";*/
-    /*if (mkdir(mmap_dir, S_IRWXU | S_IRWXG) != 0) {*/
-        /*if (errno != EEXIST) {*/
-            /*fprintf(stderr, "couldn't make dir \"%s\"", mmap_dir);*/
-            /*return -1;*/
-        /*}*/
-    /*}*/
-    /*if (mkdir(pp_dir, S_IRWXU | S_IRWXG) != 0) {*/
-        /*if (errno != EEXIST) {*/
-            /*fprintf(stderr, "couldn't make dir \"%s\"", pp_dir);*/
-            /*return -1;*/
-        /*}*/
-    /*}*/
-
-    FILE *mmap_f = fopen("test.mmap", "w+");
+    FILE *mmap_f = tmpfile();
     if (mmap_f == NULL) {
         fprintf(stderr, "Couldn't open test.map!\n");
         exit(1);
     }
 
-    FILE *pp_f = fopen("test.pp", "w+");
+    FILE *pp_f = tmpfile();
     if (pp_f == NULL) {
         fprintf(stderr, "Couldn't open test.pp!\n");
         exit(1);
@@ -55,10 +39,6 @@ static int test(ulong flags)
 
     // test initialization & serialization
     clt_state_init(&mmap_, kappa, lambda, nzs, pows, flags, rng);
-
-    /*clt_state_save(&mmap_, mmap_dir);*/
-    /*clt_state_clear(&mmap_);*/
-    /*clt_state_read(&mmap, mmap_dir);*/
 
     if (clt_state_fsave(mmap_f, &mmap_) != 0) {
         fprintf(stderr, "clt_state_fsave failed!\n");
@@ -72,9 +52,6 @@ static int test(ulong flags)
     }
 
     clt_pp_init(&pp_, &mmap);
-    /*clt_pp_save(&pp_, pp_dir);*/
-    /*clt_pp_clear(&pp_);*/
-    /*clt_pp_read(&pp, pp_dir);*/
 
     if (clt_pp_fsave(pp_f, &pp_) != 0) {
         fprintf(stderr, "clt_pp_fsave failed!\n");
@@ -237,7 +214,7 @@ static int test(ulong flags)
 
 int main(void)
 {
-    ulong flags = CLT_FLAG_DEFAULT || CLT_FLAG_VERBOSE;
+    ulong flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
     printf("* No optimizations\n");
     if (test(flags) == 1)
         return 1;
