@@ -41,7 +41,7 @@ typedef struct {
 #define CLT_FLAG_VERBOSE 0x01
 #define CLT_FLAG_OPT_CRT_TREE 0x02
 #define CLT_FLAG_OPT_PARALLEL_ENCODE 0x04
-#define CLT_FLAG_OPT_COMPOSITE_PS 0x08 // XXX: unimplemented
+#define CLT_FLAG_OPT_COMPOSITE_PS 0x08
 
 #define CLT_FLAG_DEFAULT \
     ( CLT_FLAG_OPT_CRT_TREE \

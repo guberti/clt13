@@ -8,13 +8,9 @@
 
 int expect(char * desc, int expected, int recieved);
 
-static int test(ulong flags)
+static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 {
     srand(time(NULL));
-
-    ulong nzs     = 10;
-    ulong lambda  = 30;
-    ulong kappa   = 2;
 
     clt_state mmap, mmap_;
     clt_pp pp_, pp;
@@ -216,15 +212,19 @@ int main(void)
 {
     ulong flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
     printf("* No optimizations\n");
-    if (test(flags) == 1)
+    if (test(flags, 10, 30, 2) == 1)
         return 1;
     flags |= CLT_FLAG_OPT_CRT_TREE;
     printf("* CRT tree\n");
-    if (test(flags) == 1)
+    if (test(flags, 10, 30, 2) == 1)
         return 1;
     printf("* CRT tree + parallel encode\n");
     flags |= CLT_FLAG_OPT_PARALLEL_ENCODE;
-    if (test(flags) == 1)
+    if (test(flags, 10, 30, 2) == 1)
+        return 1;
+    printf("* CRT tree + parallel encode + composite ps\n");
+    flags |= CLT_FLAG_OPT_COMPOSITE_PS;
+    if (test(flags, 10, 30, 12) == 1)
         return 1;
     return 0;
 }
