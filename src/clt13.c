@@ -105,9 +105,33 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
 GEN_PIS:
     if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
+        ulong etap = 420;
+        for (; (eta%etap) < 350; etap++);
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, "  Eta_p: %lu\n", etap);
+            fprintf(stderr, "  Eta_p: %lu\n", etap);
+        }
+        ulong nchunks = floor(eta / etap);
+        ulong leftover = eta - nchunks * etap;
+        printf("nchunks=%lu leftover=%lu\n", nchunks, leftover);
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
-            // TODO: add chunking optimization
+            mpz_set_ui(ps[i], 1);
+            clt_elem_t p_unif;
+            mpz_init(p_unif);
+            // generate a p_i
+            for (ulong j = 0; j < nchunks; j++) {
+                mpz_urandomb_aes(p_unif, rng, etap);
+                mpz_nextprime(p_unif, p_unif);
+                mpz_mul(ps[i], ps[i], p_unif);
+            }
+            mpz_urandomb_aes(p_unif, rng, leftover);
+            mpz_nextprime(p_unif, p_unif);
+            mpz_mul(ps[i], ps[i], p_unif);
+            // generate a g_i
+            mpz_urandomb_aes(p_unif, rng, alpha);
+            mpz_nextprime(s->gs[i], p_unif);
+            mpz_clear(p_unif);
         }
     } else {
 #pragma omp parallel for
