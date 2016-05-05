@@ -1,3 +1,4 @@
-ACLOCAL_AMFLAGS = '-Ibuild/autoconf'
+AUTOMAKE_OPTIONS = foreign
+ACLOCAL_AMFLAGS = '-I build/autoconf'
 
 SUBDIRS = src test
