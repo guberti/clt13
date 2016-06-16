@@ -45,7 +45,7 @@ typedef struct {
 
 #define CLT_FLAG_DEFAULT \
     ( CLT_FLAG_OPT_CRT_TREE \
-    & CLT_FLAG_OPT_COMPOSITE_PS \
+    | CLT_FLAG_OPT_COMPOSITE_PS \
     )
 
 void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
