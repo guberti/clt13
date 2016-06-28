@@ -106,7 +106,8 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 GEN_PIS:
     if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
         ulong etap = 420;
-        for (; (eta%etap) < 350; etap++);
+        if (eta > 350)
+            for (; (eta%etap) < 350; etap++);
         if (s->flags & CLT_FLAG_VERBOSE) {
             fprintf(stderr, "  Eta_p: %lu\n", etap);
             fprintf(stderr, "  Eta_p: %lu\n", etap);
