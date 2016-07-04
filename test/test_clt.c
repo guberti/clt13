@@ -117,6 +117,17 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(1 - 0)", 0, clt_is_zero(&pp, xp));
 
+    mpz_t three[1];
+    mpz_init(three[0]);
+    mpz_set_ui(three[0], 3);
+    clt_encode(x0, &mmap, 1, one,  top_level, rng);
+    clt_encode(x1, &mmap, 1, three, top_level, rng);
+    mpz_mul_ui(x0, x0, 3);
+    mpz_mod(x0, x0, mmap.x0);
+    mpz_sub(xp, x0, x1);
+    mpz_mod(xp, xp, mmap.x0);
+    ok &= expect("is_zero(3*[1] - [3])", 1, clt_is_zero(&pp, xp));
+
     int ix0 [nzs];
     int ix1 [nzs];
     for (ulong i = 0; i < nzs; i++) {
