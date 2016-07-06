@@ -110,8 +110,7 @@ GEN_PIS:
         if (eta > 350)
             for (; (eta%etap) < 350; etap++);
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "  Eta_p: %lu\n", etap);
-            fprintf(stderr, "  Eta_p: %lu\n", etap);
+            fprintf(stderr, "\n  Eta_p: %lu\n", etap);
         }
         ulong nchunks = floor(eta / etap);
         ulong leftover = eta - nchunks * etap;
