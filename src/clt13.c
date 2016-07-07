@@ -1,7 +1,6 @@
 #include "clt13.h"
 #include <assert.h>
 #include <fcntl.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +36,16 @@ static int ulong_save  (const char *fname, ulong x);
 static int ulong_fread (FILE *const fp, ulong *x);
 static int ulong_fsave (FILE *const fp, ulong x);
 
+static inline ulong nb_of_bits(ulong x)
+{
+    ulong nb = 0;
+    while (x > 0) {
+        x >>= 1;
+        nb++;
+    }
+    return nb;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
@@ -50,14 +59,13 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
     // calculate CLT parameters
     s->nzs = nzs;
-    alpha  = lambda;
-    beta   = lambda;
-    s->rho = lambda;
-    rho_f  = kappa * (s->rho + alpha + log2((float) lambda) + 2);
-    eta    = rho_f + alpha + 2 * beta + lambda + 8;
-    s->nu  = eta - beta - rho_f - lambda - 3;
-    /*s->n   = eta * log2((float) lambda);*/
-    s->n   = eta * lambda;
+    alpha  = lambda;            /* bitsize of g_i primes */
+    beta   = lambda;            /* bitsize of matrix H entries */
+    s->rho = lambda;            /* bitsize of randomness */
+    rho_f  = kappa * (s->rho + alpha + nb_of_bits(lambda) + 2); /* max bitsize of r_i's */
+    eta    = rho_f + alpha + 2 * beta + lambda + 8; /* bitsize of primes p_i */
+    s->nu  = eta - beta - rho_f - lambda - 3; /* number of msbs to extract */
+    s->n   = eta * lambda;                    /* number of primes */
     s->flags = flags;
 
     if (s->flags & CLT_FLAG_VERBOSE) {
