@@ -221,21 +221,27 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
 int main(void)
 {
-    ulong flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
+    ulong default_flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
+    ulong flags;
     printf("* No optimizations\n");
+    flags = default_flags;
     if (test(flags, 10, 30, 2) == 1)
         return 1;
-    flags |= CLT_FLAG_OPT_CRT_TREE;
     printf("* CRT tree\n");
+    flags = default_flags | CLT_FLAG_OPT_CRT_TREE;
     if (test(flags, 10, 30, 2) == 1)
         return 1;
     printf("* CRT tree + parallel encode\n");
-    flags |= CLT_FLAG_OPT_PARALLEL_ENCODE;
+    flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE;
+    if (test(flags, 10, 30, 2) == 1)
+        return 1;
+    printf("* CRT tree + composite ps\n");
+    flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_COMPOSITE_PS;
     if (test(flags, 10, 30, 2) == 1)
         return 1;
     printf("* CRT tree + parallel encode + composite ps\n");
-    flags |= CLT_FLAG_OPT_COMPOSITE_PS;
-    if (test(flags, 10, 30, 12) == 1)
+    flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE | CLT_FLAG_OPT_COMPOSITE_PS;
+    if (test(flags, 10, 30, 2) == 1)
         return 1;
     return 0;
 }
