@@ -56,8 +56,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     rho_f  = kappa * (s->rho + alpha + log2((float) lambda) + 2);
     eta    = rho_f + alpha + 2 * beta + lambda + 8;
     s->nu  = eta - beta - rho_f - lambda - 3;
-    /*s->n   = eta * log2((float) lambda);*/
-    s->n   = eta * lambda;
+    s->n   = eta * log2((float) lambda);
     s->flags = flags;
 
     if (s->flags & CLT_FLAG_VERBOSE) {
