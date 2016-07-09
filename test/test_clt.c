@@ -243,6 +243,10 @@ int main(void)
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE | CLT_FLAG_OPT_COMPOSITE_PS;
     if (test(flags, 10, 30, 2) == 1)
         return 1;
+    printf("* CRT tree + parallel encode + composite ps (kappa = 12)\n");
+    flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE | CLT_FLAG_OPT_COMPOSITE_PS;
+    if (test(flags, 10, 30, 12) == 1)
+        return 1;
     return 0;
 }
 

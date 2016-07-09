@@ -1,4 +1,5 @@
 #include "clt13.h"
+
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -7,6 +8,11 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <omp.h>
+
+/* etap is the size of the factors in the p_i's when using the composite ps
+ * optimization.  We default this to 420, as is done in
+ * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
+#define ETAP_DEFAULT 420
 
 typedef struct crt_tree {
     ulong n, n2;
@@ -64,7 +70,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     rho_f  = kappa * (s->rho + alpha + nb_of_bits(lambda) + 2); /* max bitsize of r_i's */
     eta    = rho_f + alpha + 2 * beta + lambda + 8; /* bitsize of primes p_i */
     s->nu  = eta - beta - rho_f - lambda - 3; /* number of msbs to extract */
-    s->n   = eta * lambda;                    /* number of primes */
+    s->n   = eta * nb_of_bits(lambda);        /* number of primes */
     s->flags = flags;
 
     if (s->flags & CLT_FLAG_VERBOSE) {
@@ -107,25 +113,27 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
     // Generate p_i's and g_i's, as well as x0 = \prod p_i
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating p_i's and g_i's");
+        fprintf(stderr, "  Generating p_i's and g_i's: ");
         start_time = current_time();
     }
 
 GEN_PIS:
     if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
-        ulong etap = 420;
+        ulong etap = ETAP_DEFAULT;
+        /* ignore if eta <= 350 for testing with small lambdas */
         if (eta > 350)
-            for (; (eta%etap) < 350; etap++);
+            for (/* */; eta % etap < 350; etap++)
+                ;
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "\n  Eta_p: %lu\n", etap);
+            fprintf(stderr, "[eta_p: %lu] ", etap);
         }
-        ulong nchunks = floor(eta / etap);
+        ulong nchunks = eta / etap;
         ulong leftover = eta - nchunks * etap;
-        printf("nchunks=%lu leftover=%lu\n", nchunks, leftover);
+        fprintf(stderr, "[nchunks=%lu leftover=%lu] ", nchunks, leftover);
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
-            mpz_set_ui(ps[i], 1);
             clt_elem_t p_unif;
+            mpz_set_ui(ps[i], 1);
             mpz_init(p_unif);
             // generate a p_i
             for (ulong j = 0; j < nchunks; j++) {
@@ -161,14 +169,14 @@ GEN_PIS:
             // if crt_tree_init fails, regenerate with new p_i's
             crt_tree_clear(s->crt);
             if (s->flags & CLT_FLAG_VERBOSE) {
-                fprintf(stderr, " (restarting)");
+                fprintf(stderr, "(restarting) ");
             }
             goto GEN_PIS;
         }
         // crt_tree_init succeeded, set x0
         mpz_set(s->x0, s->crt->mod);
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, ": %f\n", current_time() - start_time);
+            fprintf(stderr, "%f\n", current_time() - start_time);
         }
     } else {
         // find x0 the hard way
@@ -176,7 +184,7 @@ GEN_PIS:
             mpz_mul(s->x0, s->x0, ps[i]);
         }
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, ": %f\n", current_time() - start_time);
+            fprintf(stderr, "%f\n", current_time() - start_time);
         }
 
         // Compute CRT coefficients
@@ -195,13 +203,13 @@ GEN_PIS:
             mpz_clear(q);
         }
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, ": %f\n", current_time() - start_time);
+            fprintf(stderr, "%f\n", current_time() - start_time);
         }
     }
 
     // Compute z_i's
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating z_i's");
+        fprintf(stderr, "  Generating z_i's: ");
         start_time = current_time();
     }
 #pragma omp parallel for
@@ -211,12 +219,12 @@ GEN_PIS:
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
     }
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, ": %f\n", current_time() - start_time);
+        fprintf(stderr, "%f\n", current_time() - start_time);
     }
 
     // Compute pzt
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating pzt");
+        fprintf(stderr, "  Generating pzt: ");
         start_time = current_time();
     }
     {
@@ -254,7 +262,7 @@ GEN_PIS:
         mpz_clear(zk);
     }
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, ": %f\n", current_time() - start_time);
+        fprintf(stderr, "%f\n", current_time() - start_time);
     }
 
     for (ulong i = 0; i < s->n; i++)
