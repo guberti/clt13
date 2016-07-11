@@ -67,10 +67,10 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     alpha  = lambda;            /* bitsize of g_i primes */
     beta   = lambda;            /* bitsize of matrix H entries */
     s->rho = lambda;            /* bitsize of randomness */
-    rho_f = kappa * (s->rho + alpha);               /* max bitsize of r_i's */
-    eta    = rho_f + alpha + 2 * beta + lambda + 8; /* bitsize of primes p_i */
-    s->nu  = eta - beta - rho_f - lambda - 3; /* number of msbs to extract */
-    s->n   = eta * nb_of_bits(lambda);        /* number of primes */
+    rho_f = kappa * (s->rho + alpha);  /* max bitsize of r_i's */
+    eta    = rho_f + alpha + beta;     /* bitsize of primes p_i */
+    s->n   = eta * nb_of_bits(lambda); /* number of primes */
+    s->nu = alpha - nb_of_bits(s->n) - 3; /* number of msbs to extract */
     s->flags = flags;
 
     if (s->flags & CLT_FLAG_VERBOSE) {
