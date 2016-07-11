@@ -1,5 +1,4 @@
 #include "clt13.h"
-#include <aesrand_gmp.h>
 
 #include <assert.h>
 #include <fcntl.h>

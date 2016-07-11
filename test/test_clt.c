@@ -1,6 +1,5 @@
 #include "clt13.h"
 #include <aesrand.h>
-#include <aesrand_gmp.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
