@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#define CLT_OK 0
+#define CLT_ERR (-1)
+
 #include <aesrand.h>
 #include <gmp.h>
 
@@ -48,8 +51,8 @@ typedef struct {
     | CLT_FLAG_OPT_COMPOSITE_PS \
     )
 
-void clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
-                     const int *pows, ulong flags, aes_randstate_t rng);
+int clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
+                    const int *pows, ulong flags, aes_randstate_t rng);
 void clt_state_clear (clt_state *s);
 void clt_state_read  (clt_state *s, const char *dir);
 void clt_state_save  (const clt_state *s, const char *dir);

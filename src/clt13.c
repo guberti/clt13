@@ -13,6 +13,8 @@
  * optimization.  We default this to 420, as is done in
  * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
 #define ETAP_DEFAULT 420
+/* when trying to find a fixed point, loop MAX_LOOP_LENGTH times before aborting */
+#define MAX_LOOP_LENGTH 10
 
 typedef struct crt_tree {
     ulong n, n2;
@@ -54,7 +56,7 @@ static inline ulong nb_of_bits(ulong x)
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
-void
+int
 clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
                 const int *pows, ulong flags, aes_randstate_t rng)
 {
@@ -64,13 +66,31 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
     // calculate CLT parameters
     s->nzs = nzs;
-    alpha  = lambda;            /* bitsize of g_i primes */
-    beta   = lambda;            /* bitsize of matrix H entries */
-    s->rho = lambda;            /* bitsize of randomness */
+    alpha  = lambda;                   /* bitsize of g_i primes */
+    beta   = lambda;                   /* bitsize of matrix H entries */
+    s->rho = lambda;                   /* bitsize of randomness */
     rho_f = kappa * (s->rho + alpha);  /* max bitsize of r_i's */
-    eta    = rho_f + alpha + beta;     /* bitsize of primes p_i */
+    eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
     s->n   = eta * nb_of_bits(lambda); /* number of primes */
-    s->nu = alpha - nb_of_bits(s->n) - 3; /* number of msbs to extract */
+    s->nu = eta - beta- rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
+    {
+        /* Loop until fixed point reached */
+        ulong old_eta = 0, old_n = 0, old_nu = 0;
+        int i = 0;
+        for (i = 0;
+             i < MAX_LOOP_LENGTH && (old_eta != eta || old_n != s->n || old_nu != s->nu);
+             ++i) {
+            old_eta = eta, old_n = s->n, old_nu = s->nu;
+            eta  = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
+            s->n = eta * nb_of_bits(lambda);
+            s->nu = eta - beta- rho_f - nb_of_bits(s->n) - 3;
+        }
+        if (i == MAX_LOOP_LENGTH
+            && (old_eta != eta || old_n != s->n || old_nu != s->nu)) {
+            fprintf(stderr, "Error: unable to find valid eta, n, and nu choices\n");
+            return CLT_ERR;
+        }
+    }
     s->flags = flags;
 
     if (s->flags & CLT_FLAG_VERBOSE) {
@@ -85,6 +105,10 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         fprintf(stderr, "  N: %ld\n", s->n);
         fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
     }
+
+    /* Make sure the proper bounds are hit */
+    assert(s->nu >= alpha + 6);
+    assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
     ps       = malloc(sizeof(clt_elem_t) * s->n);
     s->gs    = malloc(sizeof(clt_elem_t) * s->n);
@@ -272,6 +296,8 @@ GEN_PIS:
     for (ulong i = 0; i < s->nzs; ++i)
         mpz_clear(zs[i]);
     free(zs);
+
+    return CLT_OK;
 }
 
 void clt_state_clear(clt_state *s)
