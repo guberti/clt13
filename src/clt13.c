@@ -88,6 +88,13 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         fprintf(stderr, "  Rho_f: %ld\n", rho_f);
         fprintf(stderr, "  N: %ld\n", s->n);
         fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
+        fprintf(stderr, "  Flags: \n");
+        if (s->flags & CLT_FLAG_OPT_CRT_TREE)
+            fprintf(stderr, "    CRT TREE\n");
+        if (s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)
+            fprintf(stderr, "    PARALLEL ENCODE\n");
+        if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS)
+            fprintf(stderr, "    COMPOSITE PS\n");
     }
 
     /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
