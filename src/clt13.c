@@ -72,7 +72,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     rho_f = kappa * (s->rho + alpha);  /* max bitsize of r_i's */
     eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
     s->n   = eta * nb_of_bits(lambda); /* number of primes */
-    s->nu = eta - beta- rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
+    s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
     {
         /* Loop until fixed point reached */
         ulong old_eta = 0, old_n = 0, old_nu = 0;
@@ -83,7 +83,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
             old_eta = eta, old_n = s->n, old_nu = s->nu;
             eta  = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
             s->n = eta * nb_of_bits(lambda);
-            s->nu = eta - beta- rho_f - nb_of_bits(s->n) - 3;
+            s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
         }
         if (i == MAX_LOOP_LENGTH
             && (old_eta != eta || old_n != s->n || old_nu != s->nu)) {
