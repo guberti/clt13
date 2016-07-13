@@ -90,7 +90,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
     }
 
-    /* Make sure the proper bounds are hit */
+    /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
     assert(s->nu >= alpha + 6);
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
@@ -254,7 +254,7 @@ GEN_PIS:
         for (ulong i = 0; i < s->n; ++i) {
             clt_elem_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
-            // compute (((g)^{-1} mod p_i) * z^k mod p_i) * r_i * (q / p_i)
+            // compute ((g^{-1} mod p_i) * z^k mod p_i) * r_i * (q / p_i)
             mpz_invert(tmp, s->g, ps[i]);
             mpz_mul(tmp, tmp, zk);
             mpz_mod(tmp, tmp, ps[i]);
