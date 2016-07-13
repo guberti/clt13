@@ -16,6 +16,7 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_pp pp_, pp;
 
     aes_randstate_t rng;
+
     aes_randinit(rng);
 
     int pows [nzs];
@@ -64,7 +65,8 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_init_set_ui(x[0], 0);
     while (mpz_cmp_ui(x[0], 0) <= 0) {
         mpz_set_ui(x[0], rand());
-        mpz_mod(x[0], x[0], mmap.gs[0]);
+        mpz_mod(x[0], x[0], mmap.g);
+        /* mpz_mod(x[0], x[0], mmap.gs[0]); */
     }
     gmp_printf("x = %Zd\n", x[0]);
 
@@ -167,7 +169,8 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_inits(c, in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
 
     mpz_urandomb_aes(in1[0], rng, lambda);
-    mpz_mod(in1[0], in1[0], mmap.gs[0]);
+    mpz_mod(in1[0], in1[0], mmap.g);
+    /* mpz_mod(in1[0], in1[0], mmap.gs[0]); */
 
     mpz_set_ui(in0[0], 0);
     mpz_set_ui(cin[0], 0);
@@ -193,10 +196,12 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_set_ui(cin[0], 0);
 
     mpz_urandomb_aes(in0[0], rng, lambda);
-    mpz_mod(in0[0], in0[0], mmap.gs[0]);
+    mpz_mod(in0[0], in0[0], mmap.g);
+    /* mpz_mod(in0[0], in0[0], mmap.gs[0]); */
 
     mpz_urandomb_aes(in1[0], rng, lambda);
-    mpz_mod(in1[0], in1[0], mmap.gs[0]);
+    mpz_mod(in1[0], in1[0], mmap.g);
+    /* mpz_mod(in1[0], in1[0], mmap.gs[0]); */
 
     mpz_urandomb_aes(in0[1], rng, 16);
     mpz_urandomb_aes(in1[1], rng, 16);
@@ -223,30 +228,45 @@ int main(void)
 {
     ulong default_flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
     ulong flags;
+    ulong kappa = 2;
+    ulong lambda = 30;
+    ulong nzs = 10;
+
+    printf("\n** %lu %lu %lu **\n\n", nzs, lambda, kappa);
+
     printf("* No optimizations\n");
     flags = default_flags;
-    if (test(flags, 10, 30, 2) == 1)
+    if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
+
     printf("* CRT tree\n");
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE;
-    if (test(flags, 10, 30, 2) == 1)
+    if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
+
     printf("* CRT tree + parallel encode\n");
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE;
-    if (test(flags, 10, 30, 2) == 1)
+    if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
+
     printf("* CRT tree + composite ps\n");
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_COMPOSITE_PS;
-    if (test(flags, 10, 30, 2) == 1)
+    if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
+
     printf("* CRT tree + parallel encode + composite ps\n");
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE | CLT_FLAG_OPT_COMPOSITE_PS;
-    if (test(flags, 10, 30, 2) == 1)
+    if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
-    printf("* CRT tree + parallel encode + composite ps (kappa = 12)\n");
+
+    kappa = 12;
+    printf("\n** %lu %lu %lu **\n\n", nzs, lambda, kappa);
+
+    printf("* CRT tree + parallel encode + composite ps\n");
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE | CLT_FLAG_OPT_COMPOSITE_PS;
-    if (test(flags, 10, 30, 12) == 1)
+    if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
+
     return 0;
 }
 

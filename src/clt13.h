@@ -31,7 +31,7 @@ typedef struct {
     ulong nu;
     clt_elem_t x0;
     clt_elem_t pzt;
-    clt_elem_t *gs;
+    clt_elem_t g;
     clt_elem_t *zinvs;
     union {
         crt_tree *crt;

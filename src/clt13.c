@@ -66,7 +66,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
     // calculate CLT parameters
     s->nzs = nzs;
-    alpha  = lambda;                   /* bitsize of g_i primes */
+    alpha  = lambda;                   /* bitsize of g prime */
     beta   = lambda;                   /* bitsize of matrix H entries */
     s->rho = lambda;                   /* bitsize of randomness */
     rho_f = kappa * (s->rho + alpha);  /* max bitsize of r_i's */
@@ -111,7 +111,6 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
     ps       = malloc(sizeof(clt_elem_t) * s->n);
-    s->gs    = malloc(sizeof(clt_elem_t) * s->n);
     zs       = malloc(sizeof(clt_elem_t) * s->nzs);
     s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
 
@@ -127,18 +126,27 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     // initialize gmp variables
     mpz_init_set_ui(s->x0,  1);
     mpz_init_set_ui(s->pzt, 0);
+    mpz_init(s->g);
     for (ulong i = 0; i < s->n; ++i) {
         mpz_init_set_ui(ps[i], 1);
-        mpz_init(s->gs[i]);
     }
     for (ulong i = 0; i < s->nzs; ++i) {
         mpz_inits(zs[i], s->zinvs[i], NULL);
     }
 
-    // Generate p_i's and g_i's, as well as x0 = \prod p_i
+    // Generate p_i's and g, as well as x0 = \prod p_i
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating p_i's and g_i's: ");
+        fprintf(stderr, "  Generating p_i's and g: ");
         start_time = current_time();
+    }
+
+    /* Generate a single g element, see [CHLRS15, footnote 5] */
+    {
+        clt_elem_t p_unif;
+        mpz_init(p_unif);
+        mpz_urandomb_aes(p_unif, rng, alpha);
+        mpz_nextprime(s->g, p_unif);
+        mpz_clear(p_unif);
     }
 
 GEN_PIS:
@@ -168,9 +176,6 @@ GEN_PIS:
             mpz_urandomb_aes(p_unif, rng, leftover);
             mpz_nextprime(p_unif, p_unif);
             mpz_mul(ps[i], ps[i], p_unif);
-            // generate a g_i
-            mpz_urandomb_aes(p_unif, rng, alpha);
-            mpz_nextprime(s->gs[i], p_unif);
             mpz_clear(p_unif);
         }
     } else {
@@ -180,8 +185,6 @@ GEN_PIS:
             mpz_init(p_unif);
             mpz_urandomb_aes(p_unif, rng, eta);
             mpz_nextprime(ps[i], p_unif);
-            mpz_urandomb_aes(p_unif, rng, alpha);
-            mpz_nextprime(s->gs[i], p_unif);
             mpz_clear(p_unif);
         }
     }
@@ -267,8 +270,8 @@ GEN_PIS:
         for (ulong i = 0; i < s->n; ++i) {
             clt_elem_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
-            // compute (((g_i)^{-1} mod p_i) * z^k mod p_i) * r_i * (q / p_i)
-            mpz_invert(tmp, s->gs[i], ps[i]);
+            // compute (((g)^{-1} mod p_i) * z^k mod p_i) * r_i * (q / p_i)
+            mpz_invert(tmp, s->g, ps[i]);
             mpz_mul(tmp, tmp, zk);
             mpz_mod(tmp, tmp, ps[i]);
             mpz_urandomb_aes(rnd, rng, beta);
@@ -302,11 +305,7 @@ GEN_PIS:
 
 void clt_state_clear(clt_state *s)
 {
-    mpz_clears(s->x0, s->pzt, NULL);
-    for (ulong i = 0; i < s->n; i++) {
-        mpz_clear(s->gs[i]);
-    }
-    free(s->gs);
+    mpz_clears(s->x0, s->pzt, s->g, NULL);
     for (ulong i = 0; i < s->nzs; i++) {
         mpz_clear(s->zinvs[i]);
     }
@@ -343,12 +342,9 @@ void clt_state_read(clt_state *s, const char *dir)
     snprintf(fname, len, "%s/nu", dir);
     ulong_read(fname, &s->nu);
 
-    s->gs    = malloc(sizeof(clt_elem_t) * s->n);
     s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
 
-    mpz_inits(s->x0, s->pzt, NULL);
-    for (ulong i = 0; i < s->n; i++)
-        mpz_init(s->gs[i]);
+    mpz_inits(s->x0, s->pzt, s->g, NULL);
     for (ulong i = 0; i < s->nzs; i++)
         mpz_init(s->zinvs[i]);
 
@@ -358,8 +354,8 @@ void clt_state_read(clt_state *s, const char *dir)
     snprintf(fname, len, "%s/pzt", dir);
     clt_elem_read(fname, s->pzt);
 
-    snprintf(fname, len, "%s/gs", dir);
-    clt_vector_read(fname, s->gs, s->n);
+    snprintf(fname, len, "%s/g", dir);
+    clt_elem_read(fname, s->g);
 
     snprintf(fname, len, "%s/zinvs", dir);
     clt_vector_read(fname, s->zinvs, s->nzs);
@@ -406,8 +402,8 @@ void clt_state_save(const clt_state *s, const char *dir)
     snprintf(fname, len, "%s/pzt", dir);
     clt_elem_save(fname, s->pzt);
 
-    snprintf(fname, len, "%s/gs", dir);
-    clt_vector_save(fname, s->gs, s->n);
+    snprintf(fname, len, "%s/g", dir);
+    clt_elem_save(fname, s->g);
 
     snprintf(fname, len, "%s/zinvs", dir);
     clt_vector_save(fname, s->zinvs, s->nzs);
@@ -466,11 +462,10 @@ clt_state_fread(FILE *const fp, clt_state *s)
         goto cleanup;
     }
 
-    s->gs = malloc(sizeof(clt_elem_t) * s->n);
-    for (ulong i = 0; i < s->n; i++)
-        mpz_init(s->gs[i]);
-    if (clt_vector_fread(fp, s->gs, s->n) != 0) {
-        fprintf(stderr, "[clt_state_fread] couldn't read gs!\n");
+    mpz_init(s->g);
+
+    if (clt_elem_fread(fp, s->g) || GET_NEWLINE(fp) != 0) {
+        fprintf(stderr, "[clt_state_fread] couldn't read g!\n");
         goto cleanup;
     }
 
@@ -552,8 +547,8 @@ clt_state_fsave(FILE *const fp, const clt_state *s)
         goto cleanup;
     }
 
-    if (clt_vector_fsave(fp, s->gs, s->n) || PUT_NEWLINE(fp) != 0) {
-        fprintf(stderr, "[clt_state_fsave] failed to save gs!\n");
+    if (clt_elem_fsave(fp, s->g) || PUT_NEWLINE(fp) != 0) {
+        fprintf(stderr, "[clt_state_fsave] failed to save g!\n");
         goto cleanup;
     }
 
@@ -713,14 +708,14 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, clt_elem_t *ins,
     mpz_init(tmp);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        // slots[i] = m[i] + r*g[i]
+        // slots[i] = m[i] + r*g
         clt_elem_t *slots = malloc(s->n * sizeof(clt_elem_t));
         if (s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE) {
 #pragma omp parallel for
             for (ulong i = 0; i < s->n; i++) {
                 mpz_init(slots[i]);
                 mpz_urandomb_aes(slots[i], rng, s->rho);
-                mpz_mul(slots[i], slots[i], s->gs[i]);
+                mpz_mul(slots[i], slots[i], s->g);
                 if (i < nins)
                     mpz_add(slots[i], slots[i], ins[i]);
             }
@@ -728,7 +723,7 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, clt_elem_t *ins,
             for (ulong i = 0; i < s->n; i++) {
                 mpz_init(slots[i]);
                 mpz_urandomb_aes(slots[i], rng, s->rho);
-                mpz_mul(slots[i], slots[i], s->gs[i]);
+                mpz_mul(slots[i], slots[i], s->g);
                 if (i < nins)
                     mpz_add(slots[i], slots[i], ins[i]);
             }
@@ -743,7 +738,7 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, clt_elem_t *ins,
         mpz_set_ui(rop, 0);
         for (unsigned long i = 0; i < s->n; ++i) {
             mpz_urandomb_aes(tmp, rng, s->rho);
-            mpz_mul(tmp, tmp, s->gs[i]);
+            mpz_mul(tmp, tmp, s->g);
             if (i < nins)
                 mpz_add(tmp, tmp, ins[i]);
             mpz_mul(tmp, tmp, s->crt_coeffs[i]);
