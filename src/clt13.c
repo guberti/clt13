@@ -53,10 +53,10 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     alpha  = lambda;                   /* bitsize of g prime */
     beta   = lambda;                   /* bitsize of h_i entries */
     s->rho = lambda;                   /* bitsize of randomness */
-    rho_f = kappa * (s->rho + alpha);  /* max bitsize of r_i's */
+    rho_f  = kappa * (s->rho + alpha); /* max bitsize of r_i's */
     eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
     s->n   = eta * nb_of_bits(lambda); /* number of primes */
-    s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
+    s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
     {
         /* Loop until fixed point reached */
         ulong old_eta = 0, old_n = 0, old_nu = 0;
@@ -152,7 +152,8 @@ GEN_PIS:
         }
         ulong nchunks = eta / etap;
         ulong leftover = eta - nchunks * etap;
-        fprintf(stderr, "[nchunks=%lu leftover=%lu] ", nchunks, leftover);
+        if (s->flags & CLT_FLAG_VERBOSE)
+            fprintf(stderr, "[nchunks=%lu leftover=%lu] ", nchunks, leftover);
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
             clt_elem_t p_unif;
