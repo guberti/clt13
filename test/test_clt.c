@@ -65,8 +65,7 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_init_set_ui(x[0], 0);
     while (mpz_cmp_ui(x[0], 0) <= 0) {
         mpz_set_ui(x[0], rand());
-        mpz_mod(x[0], x[0], mmap.g);
-        /* mpz_mod(x[0], x[0], mmap.gs[0]); */
+        mpz_mod(x[0], x[0], mmap.gs[0]);
     }
     gmp_printf("x = %Zd\n", x[0]);
 
@@ -169,8 +168,7 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_inits(c, in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
 
     mpz_urandomb_aes(in1[0], rng, lambda);
-    mpz_mod(in1[0], in1[0], mmap.g);
-    /* mpz_mod(in1[0], in1[0], mmap.gs[0]); */
+    mpz_mod(in1[0], in1[0], mmap.gs[0]);
 
     mpz_set_ui(in0[0], 0);
     mpz_set_ui(cin[0], 0);
@@ -196,12 +194,10 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_set_ui(cin[0], 0);
 
     mpz_urandomb_aes(in0[0], rng, lambda);
-    mpz_mod(in0[0], in0[0], mmap.g);
-    /* mpz_mod(in0[0], in0[0], mmap.gs[0]); */
+    mpz_mod(in0[0], in0[0], mmap.gs[0]);
 
     mpz_urandomb_aes(in1[0], rng, lambda);
-    mpz_mod(in1[0], in1[0], mmap.g);
-    /* mpz_mod(in1[0], in1[0], mmap.gs[0]); */
+    mpz_mod(in1[0], in1[0], mmap.gs[0]);
 
     mpz_urandomb_aes(in0[1], rng, 16);
     mpz_urandomb_aes(in1[1], rng, 16);
