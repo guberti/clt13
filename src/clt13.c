@@ -14,8 +14,6 @@
  * optimization.  We default this to 420, as is done in
  * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
 #define ETAP_DEFAULT 420
-/* when trying to find a fixed point, loop MAX_LOOP_LENGTH times before aborting */
-#define MAX_LOOP_LENGTH 10
 
 #define GET_NEWLINE(fp) (fscanf(fp, "\n"))
 #define PUT_NEWLINE(fp) (!(fprintf(fp, "\n") > 0))
@@ -55,27 +53,19 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     s->rho = lambda;                   /* bitsize of randomness */
     rho_f  = kappa * (s->rho + alpha); /* max bitsize of r_i's */
     eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
-    s->n   = eta * nb_of_bits(lambda); /* number of primes */
+    /* We are not aware of any attack on the specific setting of n.  The only
+     * published attack, from [CLT13], requires low-level encodings of zero,
+     * which are not released in our setting.  Thus, it appears we can set n to
+     * as small as 2 and still be okay.  However, for "added security" we set n
+     * to \lambda "just in case". */
+    s->n   = lambda;                   /* number of primes */
+    eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
     s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
-    {
-        /* Loop until fixed point reached */
-        ulong old_eta = 0, old_n = 0, old_nu = 0;
-        int i = 0;
-        for (i = 0;
-             i < MAX_LOOP_LENGTH && (old_eta != eta || old_n != s->n || old_nu != s->nu);
-             ++i) {
-            old_eta = eta, old_n = s->n, old_nu = s->nu;
-            eta  = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
-            s->n = eta * nb_of_bits(lambda);
-            s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
-        }
-        if (i == MAX_LOOP_LENGTH
-            && (old_eta != eta || old_n != s->n || old_nu != s->nu)) {
-            fprintf(stderr, "Error: unable to find valid eta, n, and nu choices\n");
-            return CLT_ERR;
-        }
-    }
     s->flags = flags;
+
+    /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
+    assert(s->nu >= alpha + 6);
+    assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
     if (s->flags & CLT_FLAG_VERBOSE) {
         fprintf(stderr, "  Security Parameter: %ld\n", lambda);
@@ -96,10 +86,6 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS)
             fprintf(stderr, "    COMPOSITE PS\n");
     }
-
-    /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
-    assert(s->nu >= alpha + 6);
-    assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
     ps       = malloc(sizeof(clt_elem_t) * s->n);
     zs       = malloc(sizeof(clt_elem_t) * s->nzs);
