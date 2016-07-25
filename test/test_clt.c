@@ -94,6 +94,16 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(0 + 1)", 0, clt_is_zero(&pp, xp));
 
+    mpz_t two[1];
+    mpz_init_set_ui(two[0], 2);
+    clt_encode(x0, &mmap, 1, one, top_level, rng);
+    clt_encode(x1, &mmap, 1, two,  top_level, rng);
+    mpz_mul_ui(x0, x0, 2);
+    mpz_sub(xp, x1, x0);
+    mpz_mod(xp, xp, mmap.x0);
+    ok &= expect("is_zero(2 - 2[1])", 1, clt_is_zero(&pp, xp));
+    mpz_clear(two[0]);
+
     clt_encode(x0, &mmap, 1, zero, top_level, rng);
     clt_encode(x1, &mmap, 1, x,    top_level, rng);
     mpz_add(xp, x0, x1);

@@ -25,6 +25,8 @@ static int ulong_save  (const char *fname, ulong x);
 static int ulong_fread (FILE *const fp, ulong *x);
 static int ulong_fsave (FILE *const fp, ulong x);
 
+static void print_progress (size_t cur, size_t total);
+
 static inline ulong nb_of_bits(ulong x)
 {
     ulong nb = 0;
@@ -45,6 +47,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     ulong alpha, beta, eta, rho_f;
     clt_elem_t *ps, *zs;
     double start_time = 0.0;
+    int count = 0;
 
     /* calculate CLT parameters */
     s->nzs = nzs;
@@ -114,7 +117,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
     // Generate p_i's and g_i's, as well as x0 = \prod p_i
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating p_i's and g: ");
+        fprintf(stderr, "  Generating p_i's and g:\n");
         start_time = current_time();
     }
 
@@ -132,7 +135,7 @@ GEN_PIS:
         ulong nchunks = eta / etap;
         ulong leftover = eta - nchunks * etap;
         if (s->flags & CLT_FLAG_VERBOSE)
-            fprintf(stderr, "[nchunks=%lu leftover=%lu] ", nchunks, leftover);
+            fprintf(stderr, "[nchunks=%lu leftover=%lu]\n", nchunks, leftover);
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
             clt_elem_t p_unif;
@@ -151,8 +154,16 @@ GEN_PIS:
             mpz_urandomb_aes(p_unif, rng, alpha);
             mpz_nextprime(s->gs[i], p_unif);
             mpz_clear(p_unif);
+
+            if (s->flags & CLT_FLAG_VERBOSE) {
+                #pragma omp critical
+                print_progress(++count, s->n);
+            }
         }
     } else {
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, "\n");
+        }
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
             clt_elem_t p_unif;
@@ -164,10 +175,22 @@ GEN_PIS:
             mpz_urandomb_aes(p_unif, rng, alpha);
             mpz_nextprime(s->gs[i], p_unif);
             mpz_clear(p_unif);
+
+            if (s->flags & CLT_FLAG_VERBOSE) {
+                #pragma omp critical
+                print_progress(++count, s->n);
+            }
         }
+    }
+    if (s->flags & CLT_FLAG_VERBOSE) {
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
     }
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, "  Generating CRT-Tree: ");
+            start_time = current_time();
+        }
         // use crt_tree to find x0
         int ok = crt_tree_init(s->crt, ps, s->n);
         if (!ok) {
@@ -181,21 +204,29 @@ GEN_PIS:
         // crt_tree_init succeeded, set x0
         mpz_set(s->x0, s->crt->mod);
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "%f\n", current_time() - start_time);
+            fprintf(stderr, "[%.2fs]\n", current_time() - start_time);
         }
     } else {
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, "  Computing x0: \n");
+            start_time = current_time();
+        }
+
         // find x0 the hard way
         for (ulong i = 0; i < s->n; i++) {
             mpz_mul(s->x0, s->x0, ps[i]);
+            print_progress(i, s->n);
         }
+
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "%f\n", current_time() - start_time);
+            fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
         }
 
         // Compute CRT coefficients
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "  Generating CRT coefficients: ");
+            fprintf(stderr, "  Generating CRT coefficients:\n");
             start_time = current_time();
+            count = 0;
         }
 #pragma omp parallel for
         for (unsigned long i = 0; i < s->n; i++) {
@@ -206,31 +237,44 @@ GEN_PIS:
             mpz_mul(s->crt_coeffs[i], s->crt_coeffs[i], q);
             mpz_mod(s->crt_coeffs[i], s->crt_coeffs[i], s->x0);
             mpz_clear(q);
+
+            if (s->flags & CLT_FLAG_VERBOSE) {
+#pragma omp critical
+                print_progress(++count, s->n);
+            }
         }
         if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "%f\n", current_time() - start_time);
+            fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
         }
     }
+    count = 0;
 
     // Compute z_i's
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating z_i's: ");
+        fprintf(stderr, "  Generating z_i's:\n");
         start_time = current_time();
+        count = 0;
     }
 #pragma omp parallel for
     for (ulong i = 0; i < s->nzs; ++i) {
         do {
             mpz_urandomm_aes(zs[i], rng, s->x0);
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
+
+        if (s->flags & CLT_FLAG_VERBOSE) {
+#pragma omp critical
+            print_progress(++count, s->nzs);
+        }
     }
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "%f\n", current_time() - start_time);
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
     }
 
     // Compute pzt
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating pzt: ");
+        fprintf(stderr, "  Generating pzt:\n");
         start_time = current_time();
+        count = 0;
     }
     {
         clt_elem_t zk;
@@ -243,6 +287,9 @@ GEN_PIS:
             mpz_mul(zk, zk, tmp);
             mpz_mod(zk, zk, s->x0);
             mpz_clear(tmp);
+            if (s->flags & CLT_FLAG_VERBOSE) {
+                print_progress(++count, s->n + s->nzs);
+            }
         }
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; ++i) {
@@ -262,12 +309,16 @@ GEN_PIS:
                 mpz_add(s->pzt, s->pzt, tmp);
             }
             mpz_clears(tmp, qpi, rnd, NULL);
+            if (s->flags & CLT_FLAG_VERBOSE) {
+#pragma omp critical
+                print_progress(++count, s->n + s->nzs);
+            }
         }
         mpz_mod(s->pzt, s->pzt, s->x0);
         mpz_clear(zk);
     }
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "%f\n", current_time() - start_time);
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
     }
 
     for (ulong i = 0; i < s->n; i++)
@@ -906,4 +957,21 @@ current_time(void)
     struct timeval t;
     gettimeofday(&t, NULL);
     return t.tv_sec + (double) (t.tv_usec / 1000000.0);
+}
+
+#define PBSTR "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
+#define PBWIDTH 60
+
+void print_progress (size_t cur, size_t total)
+{
+    static int last_val = 0;
+    double percentage = (double) cur / total;
+    int val  = percentage * 100;
+    int lpad = percentage * PBWIDTH;
+    int rpad = PBWIDTH - lpad;
+    if (val != last_val) {
+        printf("\r\t%3d%% [%.*s%*s] %lu/%lu", val, lpad, PBSTR, rpad, "", cur, total);
+        fflush(stdout);
+        last_val = val;
+    }
 }
