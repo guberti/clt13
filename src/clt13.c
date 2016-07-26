@@ -104,7 +104,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         }
     }
 
-    // initialize gmp variables
+    /* initialize gmp variables */
     mpz_init_set_ui(s->x0,  1);
     mpz_init_set_ui(s->pzt, 0);
     for (ulong i = 0; i < s->n; ++i) {
@@ -115,7 +115,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         mpz_inits(zs[i], s->zinvs[i], NULL);
     }
 
-    // Generate p_i's and g_i's, as well as x0 = \prod p_i
+    /* Generate p_i's and g_i's, as well as x0 = \prod p_i */
     if (s->flags & CLT_FLAG_VERBOSE) {
         fprintf(stderr, "  Generating p_i's and g:\n");
         start_time = current_time();
@@ -156,7 +156,7 @@ GEN_PIS:
             mpz_clear(p_unif);
 
             if (s->flags & CLT_FLAG_VERBOSE) {
-                #pragma omp critical
+#pragma omp critical
                 print_progress(++count, s->n);
             }
         }
@@ -177,7 +177,7 @@ GEN_PIS:
             mpz_clear(p_unif);
 
             if (s->flags & CLT_FLAG_VERBOSE) {
-                #pragma omp critical
+#pragma omp critical
                 print_progress(++count, s->n);
             }
         }
@@ -191,17 +191,17 @@ GEN_PIS:
             fprintf(stderr, "  Generating CRT-Tree: ");
             start_time = current_time();
         }
-        // use crt_tree to find x0
+        /* use crt_tree to find x0 */
         int ok = crt_tree_init(s->crt, ps, s->n);
         if (!ok) {
-            // if crt_tree_init fails, regenerate with new p_i's
+            /* if crt_tree_init fails, regenerate with new p_i's */
             crt_tree_clear(s->crt);
             if (s->flags & CLT_FLAG_VERBOSE) {
                 fprintf(stderr, "(restarting) ");
             }
             goto GEN_PIS;
         }
-        // crt_tree_init succeeded, set x0
+        /* crt_tree_init succeeded, set x0 */
         mpz_set(s->x0, s->crt->mod);
         if (s->flags & CLT_FLAG_VERBOSE) {
             fprintf(stderr, "[%.2fs]\n", current_time() - start_time);
@@ -212,7 +212,7 @@ GEN_PIS:
             start_time = current_time();
         }
 
-        // find x0 the hard way
+        /* calculate x0 the hard way */
         for (ulong i = 0; i < s->n; i++) {
             mpz_mul(s->x0, s->x0, ps[i]);
             print_progress(i, s->n);
@@ -222,7 +222,7 @@ GEN_PIS:
             fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
         }
 
-        // Compute CRT coefficients
+        /* Compute CRT coefficients */
         if (s->flags & CLT_FLAG_VERBOSE) {
             fprintf(stderr, "  Generating CRT coefficients:\n");
             start_time = current_time();
@@ -247,9 +247,8 @@ GEN_PIS:
             fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
         }
     }
-    count = 0;
 
-    // Compute z_i's
+    /* Compute z_i's */
     if (s->flags & CLT_FLAG_VERBOSE) {
         fprintf(stderr, "  Generating z_i's:\n");
         start_time = current_time();
@@ -270,7 +269,7 @@ GEN_PIS:
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
     }
 
-    // Compute pzt
+    /* Compute pzt */
     if (s->flags & CLT_FLAG_VERBOSE) {
         fprintf(stderr, "  Generating pzt:\n");
         start_time = current_time();
@@ -279,7 +278,7 @@ GEN_PIS:
     {
         clt_elem_t zk;
         mpz_init_set_ui(zk, 1);
-        // compute z_1^t_1 ... z_k^t_k mod q
+        /* compute z_1^t_1 ... z_k^t_k mod x0 */
         for (ulong i = 0; i < s->nzs; ++i) {
             clt_elem_t tmp;
             mpz_init(tmp);
@@ -295,7 +294,7 @@ GEN_PIS:
         for (ulong i = 0; i < s->n; ++i) {
             clt_elem_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
-            // compute ((g_i^{-1} mod p_i) * z^k mod p_i) * r_i * (q / p_i)
+            /* compute ((g_i^{-1} mod p_i) * z^k mod p_i) * r_i * (x0 / p_i) */
             mpz_invert(tmp, s->gs[i], ps[i]);
             mpz_mul(tmp, tmp, zk);
             mpz_mod(tmp, tmp, ps[i]);
