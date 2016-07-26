@@ -117,8 +117,9 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
     /* Generate p_i's and g_i's, as well as x0 = \prod p_i */
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating p_i's and g:\n");
+        fprintf(stderr, "  Generating p_i's and g_i's:\n");
         start_time = current_time();
+        print_progress(count, s->n);
     }
 
 GEN_PIS:
@@ -161,9 +162,6 @@ GEN_PIS:
             }
         }
     } else {
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "\n");
-        }
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
             clt_elem_t p_unif;
