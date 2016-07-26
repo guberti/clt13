@@ -972,7 +972,7 @@ void print_progress (size_t cur, size_t total)
     int lpad = percentage * PBWIDTH;
     int rpad = PBWIDTH - lpad;
     if (val != last_val) {
-        printf("\r\t%3d%% [%.*s%*s] %lu/%lu", val, lpad, PBSTR, rpad, "", cur, total);
+        fprintf(stderr, "\r\t%3d%% [%.*s%*s] %lu/%lu", val, lpad, PBSTR, rpad, "", cur, total);
         fflush(stdout);
         last_val = val;
     }
