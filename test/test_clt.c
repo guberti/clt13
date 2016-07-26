@@ -234,11 +234,11 @@ int main(void)
 {
     ulong default_flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
     ulong flags;
-    ulong kappa = 2;
-    ulong lambda = 30;
+    ulong kappa = 15;
+    ulong lambda = 80;
     ulong nzs = 10;
 
-    printf("\n** %lu %lu %lu **\n\n", nzs, lambda, kappa);
+    printf("\n** λ = %lu, κ = %lu, nzs = %lu **\n\n", lambda, kappa, nzs);
 
     printf("* No optimizations\n");
     flags = default_flags;
@@ -266,7 +266,7 @@ int main(void)
         return 1;
 
     kappa = 12;
-    printf("\n** %lu %lu %lu **\n\n", nzs, lambda, kappa);
+    printf("\n** λ = %lu, κ = %lu, nzs = %lu **\n\n", lambda, kappa, nzs);
 
     printf("* CRT tree + parallel encode + composite ps\n");
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE | CLT_FLAG_OPT_COMPOSITE_PS;

@@ -71,16 +71,16 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Security Parameter: %ld\n", lambda);
-        fprintf(stderr, "  Kappa: %ld\n", kappa);
-        fprintf(stderr, "  Alpha: %ld\n", alpha);
-        fprintf(stderr, "  Beta: %ld\n", beta);
-        fprintf(stderr, "  Eta: %ld\n", eta);
-        fprintf(stderr, "  Nu: %ld\n", s->nu);
-        fprintf(stderr, "  Rho: %ld\n", s->rho);
-        fprintf(stderr, "  Rho_f: %ld\n", rho_f);
-        fprintf(stderr, "  N: %ld\n", s->n);
-        fprintf(stderr, "  Number of Zs: %ld\n", s->nzs);
+        fprintf(stderr, "  λ: %ld\n", lambda);
+        fprintf(stderr, "  κ: %ld\n", kappa);
+        fprintf(stderr, "  α: %ld\n", alpha);
+        fprintf(stderr, "  β: %ld\n", beta);
+        fprintf(stderr, "  η: %ld\n", eta);
+        fprintf(stderr, "  ν: %ld\n", s->nu);
+        fprintf(stderr, "  ρ: %ld\n", s->rho);
+        fprintf(stderr, "  ρ_f: %ld\n", rho_f);
+        fprintf(stderr, "  n: %ld\n", s->n);
+        fprintf(stderr, "  nzs: %ld\n", s->nzs);
         fprintf(stderr, "  Flags: \n");
         if (s->flags & CLT_FLAG_OPT_CRT_TREE)
             fprintf(stderr, "    CRT TREE\n");
@@ -117,9 +117,8 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
     /* Generate p_i's and g_i's, as well as x0 = \prod p_i */
     if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating p_i's and g_i's:\n");
+        fprintf(stderr, "  Generating p_i's and g_i's:");
         start_time = current_time();
-        print_progress(count, s->n);
     }
 
 GEN_PIS:
@@ -135,8 +134,10 @@ GEN_PIS:
         }
         ulong nchunks = eta / etap;
         ulong leftover = eta - nchunks * etap;
-        if (s->flags & CLT_FLAG_VERBOSE)
+        if (s->flags & CLT_FLAG_VERBOSE) {
             fprintf(stderr, "[nchunks=%lu leftover=%lu]\n", nchunks, leftover);
+            print_progress(count, s->n);
+        }
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
             clt_elem_t p_unif;
@@ -162,6 +163,10 @@ GEN_PIS:
             }
         }
     } else {
+        if (s->flags & CLT_FLAG_VERBOSE) {
+            fprintf(stderr, "\n");
+            print_progress(count, s->n);
+        }
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
             clt_elem_t p_unif;
