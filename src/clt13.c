@@ -964,7 +964,7 @@ current_time(void)
 #define PBSTR "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
 #define PBWIDTH 60
 
-void print_progress (size_t cur, size_t total)
+static void print_progress (size_t cur, size_t total)
 {
     static int last_val = 0;
     double percentage = (double) cur / total;
