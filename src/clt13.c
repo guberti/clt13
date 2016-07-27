@@ -218,7 +218,8 @@ GEN_PIS:
         /* calculate x0 the hard way */
         for (ulong i = 0; i < s->n; i++) {
             mpz_mul(s->x0, s->x0, ps[i]);
-            print_progress(i, s->n);
+            if (s->flags & CLT_FLAG_VERBOSE)
+                print_progress(i, s->n);
         }
 
         if (s->flags & CLT_FLAG_VERBOSE) {
