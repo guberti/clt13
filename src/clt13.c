@@ -974,7 +974,7 @@ static void print_progress (size_t cur, size_t total)
     int rpad = PBWIDTH - lpad;
     if (val != last_val) {
         fprintf(stderr, "\r\t%3d%% [%.*s%*s] %lu/%lu", val, lpad, PBSTR, rpad, "", cur, total);
-        fflush(stdout);
+        fflush(stderr);
         last_val = val;
     }
 }
