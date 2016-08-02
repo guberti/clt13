@@ -22,43 +22,45 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     int pows [nzs];
     for (ulong i = 0; i < nzs; i++) pows[i] = 1;
 
-    FILE *mmap_f = tmpfile();
-    if (mmap_f == NULL) {
-        fprintf(stderr, "Couldn't open test.map!\n");
-        exit(1);
-    }
+    {
+        FILE *mmap_f = tmpfile();
+        if (mmap_f == NULL) {
+            fprintf(stderr, "Couldn't open test.map!\n");
+            exit(1);
+        }
 
-    FILE *pp_f = tmpfile();
-    if (pp_f == NULL) {
-        fprintf(stderr, "Couldn't open test.pp!\n");
-        exit(1);
-    }
+        FILE *pp_f = tmpfile();
+        if (pp_f == NULL) {
+            fprintf(stderr, "Couldn't open test.pp!\n");
+            exit(1);
+        }
 
-    // test initialization & serialization
-    clt_state_init(&mmap_, kappa, lambda, nzs, pows, flags, rng);
+        // test initialization & serialization
+        clt_state_init(&mmap_, kappa, lambda, nzs, pows, flags, rng);
 
-    if (clt_state_fsave(mmap_f, &mmap_) != 0) {
-        fprintf(stderr, "clt_state_fsave failed!\n");
-        exit(1);
-    }
-    rewind(mmap_f);
-    clt_state_clear(&mmap_);
-    if (clt_state_fread(mmap_f, &mmap) != 0) {
-        fprintf(stderr, "clt_state_fread failed!\n");
-        exit(1);
-    }
+        if (clt_state_fsave(mmap_f, &mmap_) != 0) {
+            fprintf(stderr, "clt_state_fsave failed!\n");
+            exit(1);
+        }
+        rewind(mmap_f);
+        clt_state_clear(&mmap_);
+        if (clt_state_fread(mmap_f, &mmap) != 0) {
+            fprintf(stderr, "clt_state_fread failed!\n");
+            exit(1);
+        }
 
-    clt_pp_init(&pp_, &mmap);
+        clt_pp_init(&pp_, &mmap);
 
-    if (clt_pp_fsave(pp_f, &pp_) != 0) {
-        fprintf(stderr, "clt_pp_fsave failed!\n");
-        exit(1);
-    }
-    rewind(pp_f);
-    clt_pp_clear(&pp_);
-    if (clt_pp_fread(pp_f, &pp) != 0) {
-        fprintf(stderr, "clt_pp_fread failed!\n");
-        exit(1);
+        if (clt_pp_fsave(pp_f, &pp_) != 0) {
+            fprintf(stderr, "clt_pp_fsave failed!\n");
+            exit(1);
+        }
+        rewind(pp_f);
+        clt_pp_clear(&pp_);
+        if (clt_pp_fread(pp_f, &pp) != 0) {
+            fprintf(stderr, "clt_pp_fread failed!\n");
+            exit(1);
+        }
     }
 
     mpz_t x [1];
@@ -230,15 +232,88 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     return !ok;
 }
 
+static int
+test_levels(ulong flags, ulong kappa, ulong lambda)
+{
+    int *pows, *top_level;
+    clt_state s;
+    clt_pp pp;
+    aes_randstate_t rng;
+    mpz_t zero, one, value, result, top_one, top_zero;
+    int ok = 1;
+
+    printf("Testing levels: λ = %lu, κ = %lu\n", lambda, kappa);
+
+    aes_randinit(rng);
+    mpz_init_set_ui(zero, 0);
+    mpz_init_set_ui(one, 1);
+    mpz_inits(value, result, top_one, top_zero, NULL);
+
+    pows = calloc(kappa, sizeof(int));
+    top_level = calloc(kappa, sizeof(int));
+    for (ulong i = 0; i < kappa; ++i)
+        top_level[i] = 1;
+
+    clt_state_init(&s, kappa, lambda, kappa, top_level, flags, rng);
+    clt_pp_init(&pp, &s);
+
+    clt_encode(top_one, &s, 1, &one, top_level, rng);
+    clt_encode(top_zero, &s, 0, &zero, top_level, rng);
+
+    for (ulong i = 0; i < kappa; ++i) {
+        for (ulong j = 0; j < kappa; ++j) {
+            if (j != i)
+                pows[j] = 0;
+            else
+                pows[j] = 1;
+        }
+        clt_encode(value, &s, 1, &one, pows, rng);
+        if (i == 0)
+            mpz_set(result, value);
+        else {
+            mpz_mul(result, result, value);
+            mpz_mod(result, result, s.x0);
+        }
+    }
+    mpz_sub(result, result, top_one);
+    mpz_mod(result, result, s.x0);
+
+    ok &= expect("is_zero(1 * ... * 1 - 1)", 1, clt_is_zero(&pp, result));
+
+    for (ulong i = 0; i < kappa; ++i) {
+        for (ulong j = 0; j < kappa; ++j) {
+            if (j != i)
+                pows[j] = 0;
+            else
+                pows[j] = 1;
+        }
+        if (i == 0) {
+            clt_encode(value, &s, 0, &one, pows, rng);
+            mpz_set(result, value);
+        } else {
+            clt_encode(value, &s, 1, &one, pows, rng);
+            mpz_mul(result, result, value);
+            mpz_mod(result, result, s.x0);
+        }
+    }
+
+    ok &= expect("is_zero(0 * 1 *  ... * 1)", 1, clt_is_zero(&pp, result));
+
+    return !ok;
+}
+
 int main(void)
 {
     ulong default_flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
     ulong flags;
-    ulong kappa = 15;
-    ulong lambda = 80;
+    ulong kappa;
+    ulong lambda = 40;
     ulong nzs = 10;
 
-    printf("\n** λ = %lu, κ = %lu, nzs = %lu **\n\n", lambda, kappa, nzs);
+    if (test_levels(default_flags, 34, lambda))
+        return 1;
+
+    kappa = 15;
 
     printf("* No optimizations\n");
     flags = default_flags;
@@ -266,8 +341,6 @@ int main(void)
         return 1;
 
     kappa = 12;
-    printf("\n** λ = %lu, κ = %lu, nzs = %lu **\n\n", lambda, kappa, nzs);
-
     printf("* CRT tree + parallel encode + composite ps\n");
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE | CLT_FLAG_OPT_COMPOSITE_PS;
     if (test(flags, nzs, lambda, kappa) == 1)
