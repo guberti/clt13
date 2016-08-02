@@ -171,11 +171,13 @@ GEN_PIS:
         for (ulong i = 0; i < s->n; i++) {
             clt_elem_t p_unif;
             mpz_init(p_unif);
-            /* generate a p_i */
+            /* generate a p_i in the range (2^{eta-1}, 2^eta) */
             mpz_urandomb_aes(p_unif, rng, eta);
+            mpz_setbit(p_unif, eta);
             mpz_nextprime(ps[i], p_unif);
-            /* generate a g_i */
+            /* generate a g_i in the range (2^{alpha-1}, 2^alpha) */
             mpz_urandomb_aes(p_unif, rng, alpha);
+            mpz_setbit(p_unif, alpha);
             mpz_nextprime(s->gs[i], p_unif);
             mpz_clear(p_unif);
 
@@ -263,7 +265,6 @@ GEN_PIS:
         do {
             mpz_urandomm_aes(zs[i], rng, s->x0);
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
-
         if (s->flags & CLT_FLAG_VERBOSE) {
 #pragma omp critical
             print_progress(++count, s->nzs);
@@ -279,6 +280,7 @@ GEN_PIS:
         start_time = current_time();
         count = 0;
     }
+
     {
         clt_elem_t zk;
         mpz_init_set_ui(zk, 1);
