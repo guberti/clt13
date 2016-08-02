@@ -37,6 +37,20 @@ static inline ulong nb_of_bits(ulong x)
     return nb;
 }
 
+static inline void
+_prime(mpz_t rop, aes_randstate_t rng, ulong len)
+{
+    mpz_t p_unif;
+    mpz_init(p_unif);
+    do {
+        mpz_urandomb_aes(p_unif, rng, len);
+        mpz_setbit(p_unif, len-1);
+        mpz_nextprime(rop, p_unif);
+    } while (mpz_tstbit(rop, len) == 1);
+    assert(mpz_tstbit(rop, len-1) == 1);
+    mpz_clear(p_unif);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
@@ -138,7 +152,7 @@ GEN_PIS:
             fprintf(stderr, "[nchunks=%lu leftover=%lu]\n", nchunks, leftover);
             print_progress(count, s->n);
         }
-#pragma omp parallel for
+/* #pragma omp parallel for */
         for (ulong i = 0; i < s->n; i++) {
             clt_elem_t p_unif;
             mpz_set_ui(ps[i], 1);
@@ -146,6 +160,7 @@ GEN_PIS:
             /* generate a p_i */
             for (ulong j = 0; j < nchunks; j++) {
                 mpz_urandomb_aes(p_unif, rng, etap);
+                mpz_setbit(p_unif, etap);
                 mpz_nextprime(p_unif, p_unif);
                 mpz_mul(ps[i], ps[i], p_unif);
             }
@@ -158,7 +173,7 @@ GEN_PIS:
             mpz_clear(p_unif);
 
             if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
+/* #pragma omp critical */
                 print_progress(++count, s->n);
             }
         }
@@ -167,22 +182,16 @@ GEN_PIS:
             fprintf(stderr, "\n");
             print_progress(count, s->n);
         }
-#pragma omp parallel for
+/* #pragma omp parallel for */
         for (ulong i = 0; i < s->n; i++) {
-            clt_elem_t p_unif;
-            mpz_init(p_unif);
-            /* generate a p_i in the range (2^{eta-1}, 2^eta) */
-            mpz_urandomb_aes(p_unif, rng, eta);
-            mpz_setbit(p_unif, eta);
-            mpz_nextprime(ps[i], p_unif);
-            /* generate a g_i in the range (2^{alpha-1}, 2^alpha) */
-            mpz_urandomb_aes(p_unif, rng, alpha);
-            mpz_setbit(p_unif, alpha);
-            mpz_nextprime(s->gs[i], p_unif);
-            mpz_clear(p_unif);
-
+            /* generate a p_i */
+            _prime(ps[i], rng, eta);
+            gmp_printf("ps[%d] = %Zx\n", i, ps[i]);
+            /* generate a g_i */
+            _prime(s->gs[i], rng, alpha);
+            gmp_printf("gs[%d] = %Zx\n", i, s->gs[i]);
             if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
+/* #pragma omp critical */
                 print_progress(++count, s->n);
             }
         }
@@ -234,7 +243,7 @@ GEN_PIS:
             start_time = current_time();
             count = 0;
         }
-#pragma omp parallel for
+/* #pragma omp parallel for */
         for (unsigned long i = 0; i < s->n; i++) {
             clt_elem_t q;
             mpz_init(q);
@@ -245,7 +254,7 @@ GEN_PIS:
             mpz_clear(q);
 
             if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
+/* #pragma omp critical */
                 print_progress(++count, s->n);
             }
         }
@@ -260,13 +269,13 @@ GEN_PIS:
         start_time = current_time();
         count = 0;
     }
-#pragma omp parallel for
+/* #pragma omp parallel for */
     for (ulong i = 0; i < s->nzs; ++i) {
         do {
             mpz_urandomm_aes(zs[i], rng, s->x0);
         } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
         if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
+/* #pragma omp critical */
             print_progress(++count, s->nzs);
         }
     }
@@ -296,7 +305,7 @@ GEN_PIS:
                 print_progress(++count, s->n + s->nzs);
             }
         }
-#pragma omp parallel for
+/* #pragma omp parallel for */
         for (ulong i = 0; i < s->n; ++i) {
             clt_elem_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
@@ -309,13 +318,13 @@ GEN_PIS:
             mpz_div(qpi, s->x0, ps[i]);
             mpz_mul(tmp, tmp, qpi);
             mpz_mod(tmp, tmp, s->x0);
-#pragma omp critical
+/* #pragma omp critical */
             {
                 mpz_add(s->pzt, s->pzt, tmp);
             }
             mpz_clears(tmp, qpi, rnd, NULL);
             if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
+/* #pragma omp critical */
                 print_progress(++count, s->n + s->nzs);
             }
         }
@@ -753,7 +762,7 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, clt_elem_t *ins,
         // slots[i] = m[i] + r*g[i]
         clt_elem_t *slots = malloc(s->n * sizeof(clt_elem_t));
         if (s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE) {
-#pragma omp parallel for
+/* #pragma omp parallel for */
             for (ulong i = 0; i < s->n; i++) {
                 mpz_init(slots[i]);
                 mpz_urandomb_aes(slots[i], rng, s->rho);
@@ -975,8 +984,8 @@ static void print_progress (size_t cur, size_t total)
     int lpad = percentage * PBWIDTH;
     int rpad = PBWIDTH - lpad;
     if (val != last_val) {
-        fprintf(stderr, "\r\t%3d%% [%.*s%*s] %lu/%lu", val, lpad, PBSTR, rpad, "", cur, total);
-        fflush(stderr);
+        /* fprintf(stderr, "\r\t%3d%% [%.*s%*s] %lu/%lu", val, lpad, PBSTR, rpad, "", cur, total); */
+        /* fflush(stderr); */
         last_val = val;
     }
 }
