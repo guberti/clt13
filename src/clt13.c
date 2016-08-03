@@ -42,7 +42,7 @@ mpz_mod_near(mpz_t rop, const mpz_t a, const mpz_t p)
 {
     mpz_t p_;
     mpz_init(p_);
-    mpz_mod(rop, rop, p);
+    mpz_mod(rop, a, p);
     mpz_cdiv_q_ui(p_, p, 2);
     if (mpz_cmp(rop, p_) > 0)
         mpz_sub(rop, rop, p);
@@ -459,6 +459,20 @@ clt_is_zero(const clt_pp *pp, const clt_elem_t c)
     ret = mpz_sizeinbase(tmp, 2) < mpz_sizeinbase(pp->x0, 2) - pp->nu;
     mpz_clears(tmp, x0_, NULL);
     return ret ? 1 : 0;
+}
+
+void
+clt_elem_add(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b)
+{
+    mpz_add(rop, a, b);
+    mpz_mod(rop, rop, pp->x0);
+}
+
+void
+clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b)
+{
+    mpz_mul(rop, a, b);
+    mpz_mod(rop, rop, pp->x0);
 }
 
 void clt_state_read(clt_state *s, const char *dir)
