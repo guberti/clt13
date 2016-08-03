@@ -42,7 +42,7 @@ mpz_mod_near(mpz_t rop, const mpz_t a, const mpz_t p)
 {
     mpz_t p_;
     mpz_init(p_);
-    mpz_mod(rop, rop, p);
+    mpz_mod(rop, a, p);
     mpz_cdiv_q_ui(p_, p, 2);
     if (mpz_cmp(rop, p_) > 0)
         mpz_sub(rop, rop, p);
