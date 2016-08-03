@@ -60,6 +60,7 @@ static inline void
 mpz_random_(mpz_t rop, aes_randstate_t rng, ulong len)
 {
     mpz_urandomb_aes(rop, rng, len);
+    mpz_setbit(rop, len-1);
 }
 
 static inline void
@@ -69,7 +70,6 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
     mpz_init(p_unif);
     do {
         mpz_random_(p_unif, rng, len);
-        mpz_setbit(p_unif, len-1);
         mpz_nextprime(rop, p_unif);
     } while (mpz_tstbit(rop, len) == 1);
     assert(mpz_tstbit(rop, len-1) == 1);
