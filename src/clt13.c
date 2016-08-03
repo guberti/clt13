@@ -250,7 +250,7 @@ GEN_PIS:
         for (ulong i = 0; i < s->n; i++) {
             mpz_mul(s->x0, s->x0, ps[i]);
             if (s->flags & CLT_FLAG_VERBOSE)
-                print_progress(i, s->n);
+                print_progress(i, s->n-1);
         }
 
         if (s->flags & CLT_FLAG_VERBOSE) {
