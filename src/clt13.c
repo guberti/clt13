@@ -37,6 +37,45 @@ static inline ulong nb_of_bits(ulong x)
     return nb;
 }
 
+static inline void
+mpz_mod_near(mpz_t rop, const mpz_t a, const mpz_t p)
+{
+    mpz_t p_;
+    mpz_init(p_);
+    mpz_mod(rop, a, p);
+    mpz_cdiv_q_ui(p_, p, 2);
+    if (mpz_cmp(rop, p_) > 0)
+        mpz_sub(rop, rop, p);
+    mpz_clear(p_);
+}
+
+static inline void
+mpz_mul_mod(mpz_t rop, mpz_t a, const mpz_t b, const mpz_t p)
+{
+    mpz_mul(rop, a, b);
+    mpz_mod_near(rop, rop, p);
+}
+
+static inline void
+mpz_random_(mpz_t rop, aes_randstate_t rng, ulong len)
+{
+    mpz_urandomb_aes(rop, rng, len);
+    mpz_setbit(rop, len-1);
+}
+
+static inline void
+mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
+{
+    mpz_t p_unif;
+    mpz_init(p_unif);
+    do {
+        mpz_random_(p_unif, rng, len);
+        mpz_nextprime(rop, p_unif);
+    } while (mpz_tstbit(rop, len) == 1);
+    assert(mpz_tstbit(rop, len-1) == 1);
+    mpz_clear(p_unif);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
