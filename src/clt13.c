@@ -1,5 +1,6 @@
 #include "clt13.h"
 #include "crt_tree.h"
+#include "estimates.h"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -96,15 +97,28 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     s->rho = lambda;                   /* bitsize of randomness */
     rho_f  = kappa * (s->rho + alpha); /* max bitsize of r_i's */
     eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
-    /* We are not aware of any attack on the specific setting of n.  The only
-     * published attack, from [CLT13], requires low-level encodings of zero,
-     * which are not released in our setting.  Thus, it appears we can set n to
-     * as small as 2 and still be okay.  However, for "added security" we set n
-     * to \lambda "just in case". */
-    s->n   = lambda;                                      /* number of primes */
+    s->n   = estimate_n(lambda, eta, flags);  /* number of primes */
     eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
     s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
     s->flags = flags;
+
+    /* Loop until a fixed point reached for choosing eta, n, and nu */
+    {
+        ulong old_eta = 0, old_n = 0, old_nu = 0;
+        int i = 0;
+        for (; i < 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu);
+             ++i) {
+            old_eta = eta, old_n = s->n, old_nu = s->nu;
+            eta = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
+            s->n = estimate_n(lambda, eta, flags);
+            s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
+        }
+
+        if (i == 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu)) {
+            fprintf(stderr, "Error: unable to find valid η, n, and ν choices\n");
+            return CLT_ERR;
+        }
+    }
 
     /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
     assert(s->nu >= alpha + 6);
@@ -128,6 +142,10 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
             fprintf(stderr, "    PARALLEL ENCODE\n");
         if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS)
             fprintf(stderr, "    COMPOSITE PS\n");
+        if (s->flags & CLT_FLAG_SEC_IMPROVED_BKZ)
+            fprintf(stderr, "    IMPROVED BKZ\n");
+        if (s->flags & CLT_FLAG_SEC_CONSERVATIVE)
+            fprintf(stderr, "    CONSERVATIVE\n");
     }
 
     ps       = malloc(sizeof(clt_elem_t) * s->n);
