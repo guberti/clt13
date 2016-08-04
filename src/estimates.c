@@ -81,5 +81,5 @@ estimate_n(ulong lambda, ulong eta, ulong flags)
     } else {
         gamma = gamma_from_orthogonal_attack(lambda, eta, conservative);
     }
-    return (ulong) gamma / eta;
+    return (ulong) ceil(gamma / eta);
 }
