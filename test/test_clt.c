@@ -244,6 +244,10 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
 
     printf("Testing levels: λ = %lu, κ = %lu\n", lambda, kappa);
 
+    /* unsigned char seed[16] = { */
+    /*     0xb9, 0x9b, 0x8a, 0x96, 0x59, 0x98, 0xd6, 0x98, 0xe7, 0xfc, 0x67, 0xc3, 0xf2, 0x77, 0x7c, 0x0b, */
+    /* }; */
+    /* aes_randinit_seedn(rng, (char *) seed, 16, NULL, 0); */
     aes_randinit(rng);
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
@@ -273,8 +277,12 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
         else {
             mpz_mul(result, result, value);
             mpz_mod(result, result, s.x0);
+            gmp_printf("result = %Zd\n", result);
         }
     }
+
+    ok &= expect("is_zero(1 * ... * 1)", 0, clt_is_zero(&pp, result));
+
     mpz_sub(result, result, top_one);
     mpz_mod(result, result, s.x0);
 
@@ -299,6 +307,11 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
 
     ok &= expect("is_zero(0 * 1 *  ... * 1)", 1, clt_is_zero(&pp, result));
 
+    mpz_add(result, result, top_one);
+    mpz_mod(result, result, s.x0);
+
+    ok &= expect("is_zero(0 * 1 *  ... * 1 + 1)", 0, clt_is_zero(&pp, result));
+
     return !ok;
 }
 
@@ -310,7 +323,7 @@ int main(void)
     ulong lambda = 40;
     ulong nzs = 10;
 
-    if (test_levels(default_flags, 34, lambda))
+    if (test_levels(default_flags, 2, 8))
         return 1;
 
     kappa = 15;
