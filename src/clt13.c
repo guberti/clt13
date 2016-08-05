@@ -493,6 +493,18 @@ clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_ele
     mpz_mod(rop, rop, pp->x0);
 }
 
+void
+clt_elem_init(clt_elem_t rop)
+{
+    mpz_init(rop);
+}
+
+void
+clt_elem_init(clt_elem_t rop)
+{
+    mpz_clear(rop);
+}
+
 void clt_state_read(clt_state *s, const char *dir)
 {
     char *fname;
