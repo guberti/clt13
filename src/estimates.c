@@ -33,8 +33,7 @@ m_min(ulong lambda, ulong eta, double gamma, double hermite_factor)
 }
 
 static double
-gamma_from_orthogonal_attack(ulong lambda, ulong eta,
-                             bool conservative)
+gamma_from_orthogonal_attack(ulong lambda, ulong eta, bool conservative)
 {
     double gamma = ceil(lambda + eta * eta / 4 / log2(1.012));
     if (!conservative) {
@@ -53,8 +52,8 @@ gamma_from_orthogonal_attack(ulong lambda, ulong eta,
 }
 
 static double
-gamma_from_orthogonal_attack_2(ulong lambda, ulong eta,
-                               double hermite_factor, bool conservative)
+gamma_from_orthogonal_attack_2(ulong lambda, ulong eta, double hermite_factor,
+                               bool conservative)
 {
     double gamma = ceil(lambda + eta * eta / 4 / log2(hermite_factor));
     if (!conservative) {
