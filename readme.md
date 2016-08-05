@@ -1,7 +1,7 @@
 CLT13
 =====
-This is an Implementation of the CLT13 multilinear map specialized for
-obfuscation purposes. LINK TO CLT13 PAPER.
+This is an Implementation of the [CLT13 multilinear map](https://eprint.iacr.org/2013/183) specialized for
+obfuscation purposes. 
 
 General Intuition
 -----------------
