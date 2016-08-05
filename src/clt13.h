@@ -83,8 +83,6 @@ int clt_is_zero (const clt_pp *pp, const clt_elem_t c);
 
 void clt_elem_add(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b);
 void clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b);
-void clt_elem_init(clt_elem_t rop);
-void clt_elem_clear(clt_elem_t rop);
 int clt_elem_read (const char *fname, clt_elem_t x);
 int clt_elem_save (const char *fname, const clt_elem_t x);
 int clt_elem_fread (FILE *const fp, clt_elem_t x);
