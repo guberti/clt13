@@ -13,11 +13,11 @@ encodings.
 The public key also provides *zero-testing* of encodings who are at the
 top-level index. This "top-level index" means something specific: every encoded
 message has some *index*.  The encoding that results from multiplying two
-messages will be at the union of the two multiplicand's indices. Two encodings
+messages will be at the union of the two multiplicands' indices. Two encodings
 can be added only if they share the same index. Zero-testing will fail unless
 an encoding is at some predefined top-level index.
 
-Assymetric Modification
+Asymmetric Modification
 -----------------------
 This implementation has been modified to support *asymmetric* index sets. That
 is, where the original design operates over *levels* 1 through kappa, our
@@ -32,13 +32,13 @@ the power of that `z_i` in the top-level index set.
 
 Usage Overview
 ==============
-Use `clt_state_init` to create a secret key. Parameters here: kappa is the
+Use `clt_state_init` to create a secret key. Parameters here: `kappa` is the
 maximum multiplicative degree allowed (used to determine the size of the
-noise), lambda is the security parameter, nzs is the number of distinct
-indices, pows is the top-level index. Using a `clt_state`, can create
+noise), `lambda` is the security parameter, `nzs` is the number of distinct
+indices, `pows` is the top-level index. Using a `clt_state`, one can create
 a `clt_pp` public key using `clt_pp_init`, or create encodings using
-`clt_encode`. In addition, there are are number of optimizations and options
-you can set using flags. These are documented in the code.
+`clt_encode`. In addition, there are a number of optimizations and options
+you can set using `flags`. These are documented in the code.
 
 Example Usage
 -------------
