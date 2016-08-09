@@ -30,6 +30,7 @@ typedef struct {
     clt_elem_t pzt;
     clt_elem_t *gs;
     clt_elem_t *zinvs;
+    aes_randstate_t *rngs;
     union {
         crt_tree *crt;
         clt_elem_t *crt_coeffs;
@@ -51,7 +52,8 @@ typedef struct {
     )
 
 int clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
-                    const int *pows, ulong flags, aes_randstate_t rng);
+                    const int *pows, ulong ncores, ulong flags,
+                    aes_randstate_t rng);
 void clt_state_clear (clt_state *s);
 void clt_state_read  (clt_state *s, const char *dir);
 void clt_state_save  (const clt_state *s, const char *dir);

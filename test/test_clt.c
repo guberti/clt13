@@ -36,7 +36,7 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         }
 
         // test initialization & serialization
-        clt_state_init(&mmap_, kappa, lambda, nzs, pows, flags, rng);
+        clt_state_init(&mmap_, kappa, lambda, nzs, pows, 0, flags, rng);
 
         if (clt_state_fsave(mmap_f, &mmap_) != 0) {
             fprintf(stderr, "clt_state_fsave failed!\n");
@@ -244,10 +244,6 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
 
     printf("Testing levels: λ = %lu, κ = %lu\n", lambda, kappa);
 
-    /* unsigned char seed[16] = { */
-    /*     0xb9, 0x9b, 0x8a, 0x96, 0x59, 0x98, 0xd6, 0x98, 0xe7, 0xfc, 0x67, 0xc3, 0xf2, 0x77, 0x7c, 0x0b, */
-    /* }; */
-    /* aes_randinit_seedn(rng, (char *) seed, 16, NULL, 0); */
     aes_randinit(rng);
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
@@ -258,7 +254,7 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     for (ulong i = 0; i < kappa; ++i)
         top_level[i] = 1;
 
-    clt_state_init(&s, kappa, lambda, kappa, top_level, flags, rng);
+    clt_state_init(&s, kappa, lambda, kappa, top_level, 0, flags, rng);
     clt_pp_init(&pp, &s);
 
     clt_encode(top_one, &s, 1, &one, top_level, rng);
@@ -277,7 +273,6 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
         else {
             mpz_mul(result, result, value);
             mpz_mod(result, result, s.x0);
-            gmp_printf("result = %Zd\n", result);
         }
     }
 
@@ -323,7 +318,7 @@ int main(void)
     ulong lambda = 40;
     ulong nzs = 10;
 
-    if (test_levels(default_flags, 2, 8))
+    if (test_levels(default_flags, 32, 10))
         return 1;
 
     kappa = 15;
