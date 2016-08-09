@@ -499,6 +499,24 @@ clt_is_zero(const clt_pp *pp, const clt_elem_t c)
 }
 
 void
+clt_elem_init(clt_elem_t rop)
+{
+    mpz_init(rop);
+}
+
+void
+clt_elem_clear(clt_elem_t rop)
+{
+    mpz_clear(rop);
+}
+
+void
+clt_elem_set(clt_elem_t a, const clt_elem_t b)
+{
+    mpz_set(a, b);
+}
+
+void
 clt_elem_add(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b)
 {
     mpz_add(rop, a, b);
