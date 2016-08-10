@@ -83,16 +83,16 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
 
 int
 clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
-                const int *pows, ulong ncores, ulong flags, aes_randstate_t rng)
+                const int *pows, ulong flags, aes_randstate_t rng)
 {
     ulong alpha, beta, eta, rho_f;
     clt_elem_t *ps, *zs;
     double start_time = 0.0;
     int count = 0;
 
-    if (ncores == 0)
-        ncores = sysconf(_SC_NPROCESSORS_ONLN);
-    (void) omp_set_num_threads(ncores);
+    /* if (ncores == 0) */
+    /*     ncores = sysconf(_SC_NPROCESSORS_ONLN); */
+    /* (void) omp_set_num_threads(ncores); */
 
     /* calculate CLT parameters */
     s->nzs = nzs;
@@ -139,7 +139,7 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
         fprintf(stderr, "  ρ_f: %ld\n", rho_f);
         fprintf(stderr, "  n: %ld\n", s->n);
         fprintf(stderr, "  nzs: %ld\n", s->nzs);
-        fprintf(stderr, "  ncores: %ld\n", ncores);
+        /* fprintf(stderr, "  ncores: %ld\n", ncores); */
         fprintf(stderr, "  Flags: \n");
         if (s->flags & CLT_FLAG_OPT_CRT_TREE)
             fprintf(stderr, "    CRT TREE\n");
