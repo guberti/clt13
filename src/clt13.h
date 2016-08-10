@@ -74,7 +74,7 @@ int clt_pp_fsave (FILE *const fp, const clt_pp *pp);
 // encodings
 
 void clt_encode (clt_elem_t rop, const clt_state *s, size_t nins,
-                 clt_elem_t *ins, const int *pows, aes_randstate_t rng);
+                 clt_elem_t *ins, const int *pows);
 int clt_is_zero (const clt_pp *pp, const clt_elem_t c);
 
 // elements

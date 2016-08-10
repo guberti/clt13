@@ -429,47 +429,47 @@ void clt_state_clear(clt_state *s)
 
 void
 clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, clt_elem_t *ins,
-           const int *pows, aes_randstate_t rng)
+           const int *pows)
 {
     clt_elem_t tmp;
     mpz_init(tmp);
 
+    if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)) {
+        omp_set_num_threads(1);
+    }
+
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        // slots[i] = m[i] + r*g[i]
+        /* slots[i] = m[i] + r*g[i] */
         clt_elem_t *slots = malloc(s->n * sizeof(clt_elem_t));
-        if (s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE) {
 #pragma omp parallel for
-            for (ulong i = 0; i < s->n; i++) {
-                mpz_init(slots[i]);
-                mpz_random_(slots[i], rng, s->rho);
-                mpz_mul(slots[i], slots[i], s->gs[i]);
-                if (i < nins)
-                    mpz_add(slots[i], slots[i], ins[i]);
-            }
-        } else {
-            for (ulong i = 0; i < s->n; i++) {
-                mpz_init(slots[i]);
-                mpz_random_(slots[i], rng, s->rho);
-                mpz_mul(slots[i], slots[i], s->gs[i]);
-                if (i < nins)
-                    mpz_add(slots[i], slots[i], ins[i]);
-            }
+        for (ulong i = 0; i < s->n; i++) {
+            mpz_init(slots[i]);
+            mpz_random_(slots[i], s->rngs[i], s->rho);
+            mpz_mul(slots[i], slots[i], s->gs[i]);
+            if (i < nins)
+                mpz_add(slots[i], slots[i], ins[i]);
         }
-
         crt_tree_do_crt(rop, s->crt, slots);
-
         for (ulong i = 0; i < s->n; i++)
             mpz_clear(slots[i]);
         free(slots);
     } else {
+        /* Don't use CRT tree */
         mpz_set_ui(rop, 0);
+#pragma omp parallel for
         for (unsigned long i = 0; i < s->n; ++i) {
-            mpz_random_(tmp, rng, s->rho);
+            mpz_t tmp;
+            mpz_init(tmp);
+            mpz_random_(tmp, s->rngs[i], s->rho);
             mpz_mul(tmp, tmp, s->gs[i]);
             if (i < nins)
                 mpz_add(tmp, tmp, ins[i]);
             mpz_mul(tmp, tmp, s->crt_coeffs[i]);
-            mpz_add(rop, rop, tmp);
+#pragma omp critical
+            {
+                mpz_add(rop, rop, tmp);
+            }
+            mpz_clear(tmp);
         }
     }
     // multiply by appropriate zinvs
@@ -557,12 +557,18 @@ void clt_state_read(clt_state *s, const char *dir)
 
     s->gs    = malloc(sizeof(clt_elem_t) * s->n);
     s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
+    s->rngs  = malloc(sizeof(aes_randstate_t) * MAX(s->n, s->nzs));
 
     mpz_inits(s->x0, s->pzt, NULL);
     for (ulong i = 0; i < s->nzs; i++)
         mpz_init(s->zinvs[i]);
     for (ulong i = 0; i < s->n; i++)
         mpz_init(s->gs[i]);
+
+    snprintf(fname, len, "%s/rngs", dir);
+    for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
+        aes_randstate_read(s->rngs[i], fname);
+    }
 
     snprintf(fname, len, "%s/x0", dir);
     clt_elem_read(fname, s->x0);
@@ -605,6 +611,11 @@ void clt_state_save(const clt_state *s, const char *dir)
 
     snprintf(fname, len, "%s/nzs", dir);
     ulong_save(fname, s->nzs);
+
+    snprintf(fname, len, "%s/rngs", dir);
+    for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
+        aes_randstate_write(s->rngs[i], fname);
+    }
 
     snprintf(fname, len, "%s/rho", dir);
     ulong_save(fname, s->rho);
@@ -721,6 +732,11 @@ clt_state_fread(FILE *const fp, clt_state *s)
             goto cleanup;
         }
     }
+
+    s->rngs = malloc(sizeof(aes_randstate_t) * MAX(s->n, s->nzs));
+    for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
+        aes_randstate_fread(s->rngs[i], fp);
+    }
     ret = 0;
 cleanup:
     return ret;
@@ -787,6 +803,11 @@ clt_state_fsave(FILE *const fp, const clt_state *s)
             goto cleanup;
         }
     }
+
+    for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
+        aes_randstate_fwrite(s->rngs[i], fp);
+    }
+
     ret = 0;
 cleanup:
     return ret;
