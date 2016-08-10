@@ -16,12 +16,12 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_pp pp_, pp;
 
     aes_randstate_t rng;
-
     aes_randinit(rng);
 
-    int pows [nzs];
+    int pows[nzs];
     for (ulong i = 0; i < nzs; i++) pows[i] = 1;
 
+    /* Test read/write */
     {
         FILE *mmap_f = tmpfile();
         if (mmap_f == NULL) {
@@ -45,7 +45,7 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         rewind(mmap_f);
         clt_state_clear(&mmap_);
         if (clt_state_fread(mmap_f, &mmap) != 0) {
-            fprintf(stderr, "clt_state_fread failed!\n");
+            fprintf(stderr, "clt_state_fread failed for mmap!\n");
             exit(1);
         }
 
@@ -58,7 +58,7 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         rewind(pp_f);
         clt_pp_clear(&pp_);
         if (clt_pp_fread(pp_f, &pp) != 0) {
-            fprintf(stderr, "clt_pp_fread failed!\n");
+            fprintf(stderr, "clt_pp_fread failed for pp!\n");
             exit(1);
         }
     }
@@ -73,9 +73,12 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     mpz_t zero [1];
     mpz_init_set_ui(zero[0], 0);
-
     mpz_t one [1];
     mpz_init_set_ui(one[0], 1);
+    mpz_t two[1];
+    mpz_init_set_ui(two[0], 2);
+    mpz_t three[1];
+    mpz_init_set_ui(three[0], 3);
 
     int top_level [nzs];
     for (ulong i = 0; i < nzs; i++) {
@@ -84,57 +87,52 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     mpz_t x0, x1, xp;
     mpz_inits(x0, x1, xp, NULL);
-    clt_encode(x0, &mmap, 1, zero, top_level, rng);
-    clt_encode(x1, &mmap, 1, zero, top_level, rng);
-    mpz_add(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
-    int ok = expect("is_zero(0 + 0)", 1, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, zero, top_level, rng);
-    clt_encode(x1, &mmap, 1, one,  top_level, rng);
-    mpz_add(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    int ok = 1;
+
+    clt_encode(x0, &mmap, 1, zero, top_level);
+    clt_encode(x1, &mmap, 1, zero, top_level);
+    clt_elem_add(xp, &pp, x0, x1);
+    ok &= expect("is_zero(0 + 0)", 1, clt_is_zero(&pp, xp));
+
+    clt_encode(x0, &mmap, 1, zero, top_level);
+    clt_encode(x1, &mmap, 1, one,  top_level);
+    clt_elem_add(xp, &pp, x0, x1);
     ok &= expect("is_zero(0 + 1)", 0, clt_is_zero(&pp, xp));
 
-    mpz_t two[1];
-    mpz_init_set_ui(two[0], 2);
-    clt_encode(x0, &mmap, 1, one, top_level, rng);
-    clt_encode(x1, &mmap, 1, two,  top_level, rng);
+    clt_encode(x0, &mmap, 1, one, top_level);
+    clt_encode(x1, &mmap, 1, two, top_level);
     mpz_mul_ui(x0, x0, 2);
     mpz_sub(xp, x1, x0);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(2 - 2[1])", 1, clt_is_zero(&pp, xp));
     mpz_clear(two[0]);
 
-    clt_encode(x0, &mmap, 1, zero, top_level, rng);
-    clt_encode(x1, &mmap, 1, x,    top_level, rng);
-    mpz_add(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_encode(x0, &mmap, 1, zero, top_level);
+    clt_encode(x1, &mmap, 1, x,    top_level);
+    clt_elem_add(xp, &pp, x0, x1);
     ok &= expect("is_zero(0 + x)", 0, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, x, top_level, rng);
-    clt_encode(x1, &mmap, 1, x, top_level, rng);
+    clt_encode(x0, &mmap, 1, x, top_level);
+    clt_encode(x1, &mmap, 1, x, top_level);
     mpz_sub(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(x - x)", 1, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, zero, top_level, rng);
-    clt_encode(x1, &mmap, 1, x,    top_level, rng);
+    clt_encode(x0, &mmap, 1, zero, top_level);
+    clt_encode(x1, &mmap, 1, x,    top_level);
     mpz_sub(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(0 - x)", 0, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, one,  top_level, rng);
-    clt_encode(x1, &mmap, 1, zero, top_level, rng);
+    clt_encode(x0, &mmap, 1, one,  top_level);
+    clt_encode(x1, &mmap, 1, zero, top_level);
     mpz_sub(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
     ok &= expect("is_zero(1 - 0)", 0, clt_is_zero(&pp, xp));
 
-    mpz_t three[1];
-    mpz_init(three[0]);
-    mpz_set_ui(three[0], 3);
-    clt_encode(x0, &mmap, 1, one,  top_level, rng);
-    clt_encode(x1, &mmap, 1, three, top_level, rng);
+    clt_encode(x0, &mmap, 1, one,  top_level);
+    clt_encode(x1, &mmap, 1, three, top_level);
     mpz_mul_ui(x0, x0, 3);
     mpz_mod(x0, x0, mmap.x0);
     mpz_sub(xp, x0, x1);
@@ -152,22 +150,19 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
             ix1[i] = 1;
         }
     }
-    clt_encode(x0, &mmap, 1, x   , ix0, rng);
-    clt_encode(x1, &mmap, 1, zero, ix1, rng);
-    mpz_mul(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_encode(x0, &mmap, 1, x   , ix0);
+    clt_encode(x1, &mmap, 1, zero, ix1);
+    clt_elem_mul(xp, &pp, x0, x1);
     ok &= expect("is_zero(x * 0)", 1, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, x  , ix0, rng);
-    clt_encode(x1, &mmap, 1, one, ix1, rng);
-    mpz_mul(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_encode(x0, &mmap, 1, x  , ix0);
+    clt_encode(x1, &mmap, 1, one, ix1);
+    clt_elem_mul(xp, &pp, x0, x1);
     ok &= expect("is_zero(x * 1)", 0, clt_is_zero(&pp, xp));
 
-    clt_encode(x0, &mmap, 1, x, ix0, rng);
-    clt_encode(x1, &mmap, 1, x, ix1, rng);
-    mpz_mul(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_encode(x0, &mmap, 1, x, ix0);
+    clt_encode(x1, &mmap, 1, x, ix1);
+    clt_elem_mul(xp, &pp, x0, x1);
     ok &= expect("is_zero(x * x)", 0, clt_is_zero(&pp, xp));
 
     // zimmerman-like test
@@ -189,9 +184,9 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_urandomb_aes(in1[1], rng, 16);
     mpz_mul(cin[1], in0[1], in1[1]);
 
-    clt_encode(x0, &mmap, 2, in0, ix0, rng);
-    clt_encode(x1, &mmap, 2, in1, ix1, rng);
-    clt_encode(c,  &mmap, 2, cin, top_level, rng);
+    clt_encode(x0, &mmap, 2, in0, ix0);
+    clt_encode(x1, &mmap, 2, in1, ix1);
+    clt_encode(c,  &mmap, 2, cin, top_level);
 
     mpz_mul(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
@@ -215,9 +210,9 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_urandomb_aes(in1[1], rng, 16);
     mpz_mul(cin[1], in0[1], in1[1]);
 
-    clt_encode(x0, &mmap, 2, in0, ix0, rng);
-    clt_encode(x1, &mmap, 2, in1, ix1, rng);
-    clt_encode(c,  &mmap, 2, cin, top_level, rng);
+    clt_encode(x0, &mmap, 2, in0, ix0);
+    clt_encode(x1, &mmap, 2, in1, ix1);
+    clt_encode(c,  &mmap, 2, cin, top_level);
 
     mpz_mul(xp, x0, x1);
     mpz_mod(xp, xp, mmap.x0);
@@ -257,8 +252,8 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     clt_state_init(&s, kappa, lambda, kappa, top_level, 0, flags, rng);
     clt_pp_init(&pp, &s);
 
-    clt_encode(top_one, &s, 1, &one, top_level, rng);
-    clt_encode(top_zero, &s, 0, &zero, top_level, rng);
+    clt_encode(top_one, &s, 1, &one, top_level);
+    clt_encode(top_zero, &s, 0, &zero, top_level);
 
     for (ulong i = 0; i < kappa; ++i) {
         for (ulong j = 0; j < kappa; ++j) {
@@ -267,7 +262,7 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
             else
                 pows[j] = 1;
         }
-        clt_encode(value, &s, 1, &one, pows, rng);
+        clt_encode(value, &s, 1, &one, pows);
         if (i == 0)
             mpz_set(result, value);
         else {
@@ -291,10 +286,10 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
                 pows[j] = 1;
         }
         if (i == 0) {
-            clt_encode(value, &s, 0, &one, pows, rng);
+            clt_encode(value, &s, 0, &one, pows);
             mpz_set(result, value);
         } else {
-            clt_encode(value, &s, 1, &one, pows, rng);
+            clt_encode(value, &s, 1, &one, pows);
             mpz_mul(result, result, value);
             mpz_mod(result, result, s.x0);
         }
@@ -319,6 +314,11 @@ int main(void)
     ulong nzs = 10;
 
     if (test_levels(default_flags, 32, 10))
+        return 1;
+
+    printf("* No optimizations\n");
+    flags = default_flags;
+    if (test(flags, nzs, 16, 2) == 1)
         return 1;
 
     kappa = 15;
