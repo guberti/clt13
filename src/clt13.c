@@ -276,6 +276,7 @@ GEN_PIS:
             fprintf(stderr, "[%.2fs]\n", current_time() - start_time);
         }
     } else {
+        /* Don't use CRT tree optimization */
         if (s->flags & CLT_FLAG_VERBOSE) {
             fprintf(stderr, "  Computing x0: \n");
             start_time = current_time();
