@@ -429,7 +429,7 @@ void clt_state_clear(clt_state *s)
 // encodings
 
 void
-clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, clt_elem_t *ins,
+clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
            const int *pows)
 {
     clt_elem_t tmp;
