@@ -252,17 +252,15 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
         }
         clt_encode(value, &s, 1, &one, pows);
         if (i == 0)
-            mpz_set(result, value);
+            clt_elem_set(result, value);
         else {
-            mpz_mul(result, result, value);
-            mpz_mod(result, result, s.x0);
+            clt_elem_mul(result, &pp, result, value);
         }
     }
 
     ok &= expect("is_zero(1 * ... * 1)", 0, clt_is_zero(&pp, result));
 
-    mpz_sub(result, result, top_one);
-    mpz_mod(result, result, s.x0);
+    clt_elem_sub(result, &pp, result, top_one);
 
     ok &= expect("is_zero(1 * ... * 1 - 1)", 1, clt_is_zero(&pp, result));
 
@@ -275,18 +273,16 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
         }
         if (i == 0) {
             clt_encode(value, &s, 0, &one, pows);
-            mpz_set(result, value);
+            clt_elem_set(result, value);
         } else {
             clt_encode(value, &s, 1, &one, pows);
-            mpz_mul(result, result, value);
-            mpz_mod(result, result, s.x0);
+            clt_elem_mul(result, &pp, result, value);
         }
     }
 
     ok &= expect("is_zero(0 * 1 *  ... * 1)", 1, clt_is_zero(&pp, result));
 
-    mpz_add(result, result, top_one);
-    mpz_mod(result, result, s.x0);
+    clt_elem_add(result, &pp, result, top_one);
 
     ok &= expect("is_zero(0 * 1 *  ... * 1 + 1)", 0, clt_is_zero(&pp, result));
 
