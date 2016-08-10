@@ -231,6 +231,7 @@ GEN_PIS:
             }
         }
     } else {
+        /* Don't use composite p's optimization */
         if (s->flags & CLT_FLAG_VERBOSE) {
             fprintf(stderr, "\n");
             print_progress(count, s->n);
@@ -524,9 +525,23 @@ clt_elem_add(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_ele
 }
 
 void
+clt_elem_sub(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b)
+{
+    mpz_sub(rop, a, b);
+    mpz_mod(rop, rop, pp->x0);
+}
+
+void
 clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b)
 {
     mpz_mul(rop, a, b);
+    mpz_mod(rop, rop, pp->x0);
+}
+
+void
+clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, ulong b)
+{
+    mpz_mul_ui(rop, a, b);
     mpz_mod(rop, rop, pp->x0);
 }
 

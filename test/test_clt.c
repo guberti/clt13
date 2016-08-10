@@ -102,9 +102,8 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     clt_encode(x0, &mmap, 1, one, top_level);
     clt_encode(x1, &mmap, 1, two, top_level);
-    mpz_mul_ui(x0, x0, 2);
-    mpz_sub(xp, x1, x0);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_elem_mul_ui(x0, &pp, x0, 2);
+    clt_elem_sub(xp, &pp, x1, x0);
     ok &= expect("is_zero(2 - 2[1])", 1, clt_is_zero(&pp, xp));
     mpz_clear(two[0]);
 
@@ -115,28 +114,23 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     clt_encode(x0, &mmap, 1, x, top_level);
     clt_encode(x1, &mmap, 1, x, top_level);
-    mpz_sub(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_elem_sub(xp, &pp, x0, x1);
     ok &= expect("is_zero(x - x)", 1, clt_is_zero(&pp, xp));
 
     clt_encode(x0, &mmap, 1, zero, top_level);
     clt_encode(x1, &mmap, 1, x,    top_level);
-    mpz_sub(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_elem_sub(xp, &pp, x0, x1);
     ok &= expect("is_zero(0 - x)", 0, clt_is_zero(&pp, xp));
 
     clt_encode(x0, &mmap, 1, one,  top_level);
     clt_encode(x1, &mmap, 1, zero, top_level);
-    mpz_sub(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_elem_sub(xp, &pp, x0, x1);
     ok &= expect("is_zero(1 - 0)", 0, clt_is_zero(&pp, xp));
 
     clt_encode(x0, &mmap, 1, one,  top_level);
     clt_encode(x1, &mmap, 1, three, top_level);
-    mpz_mul_ui(x0, x0, 3);
-    mpz_mod(x0, x0, mmap.x0);
-    mpz_sub(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_elem_mul_ui(x0, &pp, x0, 3);
+    clt_elem_sub(xp, &pp, x0, x1);
     ok &= expect("is_zero(3*[1] - [3])", 1, clt_is_zero(&pp, xp));
 
     int ix0 [nzs];
@@ -188,11 +182,8 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_encode(x1, &mmap, 2, in1, ix1);
     clt_encode(c,  &mmap, 2, cin, top_level);
 
-    mpz_mul(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
-
-    mpz_sub(xp, xp, c);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_elem_mul(xp, &pp, x0, x1);
+    clt_elem_sub(xp, &pp, xp, c);
 
     ok &= expect("[Z] is_zero(0 * x)", 1, clt_is_zero(&pp, xp));
 
@@ -214,11 +205,8 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_encode(x1, &mmap, 2, in1, ix1);
     clt_encode(c,  &mmap, 2, cin, top_level);
 
-    mpz_mul(xp, x0, x1);
-    mpz_mod(xp, xp, mmap.x0);
-
-    mpz_sub(xp, xp, c);
-    mpz_mod(xp, xp, mmap.x0);
+    clt_elem_mul(xp, &pp, x0, x1);
+    clt_elem_sub(xp, &pp, xp, c);
 
     ok &= expect("[Z] is_zero(x * y)", 0, clt_is_zero(&pp, xp));
     clt_state_clear(&mmap);
