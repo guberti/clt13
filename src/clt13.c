@@ -90,7 +90,8 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     double start_time = 0.0;
     int count = 0;
 
-    (void) omp_set_num_threads(ncores);
+    if (ncores > 0)
+        (void) omp_set_num_threads(ncores);
 
     /* calculate CLT parameters */
     s->nzs = nzs;
