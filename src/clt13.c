@@ -157,10 +157,10 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
     s->rngs = malloc(sizeof(aes_randstate_t) * MAX(s->n, s->nzs));
     for (ulong i = 0; i < s->n; ++i) {
         unsigned char *buf;
-        size_t n = 32;
+        size_t n = 128;
 
         buf = random_aes(rng, &n);
-        aes_randinit_seedn(s->rngs[i], (char *) buf, n, NULL, 0);
+        aes_randinit_seedn(s->rngs[i], (char *) buf + 5, n - 5, NULL, 0);
         free(buf);
     }
 
