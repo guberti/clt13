@@ -107,8 +107,8 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
 // state
 
 clt_state *
-clt_state_init(size_t kappa, size_t lambda, size_t nzs, const int *pows,
-               size_t ncores, size_t flags, aes_randstate_t rng)
+clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
+              size_t ncores, size_t flags, aes_randstate_t rng)
 {
     clt_state *s;
     size_t alpha, beta, eta, rho_f;
@@ -431,7 +431,7 @@ GEN_PIS:
 }
 
 void
-clt_state_clear(clt_state *s)
+clt_state_delete(clt_state *s)
 {
     mpz_clears(s->x0, s->pzt, NULL);
     for (ulong i = 0; i < s->n; ++i) {
@@ -847,7 +847,7 @@ cleanup:
 // public parameters
 
 clt_pp *
-clt_pp_init(const clt_state *mmap)
+clt_pp_new(const clt_state *mmap)
 {
     clt_pp *pp;
 
@@ -862,7 +862,7 @@ clt_pp_init(const clt_state *mmap)
 }
 
 void
-clt_pp_clear(clt_pp *pp)
+clt_pp_delete(clt_pp *pp)
 {
     mpz_clears(pp->x0, pp->pzt, NULL);
     free(pp);
@@ -898,7 +898,7 @@ cleanup:
     if (ret == CLT_OK) {
         return pp;
     } else {
-        clt_pp_clear(pp);
+        clt_pp_delete(pp);
         return NULL;
     }
 }
@@ -947,7 +947,7 @@ cleanup:
     if (ret == CLT_OK) {
         return pp;
     } else {
-        clt_pp_clear(pp);
+        clt_pp_delete(pp);
         return NULL;
     }
 }

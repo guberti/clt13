@@ -37,27 +37,27 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         }
 
         // test initialization & serialization
-        mmap = clt_state_init(kappa, lambda, nzs, pows, 0, flags, rng);
+        mmap = clt_state_new(kappa, lambda, nzs, pows, 0, flags, rng);
 
         if (clt_state_fwrite(mmap, mmap_f)) {
             fprintf(stderr, "clt_state_fsave failed!\n");
             exit(1);
         }
         rewind(mmap_f);
-        clt_state_clear(mmap);
+        clt_state_delete(mmap);
         if ((mmap = clt_state_fread(mmap_f)) == NULL) {
             fprintf(stderr, "clt_state_fread failed for mmap!\n");
             exit(1);
         }
 
-        pp = clt_pp_init(mmap);
+        pp = clt_pp_new(mmap);
 
         if (clt_pp_fwrite(pp, pp_f) != 0) {
             fprintf(stderr, "clt_pp_fsave failed!\n");
             exit(1);
         }
         rewind(pp_f);
-        clt_pp_clear(pp);
+        clt_pp_delete(pp);
         if ((pp = clt_pp_fread(pp_f)) == NULL) {
             fprintf(stderr, "clt_pp_fread failed for pp!\n");
             exit(1);
@@ -212,8 +212,8 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_elem_sub(xp, pp, xp, c);
 
     ok &= expect("[Z] is_zero(x * y)", 0, clt_is_zero(xp, pp));
-    clt_state_clear(mmap);
-    clt_pp_clear(pp);
+    clt_state_delete(mmap);
+    clt_pp_delete(pp);
     mpz_clears(c, x0, x1, xp, x[0], zero[0], one[0], in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
     return !ok;
 }
@@ -240,8 +240,8 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     for (ulong i = 0; i < kappa; ++i)
         top_level[i] = 1;
 
-    s = clt_state_init(kappa, lambda, kappa, top_level, 0, flags, rng);
-    pp = clt_pp_init(s);
+    s = clt_state_new(kappa, lambda, kappa, top_level, 0, flags, rng);
+    pp = clt_pp_new(s);
 
     clt_encode(top_one, s, 1, &one, top_level);
     clt_encode(top_zero, s, 0, &zero, top_level);

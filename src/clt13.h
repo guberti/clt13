@@ -29,10 +29,10 @@ typedef struct clt_pp clt_pp;
     )
 
 clt_state *
-clt_state_init(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
-               size_t ncores, size_t flags, aes_randstate_t rng);
+clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
+              size_t ncores, size_t flags, aes_randstate_t rng);
 void
-clt_state_clear(clt_state *s);
+clt_state_delete(clt_state *s);
 clt_state *
 clt_state_read(const char *const dir);
 int
@@ -47,9 +47,9 @@ clt_state_moduli(const clt_state *const s);
 // public parameters
 
 clt_pp *
-clt_pp_init(const clt_state *const mmap);
+clt_pp_new(const clt_state *const mmap);
 void
-clt_pp_clear(clt_pp *pp);
+clt_pp_delete(clt_pp *pp);
 clt_pp *
 clt_pp_read(const char *const dir);
 int
