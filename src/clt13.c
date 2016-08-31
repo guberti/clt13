@@ -22,10 +22,10 @@
 typedef unsigned long ulong;
 
 struct clt_state {
-    ulong n;
-    ulong nzs;
-    ulong rho;
-    ulong nu;
+    size_t n;
+    size_t nzs;
+    size_t rho;
+    size_t nu;
     clt_elem_t x0;
     clt_elem_t pzt;
     clt_elem_t *gs;
@@ -466,6 +466,12 @@ clt_state_moduli(const clt_state *const s)
     return s->gs;
 }
 
+size_t
+clt_state_nslots(const clt_state *const s)
+{
+    return s->n;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // encodings
@@ -526,7 +532,7 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
 }
 
 int
-clt_is_zero(clt_elem_t c, const clt_pp *pp)
+clt_is_zero(const clt_elem_t c, const clt_pp *pp)
 {
     int ret;
 

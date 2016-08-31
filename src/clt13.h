@@ -43,6 +43,8 @@ int
 clt_state_fwrite(clt_state *const s, FILE *const fp);
 clt_elem_t *
 clt_state_moduli(const clt_state *const s);
+size_t
+clt_state_nslots(const clt_state *const s);
 
 // public parameters
 
@@ -65,7 +67,7 @@ void
 clt_encode(clt_elem_t rop, const clt_state *const s, size_t nins, mpz_t *ins,
            const int *const pows);
 int
-clt_is_zero(clt_elem_t c, const clt_pp *const pp);
+clt_is_zero(const clt_elem_t c, const clt_pp *const pp);
 
 // elements
 
