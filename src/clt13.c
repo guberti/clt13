@@ -19,6 +19,31 @@
 #define GET_NEWLINE(fp) (fscanf(fp, "\n"))
 #define PUT_NEWLINE(fp) (!(fprintf(fp, "\n") > 0))
 
+typedef unsigned long ulong;
+
+struct clt_state {
+    ulong n;
+    ulong nzs;
+    ulong rho;
+    ulong nu;
+    clt_elem_t x0;
+    clt_elem_t pzt;
+    clt_elem_t *gs;
+    clt_elem_t *zinvs;
+    aes_randstate_t *rngs;
+    union {
+        crt_tree *crt;
+        clt_elem_t *crt_coeffs;
+    };
+    ulong flags;
+};
+
+struct clt_pp {
+    clt_elem_t x0;
+    clt_elem_t pzt;
+    size_t nu;
+};
+
 static double current_time(void);
 
 static int ulong_read  (const char *fname, ulong *x);
@@ -81,14 +106,19 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
 ////////////////////////////////////////////////////////////////////////////////
 // state
 
-int
-clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
-                const int *pows, ulong ncores, ulong flags, aes_randstate_t rng)
+clt_state *
+clt_state_init(size_t kappa, size_t lambda, size_t nzs, const int *pows,
+               size_t ncores, size_t flags, aes_randstate_t rng)
 {
-    ulong alpha, beta, eta, rho_f;
+    clt_state *s;
+    size_t alpha, beta, eta, rho_f;
     clt_elem_t *ps, *zs;
     double start_time = 0.0;
     int count = 0;
+
+    s = malloc(sizeof(clt_state));
+    if (s == NULL)
+        return NULL;
 
     if (ncores == 0)
         ncores = sysconf(_SC_NPROCESSORS_ONLN);
@@ -120,7 +150,8 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 
         if (i == 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu)) {
             fprintf(stderr, "Error: unable to find valid η, n, and ν choices\n");
-            return CLT_ERR;
+            free(s);
+            return NULL;
         }
     }
 
@@ -198,7 +229,6 @@ clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
 GEN_PIS:
     if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
         ulong etap = ETAP_DEFAULT;
-        /* ignore if eta <= 350 for testing with small lambdas */
         if (eta > 350)
             /* TODO: change how we set etap, should be resistant to factoring x_0 */
             for (/* */; eta % etap < 350; etap++)
@@ -397,10 +427,11 @@ GEN_PIS:
         mpz_clear(zs[i]);
     free(zs);
 
-    return CLT_OK;
+    return s;
 }
 
-void clt_state_clear(clt_state *s)
+void
+clt_state_clear(clt_state *s)
 {
     mpz_clears(s->x0, s->pzt, NULL);
     for (ulong i = 0; i < s->n; ++i) {
@@ -426,6 +457,13 @@ void clt_state_clear(clt_state *s)
         }
         free(s->rngs);
     }
+    free(s);
+}
+
+clt_elem_t *
+clt_state_moduli(const clt_state *const s)
+{
+    return s->gs;
 }
 
 
@@ -488,7 +526,7 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
 }
 
 int
-clt_is_zero(const clt_pp *pp, const clt_elem_t c)
+clt_is_zero(clt_elem_t c, const clt_pp *pp)
 {
     int ret;
 
@@ -543,34 +581,34 @@ clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_ele
 }
 
 void
-clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, ulong b)
+clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, unsigned int b)
 {
     mpz_mul_ui(rop, a, b);
     mpz_mod(rop, rop, pp->x0);
 }
 
-void clt_state_read(clt_state *s, const char *dir)
+clt_state *
+clt_state_read(const char *const dir)
 {
+    clt_state *s;
     char *fname;
     int len;
 
-    memset(s, '\0', sizeof(clt_state));
+    s = calloc(1, sizeof(clt_state));
+    if (s == NULL)
+        return NULL;
 
     len = strlen(dir) + 13;
     fname = malloc(sizeof(char) + len);
 
     snprintf(fname, len, "%s/flags", dir);
     ulong_read(fname, &s->flags);
-
     snprintf(fname, len, "%s/n", dir);
     ulong_read(fname, &s->n);
-
     snprintf(fname, len, "%s/nzs", dir);
     ulong_read(fname, &s->nzs);
-
     snprintf(fname, len, "%s/rho", dir);
     ulong_read(fname, &s->rho);
-
     snprintf(fname, len, "%s/nu", dir);
     ulong_read(fname, &s->nu);
 
@@ -590,16 +628,13 @@ void clt_state_read(clt_state *s, const char *dir)
     }
 
     snprintf(fname, len, "%s/x0", dir);
-    clt_elem_read(fname, s->x0);
-
+    clt_elem_read(s->x0, fname);
     snprintf(fname, len, "%s/pzt", dir);
-    clt_elem_read(fname, s->pzt);
-
+    clt_elem_read(s->pzt, fname);
     snprintf(fname, len, "%s/gs", dir);
-    clt_vector_read(fname, s->gs, s->n);
-
+    clt_vector_read(s->gs, s->n, fname);
     snprintf(fname, len, "%s/zinvs", dir);
-    clt_vector_read(fname, s->zinvs, s->nzs);
+    clt_vector_read(s->zinvs, s->nzs, fname);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         s->crt = malloc(sizeof(crt_tree));
@@ -610,13 +645,16 @@ void clt_state_read(clt_state *s, const char *dir)
         for (ulong i = 0; i < s->n; i++)
             mpz_init(s->crt_coeffs[i]);
         snprintf(fname, len, "%s/crt_coeffs", dir);
-        clt_vector_read(fname, s->crt_coeffs, s->n);
+        clt_vector_read(s->crt_coeffs, s->n, fname);
     }
     free(fname);
+
+    return s;
 }
 
 
-void clt_state_save(const clt_state *s, const char *dir)
+int
+clt_state_write(clt_state *const s, const char *const dir)
 {
     char *fname;
     int len = strlen(dir) + 13;
@@ -624,88 +662,75 @@ void clt_state_save(const clt_state *s, const char *dir)
 
     snprintf(fname, len, "%s/flags", dir);
     ulong_save(fname, s->flags);
-
     snprintf(fname, len, "%s/n", dir);
     ulong_save(fname, s->n);
-
     snprintf(fname, len, "%s/nzs", dir);
     ulong_save(fname, s->nzs);
-
     snprintf(fname, len, "%s/rngs", dir);
     for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
         aes_randstate_write(s->rngs[i], fname);
     }
-
     snprintf(fname, len, "%s/rho", dir);
     ulong_save(fname, s->rho);
-
     snprintf(fname, len, "%s/nu", dir);
     ulong_save(fname, s->nu);
-
     snprintf(fname, len, "%s/x0", dir);
-    clt_elem_save(fname, s->x0);
-
+    clt_elem_write(s->x0, fname);
     snprintf(fname, len, "%s/pzt", dir);
-    clt_elem_save(fname, s->pzt);
-
+    clt_elem_write(s->pzt, fname);
     snprintf(fname, len, "%s/gs", dir);
-    clt_vector_save(fname, s->gs, s->n);
-
+    clt_vector_write(s->gs, s->n, fname);
     snprintf(fname, len, "%s/zinvs", dir);
-    clt_vector_save(fname, s->zinvs, s->nzs);
-
+    clt_vector_write(s->zinvs, s->nzs, fname);
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         snprintf(fname, len, "%s/crt_tree", dir);
         crt_tree_save(fname, s->crt, s->n);
     } else {
         snprintf(fname, len, "%s/crt_coeffs", dir);
-        clt_vector_save(fname, s->crt_coeffs, s->n);
+        clt_vector_write(s->crt_coeffs, s->n, fname);
     }
     free(fname);
+    return CLT_OK;
 }
 
-int
-clt_state_fread(FILE *const fp, clt_state *s)
+clt_state *
+clt_state_fread(FILE *const fp)
 {
+    clt_state *s;
     int ret = 1;
 
-    memset(s, '\0', sizeof(clt_state));
+    s = calloc(1, sizeof(clt_state));
+    if (s == NULL)
+        return NULL;
 
-    if (ulong_fread(fp, &s->flags) || GET_NEWLINE(fp) != 0) {
+    if (ulong_fread(fp, &s->flags) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read flags!\n");
         goto cleanup;
     }
-
-    if (ulong_fread(fp, &s->n) || GET_NEWLINE(fp) != 0) {
+    if (ulong_fread(fp, &s->n) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read n!\n");
         goto cleanup;
     }
-
-    if (ulong_fread(fp, &s->nzs) || GET_NEWLINE(fp) != 0) {
+    if (ulong_fread(fp, &s->nzs) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read nzs!\n");
         goto cleanup;
     }
-
-    if (ulong_fread(fp, &s->rho) || GET_NEWLINE(fp) != 0) {
+    if (ulong_fread(fp, &s->rho) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read rho!\n");
         goto cleanup;
     }
-
-    if (ulong_fread(fp, &s->nu) || GET_NEWLINE(fp) != 0) {
+    if (ulong_fread(fp, &s->nu) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read nu!\n");
         goto cleanup;
     }
 
     mpz_init(s->x0);
-
-    if (clt_elem_fread(fp, s->x0) || GET_NEWLINE(fp) != 0) {
+    if (clt_elem_fread(s->x0, fp) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read x0!\n");
         goto cleanup;
     }
-
     mpz_init(s->pzt);
-
-    if (clt_elem_fread(fp, s->pzt) || GET_NEWLINE(fp) != 0) {
+    if (clt_elem_fread(s->pzt, fp) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read pzt!\n");
         goto cleanup;
     }
@@ -713,26 +738,16 @@ clt_state_fread(FILE *const fp, clt_state *s)
     s->gs = malloc(sizeof(clt_elem_t) * s->n);
     for (ulong i = 0; i < s->n; ++i)
         mpz_init(s->gs[i]);
-    if (clt_vector_fread(fp, s->gs, s->n) != 0) {
+    if (clt_vector_fread(s->gs, s->n, fp) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read gs!\n");
-        goto cleanup;
-    }
-
-    if (GET_NEWLINE(fp) != 0) {
-        fprintf(stderr, "[clt_state_fread] couldn't read newline!\n");
         goto cleanup;
     }
 
     s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
     for (ulong i = 0; i < s->nzs; i++)
         mpz_init(s->zinvs[i]);
-    if (clt_vector_fread(fp, s->zinvs, s->nzs) != 0) {
+    if (clt_vector_fread(s->zinvs, s->nzs, fp) || GET_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fread] couldn't read zinvs!\n");
-        goto cleanup;
-    }
-
-    if (GET_NEWLINE(fp) != 0) {
-        fprintf(stderr, "[clt_state_fread] couldn't read newline!\n");
         goto cleanup;
     }
 
@@ -746,7 +761,7 @@ clt_state_fread(FILE *const fp, clt_state *s)
         s->crt_coeffs = malloc(sizeof(clt_elem_t) * s->n);
         for (ulong i = 0; i < s->n; i++)
             mpz_init(s->crt_coeffs[i]);
-        if (clt_vector_fread(fp, s->crt_coeffs, s->n) != 0) {
+        if (clt_vector_fread(s->crt_coeffs, s->n, fp) != 0) {
             fprintf(stderr, "[clt_state_fread] couldn't read crt_coeffs!\n");
             goto cleanup;
         }
@@ -758,66 +773,62 @@ clt_state_fread(FILE *const fp, clt_state *s)
     }
     ret = 0;
 cleanup:
-    return ret;
+    if (ret) {
+        free(s);
+        return NULL;
+    } else {
+        return s;
+    }
 }
 
 int
-clt_state_fsave(FILE *const fp, const clt_state *s)
+clt_state_fwrite(clt_state *const s, FILE *const fp)
 {
-    int ret = 1;
+    int ret = CLT_ERR;
 
-    if (ulong_fsave(fp, s->flags) || PUT_NEWLINE(fp) != 0) {
+    if (ulong_fsave(fp, s->flags) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save flags!\n");
         goto cleanup;
     }
-
-    if (ulong_fsave(fp, s->n) || PUT_NEWLINE(fp) != 0) {
+    if (ulong_fsave(fp, s->n) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save n!\n");
         goto cleanup;
     }
-
-    if (ulong_fsave(fp, s->nzs) || PUT_NEWLINE(fp) != 0) {
+    if (ulong_fsave(fp, s->nzs) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save n!\n");
         goto cleanup;
     }
-
-    if (ulong_fsave(fp, s->rho) || PUT_NEWLINE(fp) != 0) {
+    if (ulong_fsave(fp, s->rho) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save rho!\n");
         goto cleanup;
     }
-
-    if (ulong_fsave(fp, s->nu) || PUT_NEWLINE(fp) != 0) {
+    if (ulong_fsave(fp, s->nu) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save nu!\n");
         goto cleanup;
     }
-
-    if (clt_elem_fsave(fp, s->x0) || PUT_NEWLINE(fp) != 0) {
+    if (clt_elem_fwrite(s->x0, fp) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save x0!\n");
         goto cleanup;
     }
-
-    if (clt_elem_fsave(fp, s->pzt) || PUT_NEWLINE(fp) != 0) {
+    if (clt_elem_fwrite(s->pzt, fp) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save pzt!\n");
         goto cleanup;
     }
-
-    if (clt_vector_fsave(fp, s->gs, s->n) || PUT_NEWLINE(fp) != 0) {
+    if (clt_vector_fwrite(s->gs, s->n, fp) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save gs!\n");
         goto cleanup;
     }
-
-    if (clt_vector_fsave(fp, s->zinvs, s->nzs) || PUT_NEWLINE(fp) != 0) {
+    if (clt_vector_fwrite(s->zinvs, s->nzs, fp) || PUT_NEWLINE(fp)) {
         fprintf(stderr, "[clt_state_fsave] failed to save zinvs!\n");
         goto cleanup;
     }
-
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         if (crt_tree_fsave(fp, s->crt, s->n) != 0) {
             fprintf(stderr, "[clt_state_fsave] failed to save crt_tree!\n");
             goto cleanup;
         }
     } else {
-        if (clt_vector_fsave(fp, s->crt_coeffs, s->n) != 0) {
+        if (clt_vector_fwrite(s->crt_coeffs, s->n, fp) != 0) {
             fprintf(stderr, "[clt_state_fsave] failed to save crt_coefs!\n");
             goto cleanup;
         }
@@ -827,7 +838,7 @@ clt_state_fsave(FILE *const fp, const clt_state *s)
         aes_randstate_fwrite(s->rngs[i], fp);
     }
 
-    ret = 0;
+    ret = CLT_OK;
 cleanup:
     return ret;
 }
@@ -835,123 +846,124 @@ cleanup:
 ////////////////////////////////////////////////////////////////////////////////
 // public parameters
 
-void
-clt_pp_init(clt_pp *pp, const clt_state *mmap)
+clt_pp *
+clt_pp_init(const clt_state *mmap)
 {
+    clt_pp *pp;
+
+    pp = calloc(1, sizeof(clt_pp));
+    if (pp == NULL)
+        return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
     mpz_set(pp->x0, mmap->x0);
     mpz_set(pp->pzt, mmap->pzt);
     pp->nu = mmap->nu;
+    return pp;
 }
 
 void
-clt_pp_clear( clt_pp *pp )
+clt_pp_clear(clt_pp *pp)
 {
     mpz_clears(pp->x0, pp->pzt, NULL);
+    free(pp);
 }
 
-int
-clt_pp_read(clt_pp *pp, const char *dir)
+clt_pp *
+clt_pp_read(const char *const dir)
 {
+    clt_pp *pp;
     char *fname;
-    int ret = 1;
-    int len = strlen(dir) + 10;
+    int len, ret = CLT_ERR;
+
+    if ((pp = calloc(1, sizeof(clt_pp))) == NULL)
+        return NULL;
+
+    len = strlen(dir) + 10;
     fname = malloc(sizeof(char) + len);
 
     mpz_inits(pp->x0, pp->pzt, NULL);
 
-    // load nu
     snprintf(fname, len, "%s/nu", dir);
     if (ulong_read(fname, &pp->nu) != 0)
         goto cleanup;
-
-    // load x0
     snprintf(fname, len, "%s/x0", dir);
-    if (clt_elem_read(fname, pp->x0) != 0)
+    if (clt_elem_read(pp->x0, fname) != 0)
         goto cleanup;
-
-    // load pzt
     snprintf(fname, len, "%s/pzt", dir);
-    if (clt_elem_read(fname, pp->pzt) != 0)
+    if (clt_elem_read(pp->pzt, fname) != 0)
         goto cleanup;
-
-    ret = 0;
+    ret = CLT_OK;
 cleanup:
     free(fname);
-    return ret;
+    if (ret == CLT_OK) {
+        return pp;
+    } else {
+        clt_pp_clear(pp);
+        return NULL;
+    }
 }
 
 int
-clt_pp_save(const clt_pp *pp, const char *dir)
+clt_pp_write(clt_pp *const pp, const char *const dir)
 {
     char *fname;
-    int ret = 1;
+    int ret = CLT_ERR;
     int len = strlen(dir) + 10;
     fname = malloc(sizeof(char) * len);
 
-    // save nu
     snprintf(fname, len, "%s/nu", dir);
     if (ulong_save(fname, pp->nu) != 0)
         goto cleanup;
-
-    // save x0
     snprintf(fname, len, "%s/x0", dir);
-    if (clt_elem_save(fname, pp->x0) != 0)
+    if (clt_elem_write(pp->x0, fname) != 0)
         goto cleanup;
-
-    // save pzt
     snprintf(fname, len, "%s/pzt", dir);
-    if (clt_elem_save(fname, pp->pzt) != 0)
+    if (clt_elem_write(pp->pzt, fname) != 0)
         goto cleanup;
-
-    ret = 0;
+    ret = CLT_OK;
 cleanup:
     free(fname);
     return ret;
 }
 
-int
-clt_pp_fread(FILE *const fp, clt_pp *pp)
+clt_pp *
+clt_pp_fread(FILE *const fp)
 {
-    int ret = 1;
+    clt_pp *pp;
+    int ret = CLT_ERR;
 
+    if ((pp = calloc(1, sizeof(clt_pp))) == NULL)
+        return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
 
-    if (ulong_fread(fp, &pp->nu) != 0)
+    if (ulong_fread(fp, &pp->nu) || GET_NEWLINE(fp))
         goto cleanup;
-
-    if (GET_NEWLINE(fp) != 0)
+    if (clt_elem_fread(pp->x0, fp) || GET_NEWLINE(fp))
         goto cleanup;
-
-    if (clt_elem_fread(fp, pp->x0) != 0)
+    if (clt_elem_fread(pp->pzt, fp) || GET_NEWLINE(fp))
         goto cleanup;
-
-    if (GET_NEWLINE(fp) != 0)
-        goto cleanup;
-
-    if (clt_elem_fread(fp, pp->pzt) != 0)
-        goto cleanup;
-
-    ret = 0;
+    ret = CLT_OK;
 cleanup:
-    return ret;
+    if (ret == CLT_OK) {
+        return pp;
+    } else {
+        clt_pp_clear(pp);
+        return NULL;
+    }
 }
 
 int
-clt_pp_fsave(FILE *const fp, const clt_pp *pp)
+clt_pp_fwrite(clt_pp *const pp, FILE *const fp)
 {
-    int ret = 1;
+    int ret = CLT_ERR;
 
-    if (ulong_fsave(fp, pp->nu) || PUT_NEWLINE(fp) != 0)
+    if (ulong_fsave(fp, pp->nu) || PUT_NEWLINE(fp))
         goto cleanup;
-
-    if (clt_elem_fsave(fp, pp->x0) || PUT_NEWLINE(fp) != 0)
+    if (clt_elem_fwrite(pp->x0, fp) || PUT_NEWLINE(fp))
         goto cleanup;
-
-    if (clt_elem_fsave(fp, pp->pzt) || PUT_NEWLINE(fp) != 0)
+    if (clt_elem_fwrite(pp->pzt, fp) || PUT_NEWLINE(fp))
         goto cleanup;
-
-    ret = 0;
+    ret = CLT_OK;
 cleanup:
     return ret;
 }
@@ -998,27 +1010,27 @@ ulong_fsave(FILE *const fp, ulong x)
 }
 
 int
-clt_elem_read(const char *fname, clt_elem_t x)
+clt_elem_read(clt_elem_t x, const char *fname)
 {
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
         perror(fname);
         return 1;
     }
-    clt_elem_fread(f, x);
+    clt_elem_fread(x, f);
     fclose(f);
     return 0;
 }
 
 int
-clt_elem_save(const char *fname, const clt_elem_t x)
+clt_elem_write(clt_elem_t x, const char *fname)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
         perror(fname);
         return 1;
     }
-    if (clt_elem_fsave(f, x) == 0) {
+    if (clt_elem_fwrite(x, f) == 0) {
         fclose(f);
         return 1;
     }
@@ -1027,19 +1039,19 @@ clt_elem_save(const char *fname, const clt_elem_t x)
 }
 
 int
-clt_elem_fread(FILE *const fp, clt_elem_t x)
+clt_elem_fread(clt_elem_t x, FILE *const fp)
 {
     return !(mpz_inp_raw(x, fp) > 0);
 }
 
 int
-clt_elem_fsave(FILE *const fp, const clt_elem_t x)
+clt_elem_fwrite(clt_elem_t x, FILE *const fp)
 {
     return !(mpz_out_raw(fp, x) > 0);
 }
 
 int
-clt_vector_read(const char *fname, clt_elem_t *m, ulong len)
+clt_vector_read(clt_elem_t *m, ulong len, const char *fname)
 {
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
@@ -1057,7 +1069,7 @@ clt_vector_read(const char *fname, clt_elem_t *m, ulong len)
 }
 
 int
-clt_vector_save(const char *fname, clt_elem_t *m, ulong len)
+clt_vector_write(clt_elem_t *m, ulong len, const char *fname)
 {
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
@@ -1075,7 +1087,7 @@ clt_vector_save(const char *fname, clt_elem_t *m, ulong len)
 }
 
 int
-clt_vector_fread(FILE *const fp, clt_elem_t *m, ulong len)
+clt_vector_fread(clt_elem_t *m, ulong len, FILE *const fp)
 {
     for (ulong i = 0; i < len; ++i) {
         if (mpz_inp_raw(m[i], fp) == 0)
@@ -1085,7 +1097,7 @@ clt_vector_fread(FILE *const fp, clt_elem_t *m, ulong len)
 }
 
 int
-clt_vector_fsave(FILE *const fp, clt_elem_t *m, ulong len)
+clt_vector_fwrite(clt_elem_t *m, ulong len, FILE *const fp)
 {
     for (ulong i = 0; i < len; ++i) {
         if (mpz_out_raw(fp, m[i]) == 0)
@@ -1105,7 +1117,8 @@ current_time(void)
 #define PBSTR "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
 #define PBWIDTH 60
 
-static void print_progress (size_t cur, size_t total)
+static void
+print_progress(size_t cur, size_t total)
 {
     static int last_val = 0;
     double percentage = (double) cur / total;

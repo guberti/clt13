@@ -95,7 +95,7 @@ crt_tree_save(const char *fname, crt_tree *crt, size_t n)
     int ctr = 0;
 
     _crt_tree_get_leafs(ps, &ctr, crt);
-    clt_vector_save(fname, ps, n);
+    clt_vector_write(ps, n, fname);
 
     for (ulong i = 0; i < n; i++)
         mpz_clear(ps[i]);
@@ -109,7 +109,7 @@ crt_tree_read(const char *fname, crt_tree *crt, size_t n)
     for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
 
-    clt_vector_read(fname, ps, n);
+    clt_vector_read(ps, n, fname);
     crt_tree_init(crt, ps, n);
 
     for (ulong i = 0; i < n; i++)
@@ -126,7 +126,7 @@ crt_tree_fread (FILE *const fp, crt_tree *crt, size_t n)
     for (ulong i = 0; i < n; i++)
         mpz_init(ps[i]);
 
-    if (clt_vector_fread(fp, ps, n) != 0) {
+    if (clt_vector_fread(ps, n, fp) != 0) {
         fprintf(stderr, "[crt_tree_fread] couldn't read ps!\n");
         goto cleanup;
     }
@@ -156,7 +156,7 @@ crt_tree_fsave(FILE *const fp, crt_tree *crt, size_t n)
     int ctr = 0;
 
     _crt_tree_get_leafs(ps, &ctr, crt);
-    if (clt_vector_fsave(fp, ps, n) != 0)
+    if (clt_vector_fwrite(ps, n, fp) != 0)
         goto cleanup;
 
     for (ulong i = 0; i < n; i++)

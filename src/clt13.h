@@ -12,27 +12,8 @@ extern "C" {
 #include <gmp.h>
 
 typedef mpz_t clt_elem_t;
-typedef unsigned long ulong;
-typedef struct crt_tree crt_tree;
-
-// state
-
-typedef struct {
-    ulong n;
-    ulong nzs;
-    ulong rho;
-    ulong nu;
-    clt_elem_t x0;
-    clt_elem_t pzt;
-    clt_elem_t *gs;
-    clt_elem_t *zinvs;
-    aes_randstate_t *rngs;
-    union {
-        crt_tree *crt;
-        clt_elem_t *crt_coeffs;
-    };
-    ulong flags;
-} clt_state;
+typedef struct clt_state clt_state;
+typedef struct clt_pp clt_pp;
 
 #define CLT_FLAG_NONE 0x00
 #define CLT_FLAG_VERBOSE 0x01
@@ -47,35 +28,44 @@ typedef struct {
     | CLT_FLAG_OPT_COMPOSITE_PS \
     )
 
-int clt_state_init (clt_state *s, ulong kappa, ulong lambda, ulong nzs,
-                    const int *pows, ulong ncores, ulong flags,
-                    aes_randstate_t rng);
-void clt_state_clear (clt_state *s);
-void clt_state_read  (clt_state *s, const char *dir);
-void clt_state_save  (const clt_state *s, const char *dir);
-int clt_state_fread  (FILE *const fp, clt_state *s);
-int clt_state_fsave  (FILE *const fp, const clt_state *s);
+clt_state *
+clt_state_init(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
+               size_t ncores, size_t flags, aes_randstate_t rng);
+void
+clt_state_clear(clt_state *s);
+clt_state *
+clt_state_read(const char *const dir);
+int
+clt_state_write(clt_state *const s, const char *const dir);
+clt_state *
+clt_state_fread(FILE *const fp);
+int
+clt_state_fwrite(clt_state *const s, FILE *const fp);
+clt_elem_t *
+clt_state_moduli(const clt_state *const s);
 
 // public parameters
 
-typedef struct {
-    clt_elem_t x0;
-    clt_elem_t pzt;
-    ulong nu;
-} clt_pp;
-
-void clt_pp_init  (clt_pp *pp, const clt_state *mmap);
-void clt_pp_clear (clt_pp *pp);
-int clt_pp_read  (clt_pp *pp, const char *dir);
-int clt_pp_save  (const clt_pp *pp, const char *dir);
-int clt_pp_fread (FILE *const fp, clt_pp *pp);
-int clt_pp_fsave (FILE *const fp, const clt_pp *pp);
+clt_pp *
+clt_pp_init(const clt_state *const mmap);
+void
+clt_pp_clear(clt_pp *pp);
+clt_pp *
+clt_pp_read(const char *const dir);
+int
+clt_pp_write(clt_pp *const pp, const char *const dir);
+clt_pp *
+clt_pp_fread(FILE *const fp);
+int
+clt_pp_fwrite(clt_pp *const pp, FILE *const fp);
 
 // encodings
 
-void clt_encode (clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
-                 const int *pows);
-int clt_is_zero (const clt_pp *pp, const clt_elem_t c);
+void
+clt_encode(clt_elem_t rop, const clt_state *const s, size_t nins, mpz_t *ins,
+           const int *const pows);
+int
+clt_is_zero(clt_elem_t c, const clt_pp *const pp);
 
 // elements
 
@@ -86,17 +76,16 @@ void clt_elem_add(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const cl
 void clt_elem_sub(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b);
 
 void clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b);
-void clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, ulong b);
+void clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, unsigned int b);
 
-int clt_elem_read (const char *fname, clt_elem_t x);
-int clt_elem_save (const char *fname, const clt_elem_t x);
-int clt_elem_fread (FILE *const fp, clt_elem_t x);
-int clt_elem_fsave (FILE *const fp, const clt_elem_t x);
-int clt_vector_read  (const char *fname, clt_elem_t *m, ulong len);
-int clt_vector_save  (const char *fname, clt_elem_t *m, ulong len);
-int clt_vector_fread (FILE *const fp, clt_elem_t *m, ulong len);
-int clt_vector_fsave (FILE *const fp, clt_elem_t *m, ulong len);
-
+int clt_elem_read(clt_elem_t x, const char *fname);
+int clt_elem_write(clt_elem_t x, const char *fname);
+int clt_elem_fread(clt_elem_t x, FILE *const fp);
+int clt_elem_fwrite(clt_elem_t x, FILE *const fp);
+int clt_vector_read(clt_elem_t *m, size_t len, const char *fname);
+int clt_vector_write(clt_elem_t *m, size_t len, const char *fname);
+int clt_vector_fread(clt_elem_t *m, size_t len, FILE *const fp);
+int clt_vector_fwrite(clt_elem_t *m, size_t len, FILE *const fp);
 
 #ifdef __cplusplus
 }
