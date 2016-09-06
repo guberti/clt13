@@ -45,6 +45,8 @@ clt_elem_t *
 clt_state_moduli(const clt_state *const s);
 size_t
 clt_state_nslots(const clt_state *const s);
+size_t
+clt_state_nzs(const clt_state *const s);
 
 // public parameters
 

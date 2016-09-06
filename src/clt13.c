@@ -472,6 +472,11 @@ clt_state_nslots(const clt_state *const s)
     return s->n;
 }
 
+size_t
+clt_state_nzs(const clt_state *const s)
+{
+    return s->nzs;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // encodings
