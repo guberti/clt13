@@ -37,7 +37,7 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         }
 
         // test initialization & serialization
-        mmap = clt_state_new(kappa, lambda, nzs, pows, 0, flags, rng);
+        mmap = clt_state_new(kappa, lambda, 0, nzs, pows, 0, flags, rng);
 
         if (clt_state_fwrite(mmap, mmap_f)) {
             fprintf(stderr, "clt_state_fsave failed!\n");
@@ -240,7 +240,7 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     for (ulong i = 0; i < kappa; ++i)
         top_level[i] = 1;
 
-    s = clt_state_new(kappa, lambda, kappa, top_level, 0, flags, rng);
+    s = clt_state_new(kappa, lambda, 0, kappa, top_level, 0, flags, rng);
     pp = clt_pp_new(s);
 
     clt_encode(top_one, s, 1, &one, top_level);

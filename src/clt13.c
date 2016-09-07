@@ -160,7 +160,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t min_slots, size_t nzs,
     assert(s->nu >= alpha + 6);
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
-    if (s->n < min_slots) {
+    if (min_slots != 0 && s->n < min_slots) {
         fprintf(stderr, "Error: number of slots is less than required (%lu < %lu)\n",
                 s->n, min_slots);
         free(s);
@@ -493,9 +493,6 @@ void
 clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
            const int *pows)
 {
-    clt_elem_t tmp;
-    mpz_init(tmp);
-
     if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)) {
         omp_set_num_threads(1);
     }
@@ -534,14 +531,18 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
             mpz_clear(tmp);
         }
     }
-    // multiply by appropriate zinvs
-    for (unsigned long i = 0; i < s->nzs; ++i) {
-        if (pows[i] <= 0)
-            continue;
-        mpz_powm_ui(tmp, s->zinvs[i], pows[i], s->x0);
-        mpz_mul_mod(rop, rop, tmp, s->x0);
+    {
+        clt_elem_t tmp;
+        mpz_init(tmp);
+        /* multiply by appropriate zinvs */
+        for (unsigned long i = 0; i < s->nzs; ++i) {
+            if (pows[i] <= 0)
+                continue;
+            mpz_powm_ui(tmp, s->zinvs[i], pows[i], s->x0);
+            mpz_mul_mod(rop, rop, tmp, s->x0);
+        }
+        mpz_clear(tmp);
     }
-    mpz_clear(tmp);
 }
 
 int
