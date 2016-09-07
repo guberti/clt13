@@ -161,7 +161,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t min_slots, size_t nzs,
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
     if (s->n < min_slots) {
-        fprintf(stderr, "Error: number of slots is less than required (%s < %s)\n",
+        fprintf(stderr, "Error: number of slots is less than required (%lu < %lu)\n",
                 s->n, min_slots);
         free(s);
         return NULL;
