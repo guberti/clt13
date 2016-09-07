@@ -107,8 +107,9 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
 // state
 
 clt_state *
-clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
-              size_t ncores, size_t flags, aes_randstate_t rng)
+clt_state_new(size_t kappa, size_t lambda, size_t min_slots, size_t nzs,
+              const int *const pows, size_t ncores, size_t flags,
+              aes_randstate_t rng)
 {
     clt_state *s;
     size_t alpha, beta, eta, rho_f;
@@ -158,6 +159,13 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
     /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
     assert(s->nu >= alpha + 6);
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
+
+    if (s->n < min_slots) {
+        fprintf(stderr, "Error: number of slots is less than required (%s < %s)\n",
+                s->n, min_slots);
+        free(s);
+        return NULL;
+    }
 
     if (s->flags & CLT_FLAG_VERBOSE) {
         fprintf(stderr, "  λ: %ld\n", lambda);
