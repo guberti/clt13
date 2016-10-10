@@ -107,8 +107,8 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
 // state
 
 clt_state *
-clt_state_new(size_t kappa, size_t lambda, size_t min_slots, size_t nzs,
-              const int *const pows, size_t ncores, size_t flags,
+clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
+              size_t min_slots, size_t ncores, size_t flags,
               aes_randstate_t rng)
 {
     clt_state *s;
@@ -160,7 +160,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t min_slots, size_t nzs,
     assert(s->nu >= alpha + 6);
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
 
-    if (min_slots != 0 && s->n < min_slots) {
+    if (min_slots && (s->n < min_slots)) {
         fprintf(stderr, "Error: number of slots is less than required (%lu < %lu)\n",
                 s->n, min_slots);
         free(s);
