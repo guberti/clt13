@@ -196,10 +196,10 @@ clt_state_new(size_t kappa, size_t lambda, size_t min_slots, size_t nzs,
     s->rngs = malloc(sizeof(aes_randstate_t) * MAX(s->n, s->nzs));
     for (ulong i = 0; i < s->n; ++i) {
         unsigned char *buf;
-        size_t n = 128;
+        size_t nbits = 128, nbytes;
 
-        buf = random_aes(rng, &n);
-        aes_randinit_seedn(s->rngs[i], (char *) buf + 5, n - 5, NULL, 0);
+        buf = random_aes(rng, nbits, &nbytes);
+        aes_randinit_seedn(s->rngs[i], (char *) buf, nbytes, NULL, 0);
         free(buf);
     }
 
