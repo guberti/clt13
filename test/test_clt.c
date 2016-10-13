@@ -4,11 +4,41 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <time.h>
+#include <unistd.h>
 
-int expect(char * desc, int expected, int recieved);
+static size_t
+ram_usage(void)
+{
+    FILE *fp;
+    size_t rss = 0;
+    if ((fp = fopen("/proc/self/statm", "r")) == NULL)
+        return 0;
+    if (fscanf(fp, "%*s%lu", &rss) != 1) {
+        fclose(fp);
+        return 0;
+    }
+    fclose(fp);
+    return rss * sysconf(_SC_PAGESIZE) / 1024;
+}
 
-static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
+static int
+expect(char * desc, int expected, int recieved)
+{
+    if (expected != recieved) {
+        printf("\033[1;41m");
+    }
+    printf("%s = %d", desc, recieved);
+    if (expected != recieved) {
+        printf("\033[0m");
+    }
+    puts("");
+    return expected == recieved;
+}
+
+static int
+test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 {
     srand(time(NULL));
 
@@ -37,7 +67,7 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         }
 
         // test initialization & serialization
-        mmap = clt_state_new(kappa, lambda, 0, nzs, pows, 0, flags, rng);
+        mmap = clt_state_new(kappa, lambda, nzs, pows, 0, 0, flags, rng);
 
         if (clt_state_fwrite(mmap, mmap_f)) {
             fprintf(stderr, "clt_state_fsave failed!\n");
@@ -215,6 +245,12 @@ static int test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_state_delete(mmap);
     clt_pp_delete(pp);
     mpz_clears(c, x0, x1, xp, x[0], zero[0], one[0], in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
+
+    {
+        size_t ram = ram_usage();
+        printf("RAM: %lu Kb\n", ram);
+    }
+
     return !ok;
 }
 
@@ -240,7 +276,7 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     for (ulong i = 0; i < kappa; ++i)
         top_level[i] = 1;
 
-    s = clt_state_new(kappa, lambda, 0, kappa, top_level, 0, flags, rng);
+    s = clt_state_new(kappa, lambda, kappa, top_level, 0, 0, flags, rng);
     pp = clt_pp_new(s);
 
     clt_encode(top_one, s, 1, &one, top_level);
@@ -289,16 +325,26 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
 
     ok &= expect("is_zero(0 * 1 *  ... * 1 + 1)", 0, clt_is_zero(result, pp));
 
+    {
+        size_t ram = ram_usage();
+        printf("RAM: %lu Kb\n", ram);
+    }
+
     return !ok;
 }
 
-int main(void)
+int
+main(int argc, char *argv[])
 {
     ulong default_flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
     ulong flags;
     ulong kappa;
     ulong lambda = 40;
     ulong nzs = 10;
+
+    if (argc == 2) {
+        lambda = atoi(argv[1]);
+    }
 
     if (test_levels(default_flags, 32, 10))
         return 1;
@@ -342,17 +388,4 @@ int main(void)
         return 1;
 
     return 0;
-}
-
-int expect(char * desc, int expected, int recieved)
-{
-    if (expected != recieved) {
-        printf("\033[1;41m");
-    }
-    printf("%s = %d", desc, recieved);
-    if (expected != recieved) {
-        printf("\033[0m");
-    }
-    puts("");
-    return expected == recieved;
 }
