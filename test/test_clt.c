@@ -257,7 +257,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 static int
 test_levels(ulong flags, ulong kappa, ulong lambda)
 {
-    int *pows, *top_level;
+    int pows[kappa], top_level[kappa];
     clt_state *s;
     clt_pp *pp;
     aes_randstate_t rng;
@@ -271,8 +271,6 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     mpz_init_set_ui(one, 1);
     mpz_inits(value, result, top_one, top_zero, NULL);
 
-    pows = calloc(kappa, sizeof(int));
-    top_level = calloc(kappa, sizeof(int));
     for (ulong i = 0; i < kappa; ++i)
         top_level[i] = 1;
 
@@ -329,6 +327,12 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
         size_t ram = ram_usage();
         printf("RAM: %lu Kb\n", ram);
     }
+
+    clt_pp_delete(pp);
+    clt_state_delete(s);
+
+    mpz_clears(value, result, top_one, top_zero, zero, one, NULL);
+    aes_randclear(rng);
 
     return !ok;
 }
