@@ -194,11 +194,11 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
 
     /* Generate randomness for each core */
     s->rngs = malloc(sizeof(aes_randstate_t) * MAX(s->n, s->nzs));
-    for (ulong i = 0; i < s->n; ++i) {
+    for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
         unsigned char *buf;
-        size_t nbits = 128, nbytes;
+        size_t nbytes;
 
-        buf = random_aes(rng, nbits, &nbytes);
+        buf = random_aes(rng, 128, &nbytes);
         aes_randinit_seedn(s->rngs[i], (char *) buf, nbytes, NULL, 0);
         free(buf);
     }
