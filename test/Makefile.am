@@ -6,3 +6,5 @@ check_PROGRAMS = test_clt
 TESTS = $(check_PROGRAMS)
 
 test_clt_SOURCES = test_clt.c
+
+all: $(TESTS)
