@@ -45,58 +45,68 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_state *mmap;
     clt_pp *pp;
     clt_elem_t *moduli;
-
     aes_randstate_t rng;
-    aes_randinit(rng);
-
     int pows[nzs];
+
+    int ok = 1;
+
+    aes_randinit(rng);
     for (ulong i = 0; i < nzs; i++) pows[i] = 1;
 
+    mmap = clt_state_new(kappa, lambda, nzs, pows, 0, 0, flags, rng);
+    pp = clt_pp_new(mmap);
+
     /* Test read/write */
+
     {
-        FILE *mmap_f = tmpfile();
+        FILE *mmap_f;
+
+        mmap_f = tmpfile();
         if (mmap_f == NULL) {
             fprintf(stderr, "Couldn't open test.map!\n");
             exit(1);
         }
 
-        FILE *pp_f = tmpfile();
+        if (clt_state_fwrite(mmap, mmap_f)) {
+            fprintf(stderr, "clt_state_fsave failed!\n");
+            exit(1);
+        }
+        clt_state_delete(mmap);
+        rewind(mmap_f);
+        if ((mmap = clt_state_fread(mmap_f)) == NULL) {
+            fprintf(stderr, "clt_state_fread failed for mmap!\n");
+            exit(1);
+        }
+        fclose(mmap_f);
+    }
+
+    {
+        FILE *pp_f;
+
+        pp_f = tmpfile();
         if (pp_f == NULL) {
             fprintf(stderr, "Couldn't open test.pp!\n");
             exit(1);
         }
 
-        // test initialization & serialization
-        mmap = clt_state_new(kappa, lambda, nzs, pows, 0, 0, flags, rng);
-
-        if (clt_state_fwrite(mmap, mmap_f)) {
-            fprintf(stderr, "clt_state_fsave failed!\n");
-            exit(1);
-        }
-        rewind(mmap_f);
-        clt_state_delete(mmap);
-        if ((mmap = clt_state_fread(mmap_f)) == NULL) {
-            fprintf(stderr, "clt_state_fread failed for mmap!\n");
-            exit(1);
-        }
-
-        pp = clt_pp_new(mmap);
-
         if (clt_pp_fwrite(pp, pp_f) != 0) {
             fprintf(stderr, "clt_pp_fsave failed!\n");
             exit(1);
         }
-        rewind(pp_f);
         clt_pp_delete(pp);
+        rewind(pp_f);
         if ((pp = clt_pp_fread(pp_f)) == NULL) {
             fprintf(stderr, "clt_pp_fread failed for pp!\n");
             exit(1);
         }
+        fclose(pp_f);
     }
 
     moduli = clt_state_moduli(mmap);
 
-    mpz_t x [1];
+    mpz_t x[1], zero[1], one[1], two[1], three[1];
+    int top_level[nzs];
+
     mpz_init_set_ui(x[0], 0);
     while (mpz_cmp_ui(x[0], 0) <= 0) {
         mpz_set_ui(x[0], rand());
@@ -104,24 +114,17 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     }
     gmp_printf("x = %Zd\n", x[0]);
 
-    mpz_t zero [1];
     mpz_init_set_ui(zero[0], 0);
-    mpz_t one [1];
     mpz_init_set_ui(one[0], 1);
-    mpz_t two[1];
     mpz_init_set_ui(two[0], 2);
-    mpz_t three[1];
     mpz_init_set_ui(three[0], 3);
 
-    int top_level [nzs];
     for (ulong i = 0; i < nzs; i++) {
         top_level[i] = 1;
     }
 
     mpz_t x0, x1, xp;
     mpz_inits(x0, x1, xp, NULL);
-
-    int ok = 1;
 
     clt_encode(x0, mmap, 1, zero, top_level);
     clt_encode(x1, mmap, 1, zero, top_level);
@@ -138,7 +141,6 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_elem_mul_ui(x0, pp, x0, 2);
     clt_elem_sub(xp, pp, x1, x0);
     ok &= expect("is_zero(2 - 2[1])", 1, clt_is_zero(xp, pp));
-    mpz_clear(two[0]);
 
     clt_encode(x0, mmap, 1, zero, top_level);
     clt_encode(x1, mmap, 1, x,    top_level);
@@ -166,8 +168,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_elem_sub(xp, pp, x0, x1);
     ok &= expect("is_zero(3*[1] - [3])", 1, clt_is_zero(xp, pp));
 
-    int ix0 [nzs];
-    int ix1 [nzs];
+    int ix0[nzs], ix1[nzs];
     for (ulong i = 0; i < nzs; i++) {
         if (i < nzs / 2) {
             ix0[i] = 1;
@@ -194,10 +195,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     // zimmerman-like test
 
-    mpz_t c;
-    mpz_t in0 [2];
-    mpz_t in1 [2];
-    mpz_t cin [2];
+    mpz_t c, in0[2], in1[2], cin[2];
 
     mpz_inits(c, in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
 
@@ -242,9 +240,12 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     clt_elem_sub(xp, pp, xp, c);
 
     ok &= expect("[Z] is_zero(x * y)", 0, clt_is_zero(xp, pp));
-    clt_state_delete(mmap);
+
     clt_pp_delete(pp);
-    mpz_clears(c, x0, x1, xp, x[0], zero[0], one[0], in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
+    clt_state_delete(mmap);
+    mpz_clears(c, x0, x1, xp, x[0], zero[0], one[0], two[0], three[0],
+               in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
+    aes_randclear(rng);
 
     {
         size_t ram = ram_usage();
