@@ -6,9 +6,11 @@ int
 crt_tree_init(crt_tree *crt, clt_elem_t *ps, size_t nps)
 {
     int ok = 1;
+
+    assert(nps);
+
     crt->n  = nps;
-    crt->n2 = nps/2;
-    assert(crt->n > 0);
+    crt->n2 = nps / 2;
 
     mpz_init(crt->mod);
 
@@ -17,20 +19,31 @@ crt_tree_init(crt_tree *crt, clt_elem_t *ps, size_t nps)
         crt->right = NULL;
         mpz_set(crt->mod, ps[0]);
     } else {
+        clt_elem_t g;
+        int ok1, ok2;
+
         crt->left  = malloc(sizeof(crt_tree));
         crt->right = malloc(sizeof(crt_tree));
 
-        ok &= crt_tree_init(crt->left,  ps,           crt->n2);
-        ok &= crt_tree_init(crt->right, ps + crt->n2, crt->n - crt->n2);
+#pragma omp parallel sections
+        {
+#pragma omp section
+            {
+                ok1 = crt_tree_init(crt->left, ps, crt->n2);
+            }
+#pragma omp section
+            {
+                ok2 = crt_tree_init(crt->right, ps + crt->n2, crt->n - crt->n2);
+            }
+        }
 
-        clt_elem_t g;
-        mpz_inits(g, crt->crt_left, crt->crt_right, NULL);
+        ok &= ok1 & ok2;
 
-        mpz_set_ui(g, 0);
+        mpz_init_set_ui(g, 0);
+        mpz_inits(crt->crt_left, crt->crt_right, NULL);
         mpz_gcdext(g, crt->crt_right, crt->crt_left, crt->left->mod, crt->right->mod);
-        if (! (mpz_cmp_ui(g, 1) == 0)) // if g != 1, raise error
+        if (mpz_cmp_ui(g, 1) != 0)
             ok &= 0;
-
         mpz_clear(g);
 
         mpz_mul(crt->crt_left,  crt->crt_left,  crt->right->mod);
