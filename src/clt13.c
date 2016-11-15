@@ -193,7 +193,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
     }
 
     /* Generate randomness for each core */
-    s->rngs = malloc(sizeof(aes_randstate_t) * MAX(s->n, s->nzs));
+    s->rngs = calloc(MAX(s->n, s->nzs), sizeof(aes_randstate_t));
     for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
         unsigned char *buf;
         size_t nbytes;
@@ -209,7 +209,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
     s->gs    = malloc(sizeof(clt_elem_t) * s->n);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        s->crt = malloc(sizeof(crt_tree));
+        /* s->crt = malloc(sizeof(crt_tree)); */
     } else {
         s->crt_coeffs = malloc(s->n * sizeof(clt_elem_t));
         for (ulong i = 0; i < s->n; i++) {
@@ -298,11 +298,9 @@ GEN_PIS:
             fprintf(stderr, "  Generating CRT-Tree: ");
             start_time = current_time();
         }
-        /* use crt_tree to find x0 */
-        int ok = crt_tree_init(s->crt, ps, s->n);
-        if (!ok) {
+        s->crt = crt_tree_new(ps, s->n);
+        if (s->crt == NULL) {
             /* if crt_tree_init fails, regenerate with new p_i's */
-            crt_tree_clear(s->crt);
             if (s->flags & CLT_FLAG_VERBOSE) {
                 fprintf(stderr, "(restarting) ");
             }
@@ -451,8 +449,8 @@ clt_state_delete(clt_state *s)
     }
     free(s->zinvs);
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        crt_tree_clear(s->crt);
-        free(s->crt);
+        crt_tree_free(s->crt);
+        /* free(s->crt); */
     } else {
         for (ulong i = 0; i < s->n; i++) {
             mpz_clear(s->crt_coeffs[i]);
@@ -657,9 +655,8 @@ clt_state_read(const char *const dir)
     clt_vector_read(s->zinvs, s->nzs, fname);
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        s->crt = malloc(sizeof(crt_tree));
         snprintf(fname, len, "%s/crt_tree", dir);
-        crt_tree_read(fname, s->crt, s->n);
+        s->crt = crt_tree_read(fname, s->n);
     } else {
         s->crt_coeffs = malloc(sizeof(clt_elem_t) * s->n);
         for (ulong i = 0; i < s->n; i++)
@@ -704,7 +701,7 @@ clt_state_write(clt_state *const s, const char *const dir)
     clt_vector_write(s->zinvs, s->nzs, fname);
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         snprintf(fname, len, "%s/crt_tree", dir);
-        crt_tree_save(fname, s->crt, s->n);
+        crt_tree_write(fname, s->crt, s->n);
     } else {
         snprintf(fname, len, "%s/crt_coeffs", dir);
         clt_vector_write(s->crt_coeffs, s->n, fname);
@@ -724,34 +721,34 @@ clt_state_fread(FILE *const fp)
         return NULL;
 
     if (ulong_fread(fp, &s->flags) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read flags!\n");
+        fprintf(stderr, "[%s] couldn't read flags!\n", __func__);
         goto cleanup;
     }
     if (ulong_fread(fp, &s->n) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read n!\n");
+        fprintf(stderr, "[%s] couldn't read n!\n", __func__);
         goto cleanup;
     }
     if (ulong_fread(fp, &s->nzs) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read nzs!\n");
+        fprintf(stderr, "[%s] couldn't read nzs!\n", __func__);
         goto cleanup;
     }
     if (ulong_fread(fp, &s->rho) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read rho!\n");
+        fprintf(stderr, "[%s] couldn't read rho!\n", __func__);
         goto cleanup;
     }
     if (ulong_fread(fp, &s->nu) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read nu!\n");
+        fprintf(stderr, "[%s] couldn't read nu!\n", __func__);
         goto cleanup;
     }
 
     mpz_init(s->x0);
     if (clt_elem_fread(s->x0, fp) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read x0!\n");
+        fprintf(stderr, "[%s] couldn't read x0!\n", __func__);
         goto cleanup;
     }
     mpz_init(s->pzt);
     if (clt_elem_fread(s->pzt, fp) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read pzt!\n");
+        fprintf(stderr, "[%s] couldn't read pzt!\n", __func__);
         goto cleanup;
     }
 
@@ -759,7 +756,7 @@ clt_state_fread(FILE *const fp)
     for (ulong i = 0; i < s->n; ++i)
         mpz_init(s->gs[i]);
     if (clt_vector_fread(s->gs, s->n, fp) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read gs!\n");
+        fprintf(stderr, "[%s] couldn't read gs!\n", __func__);
         goto cleanup;
     }
 
@@ -767,14 +764,13 @@ clt_state_fread(FILE *const fp)
     for (ulong i = 0; i < s->nzs; i++)
         mpz_init(s->zinvs[i]);
     if (clt_vector_fread(s->zinvs, s->nzs, fp) || GET_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fread] couldn't read zinvs!\n");
+        fprintf(stderr, "[%s] couldn't read zinvs!\n", __func__);
         goto cleanup;
     }
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        s->crt = malloc(sizeof(crt_tree));
-        if (crt_tree_fread(fp, s->crt, s->n) != 0) {
-            fprintf(stderr, "[clt_state_fread] couldn't read crt_tree!\n");
+        if ((s->crt = crt_tree_fread(fp, s->n)) == NULL) {
+            fprintf(stderr, "[%s] couldn't read crt_tree!\n", __func__);
             goto cleanup;
         }
     } else {
@@ -782,7 +778,7 @@ clt_state_fread(FILE *const fp)
         for (ulong i = 0; i < s->n; i++)
             mpz_init(s->crt_coeffs[i]);
         if (clt_vector_fread(s->crt_coeffs, s->n, fp) != 0) {
-            fprintf(stderr, "[clt_state_fread] couldn't read crt_coeffs!\n");
+            fprintf(stderr, "[%s] couldn't read crt_coeffs!\n", __func__);
             goto cleanup;
         }
     }
@@ -843,7 +839,7 @@ clt_state_fwrite(clt_state *const s, FILE *const fp)
         goto cleanup;
     }
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        if (crt_tree_fsave(fp, s->crt, s->n) != 0) {
+        if (crt_tree_fwrite(fp, s->crt, s->n) != 0) {
             fprintf(stderr, "[clt_state_fsave] failed to save crt_tree!\n");
             goto cleanup;
         }
