@@ -159,13 +159,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
     /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
     assert(s->nu >= alpha + 6);
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
-
-    if (min_slots && (s->n < min_slots)) {
-        fprintf(stderr, "Error: number of slots is less than required (%lu < %lu)\n",
-                s->n, min_slots);
-        free(s);
-        return NULL;
-    }
+    assert(s->n >= min_slots);
 
     if (s->flags & CLT_FLAG_VERBOSE) {
         fprintf(stderr, "  λ: %ld\n", lambda);
