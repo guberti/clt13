@@ -145,7 +145,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
              ++i) {
             old_eta = eta, old_n = s->n, old_nu = s->nu;
             eta = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
-            s->n = estimate_n(lambda, eta, flags);
+            s->n = MAX(estimate_n(lambda, eta, flags), min_slots);
             s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
         }
 
