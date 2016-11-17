@@ -3,8 +3,9 @@
 #abort if any command fails
 set -e
 
-mkdir -p build
+mkdir -p build/autoconf
 builddir=$(readlink -f build)
+debug="--enable-debug"
 
 export CPPFLAGS=-I$builddir/include
 export CFLAGS=-I$builddir/include
@@ -18,15 +19,15 @@ build () {
     if [ ! -d $path ]; then
         git clone $url $path;
     else
-        cd $path; git pull origin $branch; cd ..;
+        pushd $path; git pull origin $branch; popd
     fi
-    cd $1
+    pushd $1
         mkdir -p build/autoconf
         autoreconf -i
-        ./configure --prefix=$builddir --enable-debug
+        ./configure --prefix=$builddir $debug
         make
         make install
-    cd ..;  
+    popd
     echo
 }
 
@@ -35,3 +36,7 @@ echo builddir = $builddir
 echo
 
 build libaesrand    https://github.com/5GenCrypto/libaesrand master
+
+autoreconf -i
+./configure $debug
+make
