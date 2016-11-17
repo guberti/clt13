@@ -5,7 +5,11 @@ set -e
 
 mkdir -p build/autoconf
 builddir=$(readlink -f build)
-debug="--enable-debug"
+if [ "$1" == "debug" ]; then
+    debug="--enable-debug"
+else
+    debug=""
+fi
 
 export CPPFLAGS=-I$builddir/include
 export CFLAGS=-I$builddir/include
