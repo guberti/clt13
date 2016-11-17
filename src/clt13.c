@@ -132,7 +132,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
     s->rho = lambda;                   /* bitsize of randomness */
     rho_f  = kappa * (s->rho + alpha); /* max bitsize of r_i's */
     eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
-    s->n   = estimate_n(lambda, eta, flags);  /* number of primes */
+    s->n   = MAX(estimate_n(lambda, eta, flags), min_slots);  /* number of primes */
     eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
     s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
     s->flags = flags;
