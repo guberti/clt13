@@ -83,6 +83,8 @@ void clt_elem_sub(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const cl
 void clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b);
 void clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, unsigned int b);
 
+void clt_elem_print(clt_elem_t a);
+
 int clt_elem_read(clt_elem_t x, const char *fname);
 int clt_elem_write(clt_elem_t x, const char *fname);
 int clt_elem_fread(clt_elem_t x, FILE *const fp);

@@ -599,6 +599,12 @@ clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, unsigned i
     mpz_mod(rop, rop, pp->x0);
 }
 
+void
+clt_elem_print(clt_elem_t a)
+{
+    gmp_printf("%Zd", a);
+}
+
 clt_state *
 clt_state_read(const char *const dir)
 {
