@@ -16,9 +16,6 @@
  * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
 #define ETAP_DEFAULT 420
 
-#define GET_NEWLINE(fp) (fscanf(fp, "\n"))
-#define PUT_NEWLINE(fp) (!(fprintf(fp, "\n") > 0))
-
 typedef unsigned long ulong;
 
 struct clt_state {
@@ -46,10 +43,10 @@ struct clt_pp {
 
 static double current_time(void);
 
-static int ulong_read  (const char *fname, ulong *x);
-static int ulong_save  (const char *fname, ulong x);
-static int ulong_fread (FILE *const fp, ulong *x);
-static int ulong_fsave (FILE *const fp, ulong x);
+static int ulong_read(const char *fname, ulong *x);
+static int ulong_save(const char *fname, ulong x);
+static int ulong_fread(FILE *const fp, ulong *x);
+static int ulong_fwrite(FILE *const fp, ulong x);
 
 static void print_progress (size_t cur, size_t total);
 
@@ -720,34 +717,34 @@ clt_state_fread(FILE *const fp)
     if (s == NULL)
         return NULL;
 
-    if (ulong_fread(fp, &s->flags) || GET_NEWLINE(fp)) {
+    if (ulong_fread(fp, &s->flags) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read flags!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fread(fp, &s->n) || GET_NEWLINE(fp)) {
+    if (ulong_fread(fp, &s->n) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read n!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fread(fp, &s->nzs) || GET_NEWLINE(fp)) {
+    if (ulong_fread(fp, &s->nzs) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read nzs!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fread(fp, &s->rho) || GET_NEWLINE(fp)) {
+    if (ulong_fread(fp, &s->rho) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read rho!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fread(fp, &s->nu) || GET_NEWLINE(fp)) {
+    if (ulong_fread(fp, &s->nu) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read nu!\n", __func__);
         goto cleanup;
     }
 
     mpz_init(s->x0);
-    if (clt_elem_fread(s->x0, fp) || GET_NEWLINE(fp)) {
+    if (clt_elem_fread(s->x0, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read x0!\n", __func__);
         goto cleanup;
     }
     mpz_init(s->pzt);
-    if (clt_elem_fread(s->pzt, fp) || GET_NEWLINE(fp)) {
+    if (clt_elem_fread(s->pzt, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read pzt!\n", __func__);
         goto cleanup;
     }
@@ -755,7 +752,7 @@ clt_state_fread(FILE *const fp)
     s->gs = malloc(sizeof(clt_elem_t) * s->n);
     for (ulong i = 0; i < s->n; ++i)
         mpz_init(s->gs[i]);
-    if (clt_vector_fread(s->gs, s->n, fp) || GET_NEWLINE(fp)) {
+    if (clt_vector_fread(s->gs, s->n, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read gs!\n", __func__);
         goto cleanup;
     }
@@ -763,7 +760,7 @@ clt_state_fread(FILE *const fp)
     s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
     for (ulong i = 0; i < s->nzs; i++)
         mpz_init(s->zinvs[i]);
-    if (clt_vector_fread(s->zinvs, s->nzs, fp) || GET_NEWLINE(fp)) {
+    if (clt_vector_fread(s->zinvs, s->nzs, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read zinvs!\n", __func__);
         goto cleanup;
     }
@@ -802,50 +799,50 @@ clt_state_fwrite(clt_state *const s, FILE *const fp)
 {
     int ret = CLT_ERR;
 
-    if (ulong_fsave(fp, s->flags) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save flags!\n");
+    if (ulong_fwrite(fp, s->flags) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save flags!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fsave(fp, s->n) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save n!\n");
+    if (ulong_fwrite(fp, s->n) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save n!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fsave(fp, s->nzs) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save n!\n");
+    if (ulong_fwrite(fp, s->nzs) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save n!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fsave(fp, s->rho) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save rho!\n");
+    if (ulong_fwrite(fp, s->rho) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save rho!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fsave(fp, s->nu) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save nu!\n");
+    if (ulong_fwrite(fp, s->nu) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save nu!\n", __func__);
         goto cleanup;
     }
-    if (clt_elem_fwrite(s->x0, fp) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save x0!\n");
+    if (clt_elem_fwrite(s->x0, fp) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save x0!\n", __func__);
         goto cleanup;
     }
-    if (clt_elem_fwrite(s->pzt, fp) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save pzt!\n");
+    if (clt_elem_fwrite(s->pzt, fp) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save pzt!\n", __func__);
         goto cleanup;
     }
-    if (clt_vector_fwrite(s->gs, s->n, fp) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save gs!\n");
+    if (clt_vector_fwrite(s->gs, s->n, fp) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save gs!\n", __func__);
         goto cleanup;
     }
-    if (clt_vector_fwrite(s->zinvs, s->nzs, fp) || PUT_NEWLINE(fp)) {
-        fprintf(stderr, "[clt_state_fsave] failed to save zinvs!\n");
+    if (clt_vector_fwrite(s->zinvs, s->nzs, fp) == CLT_ERR) {
+        fprintf(stderr, "[%s] failed to save zinvs!\n", __func__);
         goto cleanup;
     }
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         if (crt_tree_fwrite(fp, s->crt, s->n) != 0) {
-            fprintf(stderr, "[clt_state_fsave] failed to save crt_tree!\n");
+            fprintf(stderr, "[%s] failed to save crt_tree!\n", __func__);
             goto cleanup;
         }
     } else {
         if (clt_vector_fwrite(s->crt_coeffs, s->n, fp) != 0) {
-            fprintf(stderr, "[clt_state_fsave] failed to save crt_coefs!\n");
+            fprintf(stderr, "[%s] failed to save crt_coefs!\n", __func__);
             goto cleanup;
         }
     }
@@ -952,11 +949,11 @@ clt_pp_fread(FILE *const fp)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
 
-    if (ulong_fread(fp, &pp->nu) || GET_NEWLINE(fp))
+    if (ulong_fread(fp, &pp->nu) == CLT_ERR)
         goto cleanup;
-    if (clt_elem_fread(pp->x0, fp) || GET_NEWLINE(fp))
+    if (clt_elem_fread(pp->x0, fp) == CLT_ERR)
         goto cleanup;
-    if (clt_elem_fread(pp->pzt, fp) || GET_NEWLINE(fp))
+    if (clt_elem_fread(pp->pzt, fp) == CLT_ERR)
         goto cleanup;
     ret = CLT_OK;
 cleanup:
@@ -973,11 +970,11 @@ clt_pp_fwrite(clt_pp *const pp, FILE *const fp)
 {
     int ret = CLT_ERR;
 
-    if (ulong_fsave(fp, pp->nu) || PUT_NEWLINE(fp))
+    if (ulong_fwrite(fp, pp->nu) == CLT_ERR)
         goto cleanup;
-    if (clt_elem_fwrite(pp->x0, fp) || PUT_NEWLINE(fp))
+    if (clt_elem_fwrite(pp->x0, fp) == CLT_ERR)
         goto cleanup;
-    if (clt_elem_fwrite(pp->pzt, fp) || PUT_NEWLINE(fp))
+    if (clt_elem_fwrite(pp->pzt, fp) == CLT_ERR)
         goto cleanup;
     ret = CLT_OK;
 cleanup:
@@ -1008,7 +1005,7 @@ ulong_save(const char *fname, ulong x)
         perror(fname);
         return 1;
     }
-    ulong_fsave(f, x);
+    ulong_fwrite(f, x);
     fclose(f);
     return 0;
 }
@@ -1016,13 +1013,17 @@ ulong_save(const char *fname, ulong x)
 static int
 ulong_fread(FILE *const fp, ulong *x)
 {
-    return !(fscanf(fp, "%lu", x) > 0);
+    if (fread(x, sizeof x[0], 1, fp) != 1)
+        return CLT_ERR;
+    return CLT_OK;
 }
 
 static int
-ulong_fsave(FILE *const fp, ulong x)
+ulong_fwrite(FILE *const fp, ulong x)
 {
-    return !(fprintf(fp, "%lu", x) > 0);
+    if (fwrite(&x, sizeof x, 1, fp) != 1)
+        return CLT_ERR;
+    return CLT_OK;
 }
 
 int
@@ -1072,16 +1073,16 @@ clt_vector_read(clt_elem_t *m, ulong len, const char *fname)
     FILE *f;
     if ((f = fopen(fname, "r")) == NULL) {
         perror(fname);
-        return 1;
+        return CLT_ERR;
     }
     for (ulong i = 0; i < len; ++i) {
         if (mpz_inp_raw(m[i], f) == 0) {
             fclose(f);
-            return 1;
+            return CLT_ERR;
         }
     }
     fclose(f);
-    return 0;
+    return CLT_OK;
 }
 
 int
@@ -1090,16 +1091,16 @@ clt_vector_write(clt_elem_t *m, ulong len, const char *fname)
     FILE *f;
     if ((f = fopen(fname, "w")) == NULL) {
         perror(fname);
-        return 1;
+        return CLT_ERR;
     }
     for (ulong i = 0; i < len; ++i) {
         if (mpz_out_raw(f, m[i]) == 0) {
             (void) fclose(f);
-            return 1;
+            return CLT_ERR;
         }
     }
     fclose(f);
-    return 0;
+    return CLT_OK;
 }
 
 int
@@ -1107,9 +1108,9 @@ clt_vector_fread(clt_elem_t *m, ulong len, FILE *const fp)
 {
     for (ulong i = 0; i < len; ++i) {
         if (mpz_inp_raw(m[i], fp) == 0)
-            return 1;
+            return CLT_ERR;
     }
-    return 0;
+    return CLT_OK;
 }
 
 int
@@ -1117,9 +1118,9 @@ clt_vector_fwrite(clt_elem_t *m, ulong len, FILE *const fp)
 {
     for (ulong i = 0; i < len; ++i) {
         if (mpz_out_raw(fp, m[i]) == 0)
-            return 1;
+            return CLT_ERR;
     }
-    return 0;
+    return CLT_OK;
 }
 
 static double
