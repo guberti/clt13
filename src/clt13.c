@@ -1058,13 +1058,17 @@ clt_elem_write(clt_elem_t x, const char *fname)
 int
 clt_elem_fread(clt_elem_t x, FILE *const fp)
 {
-    return !(mpz_inp_raw(x, fp) > 0);
+    if (mpz_inp_raw(x, fp) == 0)
+        return CLT_ERR;
+    return CLT_OK;
 }
 
 int
 clt_elem_fwrite(clt_elem_t x, FILE *const fp)
 {
-    return !(mpz_out_raw(fp, x) > 0);
+    if (mpz_out_raw(fp, x) == 0)
+        return CLT_ERR;
+    return CLT_OK;
 }
 
 int
