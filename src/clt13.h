@@ -16,11 +16,17 @@ typedef struct clt_state clt_state;
 typedef struct clt_pp clt_pp;
 
 #define CLT_FLAG_NONE 0x00
+/* Be verbose */
 #define CLT_FLAG_VERBOSE 0x01
+/* Use CRT tree optimization */
 #define CLT_FLAG_OPT_CRT_TREE 0x02
+/* Parallelize the encoding procedure */
 #define CLT_FLAG_OPT_PARALLEL_ENCODE 0x04
+/* Use composite p_i's instead of primes */
 #define CLT_FLAG_OPT_COMPOSITE_PS 0x08
+/* Use improved BKZ algorithm when generating attack estimates */
 #define CLT_FLAG_SEC_IMPROVED_BKZ 0x10
+/* Be conservative when generating attack estimates */
 #define CLT_FLAG_SEC_CONSERVATIVE 0x20
 
 #define CLT_FLAG_DEFAULT \
