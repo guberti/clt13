@@ -8,7 +8,7 @@ extern "C" {
 #define CLT_OK 0
 #define CLT_ERR (-1)
 
-#include <aesrand.h>
+#include <aesrand/aesrand.h>
 #include <gmp.h>
 
 typedef mpz_t clt_elem_t;
@@ -40,10 +40,6 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
               aes_randstate_t rng);
 void
 clt_state_delete(clt_state *s);
-clt_state *
-clt_state_read(const char *const dir);
-int
-clt_state_write(clt_state *const s, const char *const dir);
 clt_state *
 clt_state_fread(FILE *const fp);
 int

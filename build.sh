@@ -3,7 +3,6 @@
 #abort if any command fails
 set -e
 
-mkdir -p build/autoconf
 builddir=$(readlink -f build)
 if [ "$1" == "debug" ]; then
     debug="--enable-debug"
@@ -26,11 +25,9 @@ build () {
         pushd $path; git pull origin $branch; popd
     fi
     pushd $1
-        mkdir -p build/autoconf
-        autoreconf -i
-        ./configure --prefix=$builddir $debug
-        make
-        make install
+    cmake -DCMAKE_INSTALL_PREFIX="${builddir}" .
+    make
+    make install
     popd
     echo
 }
@@ -39,8 +36,8 @@ echo
 echo builddir = $builddir
 echo
 
-build libaesrand    https://github.com/5GenCrypto/libaesrand master
+build libaesrand    https://github.com/5GenCrypto/libaesrand cmake
 
-autoreconf -i
-./configure $debug
+rm -rf CMakeCache.txt CMakeFiles
+cmake .
 make
