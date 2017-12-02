@@ -1,4 +1,4 @@
-#include "clt13.h"
+#include <clt13.h>
 
 static int lambda = 60;
 static int kappa = 21;
