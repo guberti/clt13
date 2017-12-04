@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
-project(clt13 LANGUAGES C)
+project(clt13 VERSION 1.0.0 LANGUAGES C)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif(NOT CMAKE_BUILD_TYPE)
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 include(GNUInstallDirs)
 
@@ -20,8 +25,9 @@ target_include_directories(clt13 PRIVATE
 target_link_libraries(clt13 PUBLIC gmp aesrand)
 
 include(FindOpenMP)
-target_compile_options(clt13 PRIVATE
-  -Wall -Wextra -Wpedantic -Werror -std=gnu11 -march=native ${OpenMP_C_FLAGS})
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -Werror -std=gnu11 -march=native ${OpenMP_C_FLAGS}")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pg -ggdb -O0")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
 target_link_libraries(clt13 INTERFACE "${OpenMP_C_FLAGS}")
 
 install(TARGETS clt13 LIBRARY DESTINATION lib)
@@ -29,17 +35,15 @@ install(FILES src/clt13.h DESTINATION include)
 
 # Test files
 
-add_executable(test_clt test/test_clt.c)
-add_executable(test_clt_state_new test/test_clt_state_new.c)
-target_include_directories(test_clt PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(test_clt PRIVATE clt13 aesrand)
-target_include_directories(test_clt_state_new PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/src
-  ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(test_clt_state_new PRIVATE clt13 aesrand)
-
 enable_testing()
-add_test(NAME test_clt COMMAND test_clt)
-add_test(NAME test_clt_state_new COMMAND test_clt_state_new)
+macro(add_test_ _name)
+  add_executable("${_name}" "test/${_name}.c")
+  target_include_directories("${_name}" PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries("${_name}" PRIVATE clt13 aesrand)
+  add_test(NAME "${_name}" COMMAND "${_name}")
+endmacro()
+
+add_test_(test_clt)
+add_test_(test_clt_state_new)

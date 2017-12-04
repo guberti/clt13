@@ -5,7 +5,7 @@ set -e
 
 builddir=$(readlink -f build)
 if [ "$1" == "debug" ]; then
-    debug="--enable-debug"
+    debug="-DCMAKE_BUILD_TYPE=Debug"
 else
     debug=""
 fi
@@ -38,6 +38,5 @@ echo
 
 build libaesrand    https://github.com/5GenCrypto/libaesrand cmake
 
-rm -rf CMakeCache.txt CMakeFiles
-cmake .
+cmake "${debug}" .
 make
