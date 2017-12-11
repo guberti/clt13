@@ -28,6 +28,8 @@ typedef struct clt_pp clt_pp;
 #define CLT_FLAG_SEC_IMPROVED_BKZ 0x10
 /* Be conservative when generating attack estimates */
 #define CLT_FLAG_SEC_CONSERVATIVE 0x20
+/* Use polylog CLT */
+# define CLT_FLAG_POLYLOG 0x40
 
 #define CLT_FLAG_DEFAULT                        \
     ( CLT_FLAG_OPT_CRT_TREE                     \
@@ -68,10 +70,10 @@ void clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const cl
 void clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, unsigned int b);
 void clt_elem_print(clt_elem_t a);
 
-int clt_elem_fread(clt_elem_t x, FILE *const fp);
-int clt_elem_fwrite(clt_elem_t x, FILE *const fp);
-int clt_vector_fread(clt_elem_t *m, size_t len, FILE *const fp);
-int clt_vector_fwrite(clt_elem_t *m, size_t len, FILE *const fp);
+int clt_elem_fread(clt_elem_t x, FILE *fp);
+int clt_elem_fwrite(clt_elem_t x, FILE *fp);
+int clt_vector_fread(clt_elem_t *m, size_t len, FILE *fp);
+int clt_vector_fwrite(clt_elem_t *m, size_t len, FILE *fp);
 
 #ifdef __cplusplus
 }

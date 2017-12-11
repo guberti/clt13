@@ -41,11 +41,12 @@ struct clt_pp {
     size_t nu;
 };
 
-static double current_time(void);
+static void clt_vector_free(clt_elem_t *v, size_t n);
+static clt_elem_t * clt_vector_new(size_t n);
 
+static double current_time(void);
 static int ulong_fread(FILE *const fp, ulong *x);
 static int ulong_fwrite(FILE *const fp, ulong x);
-
 static void print_progress (size_t cur, size_t total);
 
 static inline ulong nb_of_bits(ulong x)
@@ -112,7 +113,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
     double start_time = 0.0;
     int count = 0;
 
-    s = malloc(sizeof(clt_state));
+    s = malloc(sizeof s[0]);
     if (s == NULL)
         return NULL;
 
@@ -179,6 +180,8 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
             fprintf(stderr, "    IMPROVED BKZ\n");
         if (s->flags & CLT_FLAG_SEC_CONSERVATIVE)
             fprintf(stderr, "    CONSERVATIVE\n");
+        if (s->flags & CLT_FLAG_POLYLOG)
+            fprintf(stderr, "    POLYLOG\n");
     }
 
     /* Generate randomness for each core */
@@ -192,18 +195,12 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
         free(buf);
     }
 
-    ps       = malloc(sizeof(clt_elem_t) * s->n);
-    zs       = malloc(sizeof(clt_elem_t) * s->nzs);
-    s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
-    s->gs    = malloc(sizeof(clt_elem_t) * s->n);
-
-    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        /* s->crt = malloc(sizeof(crt_tree)); */
-    } else {
-        s->crt_coeffs = malloc(s->n * sizeof(clt_elem_t));
-        for (ulong i = 0; i < s->n; i++) {
-            mpz_init(s->crt_coeffs[i]);
-        }
+    ps = clt_vector_new(s->n);
+    zs = clt_vector_new(s->nzs);
+    s->zinvs = clt_vector_new(s->nzs);
+    s->gs = clt_vector_new(s->n);
+    if (!(s->flags & CLT_FLAG_OPT_CRT_TREE)) {
+        s->crt_coeffs = clt_vector_new(s->n);
     }
 
     /* initialize gmp variables */
@@ -211,12 +208,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
     mpz_init_set_ui(s->pzt, 0);
     for (ulong i = 0; i < s->n; ++i) {
         mpz_init_set_ui(ps[i], 1);
-        mpz_init(s->gs[i]);
     }
-    for (ulong i = 0; i < s->nzs; ++i) {
-        mpz_inits(zs[i], s->zinvs[i], NULL);
-    }
-
     /* Generate p_i's and g_i's, as well as x0 = \prod p_i */
     if (s->flags & CLT_FLAG_VERBOSE) {
         fprintf(stderr, "  Generating p_i's and g_i's:");
@@ -414,13 +406,8 @@ GEN_PIS:
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
     }
 
-    for (ulong i = 0; i < s->n; i++)
-        mpz_clear(ps[i]);
-    free(ps);
-
-    for (ulong i = 0; i < s->nzs; ++i)
-        mpz_clear(zs[i]);
-    free(zs);
+    clt_vector_free(ps, s->n);
+    clt_vector_free(zs, s->nzs);
 
     return s;
 }
@@ -486,19 +473,16 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         /* slots[i] = m[i] + r*g[i] */
-        clt_elem_t *slots = malloc(s->n * sizeof(clt_elem_t));
+        clt_elem_t *slots = clt_vector_new(s->n);
 #pragma omp parallel for
         for (ulong i = 0; i < s->n; i++) {
-            mpz_init(slots[i]);
             mpz_random_(slots[i], s->rngs[i], s->rho);
             mpz_mul(slots[i], slots[i], s->gs[i]);
             if (i < nins)
                 mpz_add(slots[i], slots[i], ins[i]);
         }
         crt_tree_do_crt(rop, s->crt, slots);
-        for (ulong i = 0; i < s->n; i++)
-            mpz_clear(slots[i]);
-        free(slots);
+        clt_vector_free(slots, s->n);
     } else {
         /* Don't use CRT tree */
         mpz_set_ui(rop, 0);
@@ -642,17 +626,13 @@ clt_state_fread(FILE *const fp)
         goto cleanup;
     }
 
-    s->gs = malloc(sizeof(clt_elem_t) * s->n);
-    for (ulong i = 0; i < s->n; ++i)
-        mpz_init(s->gs[i]);
+    s->gs = clt_vector_new(s->n);
     if (clt_vector_fread(s->gs, s->n, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read gs!\n", __func__);
         goto cleanup;
     }
 
-    s->zinvs = malloc(sizeof(clt_elem_t) * s->nzs);
-    for (ulong i = 0; i < s->nzs; i++)
-        mpz_init(s->zinvs[i]);
+    s->zinvs = clt_vector_new(s->nzs);
     if (clt_vector_fread(s->zinvs, s->nzs, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read zinvs!\n", __func__);
         goto cleanup;
@@ -664,9 +644,7 @@ clt_state_fread(FILE *const fp)
             goto cleanup;
         }
     } else {
-        s->crt_coeffs = malloc(sizeof(clt_elem_t) * s->n);
-        for (ulong i = 0; i < s->n; i++)
-            mpz_init(s->crt_coeffs[i]);
+        s->crt_coeffs = clt_vector_new(s->n);
         if (clt_vector_fread(s->crt_coeffs, s->n, fp) != 0) {
             fprintf(stderr, "[%s] couldn't read crt_coeffs!\n", __func__);
             goto cleanup;
@@ -849,6 +827,25 @@ clt_elem_fwrite(clt_elem_t x, FILE *const fp)
     if (mpz_out_raw(fp, x) == 0)
         return CLT_ERR;
     return CLT_OK;
+}
+
+static clt_elem_t *
+clt_vector_new(size_t n)
+{
+    clt_elem_t *v;
+    if ((v = calloc(n, sizeof v[0])) == NULL)
+        return NULL;
+    for (size_t i = 0; i < n; ++i)
+        mpz_init(v[i]);
+    return v;
+}
+
+static void
+clt_vector_free(clt_elem_t *v, size_t n)
+{
+    for (size_t i = 0; i < n; ++i)
+        mpz_clear(v[i]);
+    free(v);
 }
 
 int
