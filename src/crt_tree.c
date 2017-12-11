@@ -108,24 +108,6 @@ _crt_tree_get_leafs(clt_elem_t *leafs, int *i, const crt_tree *const crt)
 }
 
 crt_tree *
-crt_tree_read(const char *fname, size_t n)
-{
-    crt_tree *crt;
-    clt_elem_t *ps = calloc(n, sizeof(clt_elem_t));
-    for (ulong i = 0; i < n; i++)
-        mpz_init(ps[i]);
-
-    clt_vector_read(ps, n, fname);
-    crt = crt_tree_new(ps, n);
-
-    for (ulong i = 0; i < n; i++)
-        mpz_clear(ps[i]);
-    free(ps);
-
-    return crt;
-}
-
-crt_tree *
 crt_tree_fread(FILE *const fp, size_t n)
 {
     crt_tree *crt = NULL;
@@ -151,24 +133,6 @@ cleanup:
 
     return crt;
 }
-
-void
-crt_tree_write(const char *fname, const crt_tree *const crt, size_t n)
-{
-    clt_elem_t *ps = calloc(n, sizeof(clt_elem_t));
-    for (ulong i = 0; i < n; i++)
-        mpz_init(ps[i]);
-    int ctr = 0;
-
-    _crt_tree_get_leafs(ps, &ctr, crt);
-    clt_vector_write(ps, n, fname);
-
-    for (ulong i = 0; i < n; i++)
-        mpz_clear(ps[i]);
-    free(ps);
-}
-
-
 
 int
 crt_tree_fwrite(FILE *const fp, const crt_tree *const crt, size_t n)

@@ -43,8 +43,6 @@ struct clt_pp {
 
 static double current_time(void);
 
-static int ulong_read(const char *fname, ulong *x);
-static int ulong_save(const char *fname, ulong x);
 static int ulong_fread(FILE *const fp, ulong *x);
 static int ulong_fwrite(FILE *const fp, ulong x);
 
@@ -777,64 +775,6 @@ clt_pp_delete(clt_pp *pp)
 }
 
 clt_pp *
-clt_pp_read(const char *const dir)
-{
-    clt_pp *pp;
-    char *fname;
-    int len, ret = CLT_ERR;
-
-    if ((pp = calloc(1, sizeof(clt_pp))) == NULL)
-        return NULL;
-
-    len = strlen(dir) + 10;
-    fname = malloc(sizeof(char) + len);
-
-    mpz_inits(pp->x0, pp->pzt, NULL);
-
-    snprintf(fname, len, "%s/nu", dir);
-    if (ulong_read(fname, &pp->nu) != 0)
-        goto cleanup;
-    snprintf(fname, len, "%s/x0", dir);
-    if (clt_elem_read(pp->x0, fname) != 0)
-        goto cleanup;
-    snprintf(fname, len, "%s/pzt", dir);
-    if (clt_elem_read(pp->pzt, fname) != 0)
-        goto cleanup;
-    ret = CLT_OK;
-cleanup:
-    free(fname);
-    if (ret == CLT_OK) {
-        return pp;
-    } else {
-        clt_pp_delete(pp);
-        return NULL;
-    }
-}
-
-int
-clt_pp_write(clt_pp *const pp, const char *const dir)
-{
-    char *fname;
-    int ret = CLT_ERR;
-    int len = strlen(dir) + 10;
-    fname = malloc(sizeof(char) * len);
-
-    snprintf(fname, len, "%s/nu", dir);
-    if (ulong_save(fname, pp->nu) != 0)
-        goto cleanup;
-    snprintf(fname, len, "%s/x0", dir);
-    if (clt_elem_write(pp->x0, fname) != 0)
-        goto cleanup;
-    snprintf(fname, len, "%s/pzt", dir);
-    if (clt_elem_write(pp->pzt, fname) != 0)
-        goto cleanup;
-    ret = CLT_OK;
-cleanup:
-    free(fname);
-    return ret;
-}
-
-clt_pp *
 clt_pp_fread(FILE *const fp)
 {
     clt_pp *pp;
@@ -880,32 +820,6 @@ cleanup:
 // helper functions
 
 static int
-ulong_read(const char *fname, ulong *x)
-{
-    FILE *f;
-    if ((f = fopen(fname, "r")) == NULL) {
-        perror(fname);
-        return 1;
-    }
-    ulong_fread(f, x);
-    fclose(f);
-    return 0;
-}
-
-static int
-ulong_save(const char *fname, ulong x)
-{
-    FILE *f;
-    if ((f = fopen(fname, "w")) == NULL) {
-        perror(fname);
-        return 1;
-    }
-    ulong_fwrite(f, x);
-    fclose(f);
-    return 0;
-}
-
-static int
 ulong_fread(FILE *const fp, ulong *x)
 {
     if (fread(x, sizeof x[0], 1, fp) != 1)
@@ -922,35 +836,6 @@ ulong_fwrite(FILE *const fp, ulong x)
 }
 
 int
-clt_elem_read(clt_elem_t x, const char *fname)
-{
-    FILE *f;
-    if ((f = fopen(fname, "r")) == NULL) {
-        perror(fname);
-        return 1;
-    }
-    clt_elem_fread(x, f);
-    fclose(f);
-    return 0;
-}
-
-int
-clt_elem_write(clt_elem_t x, const char *fname)
-{
-    FILE *f;
-    if ((f = fopen(fname, "w")) == NULL) {
-        perror(fname);
-        return 1;
-    }
-    if (clt_elem_fwrite(x, f) == 0) {
-        fclose(f);
-        return 1;
-    }
-    fclose(f);
-    return 0;
-}
-
-int
 clt_elem_fread(clt_elem_t x, FILE *const fp)
 {
     if (mpz_inp_raw(x, fp) == 0)
@@ -963,42 +848,6 @@ clt_elem_fwrite(clt_elem_t x, FILE *const fp)
 {
     if (mpz_out_raw(fp, x) == 0)
         return CLT_ERR;
-    return CLT_OK;
-}
-
-int
-clt_vector_read(clt_elem_t *m, ulong len, const char *fname)
-{
-    FILE *f;
-    if ((f = fopen(fname, "r")) == NULL) {
-        perror(fname);
-        return CLT_ERR;
-    }
-    for (ulong i = 0; i < len; ++i) {
-        if (mpz_inp_raw(m[i], f) == 0) {
-            fclose(f);
-            return CLT_ERR;
-        }
-    }
-    fclose(f);
-    return CLT_OK;
-}
-
-int
-clt_vector_write(clt_elem_t *m, ulong len, const char *fname)
-{
-    FILE *f;
-    if ((f = fopen(fname, "w")) == NULL) {
-        perror(fname);
-        return CLT_ERR;
-    }
-    for (ulong i = 0; i < len; ++i) {
-        if (mpz_out_raw(f, m[i]) == 0) {
-            (void) fclose(f);
-            return CLT_ERR;
-        }
-    }
-    fclose(f);
     return CLT_OK;
 }
 
