@@ -620,7 +620,7 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
 {
     clt_state_t *s;
     size_t alpha, beta, eta, rho_f;
-    mpz_t *ps, *zs;
+    mpz_t *ps = NULL, *zs;
     mpz_t **pss = NULL;
     double start_time = 0.0;
     int count;
