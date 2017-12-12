@@ -11,7 +11,7 @@ extern "C" {
 #include <aesrand/aesrand.h>
 #include <gmp.h>
 
-typedef mpz_t clt_elem_t;
+typedef struct clt_elem_t clt_elem_t;
 typedef struct clt_state_t clt_state_t;
 typedef struct clt_pp_t clt_pp_t;
 
@@ -30,7 +30,7 @@ typedef struct {
     /* minimum number of slots needed */
     size_t min_slots;
     /* plaintext moduli */
-    clt_elem_t *moduli;
+    mpz_t *moduli;
     /* number of plaintext moduli given */
     size_t nmoduli;
 } clt_params_opt_t;
@@ -62,7 +62,7 @@ clt_state_t * clt_state_new(const clt_params_t *params,
 void clt_state_free(clt_state_t *s);
 clt_state_t * clt_state_fread(FILE *fp);
 int clt_state_fwrite(clt_state_t *s, FILE *fp);
-clt_elem_t * clt_state_moduli(const clt_state_t *s);
+mpz_t * clt_state_moduli(const clt_state_t *s);
 size_t clt_state_nslots(const clt_state_t *s);
 size_t clt_state_nzs(const clt_state_t *s);
 
@@ -75,25 +75,22 @@ int clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
 
 // encodings
 
-void clt_encode(clt_elem_t rop, const clt_state_t *s, size_t nins, mpz_t *ins,
+void clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t nins, mpz_t *ins,
                 const int *pows);
-int clt_is_zero(const clt_elem_t c, const clt_pp_t *pp);
+int clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp);
 
 // elements
 
-void clt_elem_init(clt_elem_t rop);
-void clt_elem_clear(clt_elem_t rop);
-void clt_elem_set(clt_elem_t a, const clt_elem_t b);
-void clt_elem_add(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b);
-void clt_elem_sub(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b);
-void clt_elem_mul(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b);
-void clt_elem_mul_ui(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, unsigned int b);
-void clt_elem_print(clt_elem_t a);
-
-int clt_elem_fread(clt_elem_t x, FILE *fp);
-int clt_elem_fwrite(clt_elem_t x, FILE *fp);
-int clt_vector_fread(clt_elem_t *m, size_t len, FILE *fp);
-int clt_vector_fwrite(clt_elem_t *m, size_t len, FILE *fp);
+clt_elem_t * clt_elem_new(void);
+void clt_elem_free(clt_elem_t *e);
+void clt_elem_set(clt_elem_t *a, const clt_elem_t *b);
+void clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+void clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+void clt_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+void clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsigned int b);
+void clt_elem_print(clt_elem_t *a);
+int clt_elem_fread(clt_elem_t *x, FILE *fp);
+int clt_elem_fwrite(clt_elem_t *x, FILE *fp);
 
 #ifdef __cplusplus
 }

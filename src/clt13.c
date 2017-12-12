@@ -1,6 +1,7 @@
 #include "clt13.h"
 #include "crt_tree.h"
 #include "estimates.h"
+#include "utils.h"
 
 #include <assert.h>
 #include <fcntl.h>
@@ -17,37 +18,38 @@
  * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
 #define ETAP_DEFAULT 420
 
+struct clt_elem_t {
+    mpz_t elem;
+};
+
 struct clt_state_t {
     size_t n;
     size_t nzs;
     size_t rho;
     size_t nu;
     union {
-        clt_elem_t x0;
+        mpz_t x0;
         struct {
-            clt_elem_t x0s;
+            mpz_t *x0s;
             size_t nmults;
         } polylog_t;
     };
-    clt_elem_t pzt;
-    clt_elem_t *gs;
-    clt_elem_t *zinvs;
+    mpz_t pzt;
+    mpz_t *gs;
+    mpz_t *zinvs;
     aes_randstate_t *rngs;
     union {
         crt_tree *crt;
-        clt_elem_t *crt_coeffs;
+        mpz_t *crt_coeffs;
     };
     size_t flags;
 };
 
 struct clt_pp_t {
-    clt_elem_t x0;
-    clt_elem_t pzt;
+    mpz_t x0;
+    mpz_t pzt;
     size_t nu;
 };
-
-static clt_elem_t * clt_vector_new(size_t n);
-static void clt_vector_free(clt_elem_t *v, size_t n);
 
 static double current_time(void);
 static int size_t_fread(FILE *const fp, size_t *x);
@@ -96,8 +98,7 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, size_t len)
 // encodings
 
 void
-clt_encode(clt_elem_t rop, const clt_state_t *s, size_t nins, mpz_t *ins,
-           const int *pows)
+clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t nins, mpz_t *ins, const int *pows)
 {
     if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)) {
         omp_set_num_threads(1);
@@ -105,7 +106,7 @@ clt_encode(clt_elem_t rop, const clt_state_t *s, size_t nins, mpz_t *ins,
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         /* slots[i] = m[i] + r*g[i] */
-        clt_elem_t *slots = clt_vector_new(s->n);
+        mpz_t *slots = mpz_vector_new(s->n);
 #pragma omp parallel for
         for (size_t i = 0; i < s->n; i++) {
             mpz_random_(slots[i], s->rngs[i], s->rho);
@@ -113,11 +114,11 @@ clt_encode(clt_elem_t rop, const clt_state_t *s, size_t nins, mpz_t *ins,
             if (i < nins)
                 mpz_add(slots[i], slots[i], ins[i]);
         }
-        crt_tree_do_crt(rop, s->crt, slots);
-        clt_vector_free(slots, s->n);
+        crt_tree_do_crt(rop->elem, s->crt, slots);
+        mpz_vector_free(slots, s->n);
     } else {
         /* Don't use CRT tree */
-        mpz_set_ui(rop, 0);
+        mpz_set_ui(rop->elem, 0);
 #pragma omp parallel for
         for (unsigned long i = 0; i < s->n; ++i) {
             mpz_t tmp;
@@ -129,34 +130,34 @@ clt_encode(clt_elem_t rop, const clt_state_t *s, size_t nins, mpz_t *ins,
             mpz_mul(tmp, tmp, s->crt_coeffs[i]);
 #pragma omp critical
             {
-                mpz_add(rop, rop, tmp);
+                mpz_add(rop->elem, rop->elem, tmp);
             }
             mpz_clear(tmp);
         }
     }
     {
-        clt_elem_t tmp;
+        mpz_t tmp;
         mpz_init(tmp);
         /* multiply by appropriate zinvs */
         for (unsigned long i = 0; i < s->nzs; ++i) {
             if (pows[i] <= 0)
                 continue;
             mpz_powm_ui(tmp, s->zinvs[i], pows[i], s->x0);
-            mpz_mul_mod(rop, rop, tmp, s->x0);
+            mpz_mul_mod(rop->elem, rop->elem, tmp, s->x0);
         }
         mpz_clear(tmp);
     }
 }
 
 int
-clt_is_zero(const clt_elem_t c, const clt_pp_t *pp)
+clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp)
 {
     int ret;
 
-    clt_elem_t tmp, x0_;
+    mpz_t tmp, x0_;
     mpz_inits(tmp, x0_, NULL);
 
-    mpz_mul(tmp, c, pp->pzt);
+    mpz_mul(tmp, c->elem, pp->pzt);
     mpz_mod_near(tmp, tmp, pp->x0);
 
     ret = mpz_sizeinbase(tmp, 2) < mpz_sizeinbase(pp->x0, 2) - pp->nu;
@@ -164,60 +165,76 @@ clt_is_zero(const clt_elem_t c, const clt_pp_t *pp)
     return ret ? 1 : 0;
 }
 
-void
-clt_elem_init(clt_elem_t rop)
+clt_elem_t *
+clt_elem_new(void)
 {
-    mpz_init(rop);
+    clt_elem_t *e = calloc(1, sizeof e[0]);
+    mpz_init(e->elem);
+    return e;
 }
 
 void
-clt_elem_clear(clt_elem_t rop)
+clt_elem_free(clt_elem_t *e)
 {
-    mpz_clear(rop);
+    mpz_clear(e->elem);
+    free(e);
 }
 
 void
-clt_elem_set(clt_elem_t a, const clt_elem_t b)
+clt_elem_set(clt_elem_t *a, const clt_elem_t *b)
 {
-    mpz_set(a, b);
+    mpz_set(a->elem, b->elem);
 }
 
 void
-clt_elem_add(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b)
+clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
 {
-    mpz_add(rop, a, b);
-    mpz_mod(rop, rop, pp->x0);
+    mpz_add(rop->elem, a->elem, b->elem);
+    mpz_mod(rop->elem, rop->elem, pp->x0);
 }
 
 void
-clt_elem_sub(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b)
+clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
 {
-    mpz_sub(rop, a, b);
-    mpz_mod(rop, rop, pp->x0);
+    mpz_sub(rop->elem, a->elem, b->elem);
+    mpz_mod(rop->elem, rop->elem, pp->x0);
 }
 
 void
-clt_elem_mul(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b)
+clt_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
 {
-    mpz_mul(rop, a, b);
-    mpz_mod(rop, rop, pp->x0);
+    mpz_mul(rop->elem, a->elem, b->elem);
+    mpz_mod(rop->elem, rop->elem, pp->x0);
 }
 
 void
-clt_elem_mul_ui(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, unsigned int b)
+clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsigned int b)
 {
-    mpz_mul_ui(rop, a, b);
-    mpz_mod(rop, rop, pp->x0);
+    mpz_mul_ui(rop->elem, a->elem, b);
+    mpz_mod(rop->elem, rop->elem, pp->x0);
 }
 
 void
-clt_elem_print(clt_elem_t a)
+clt_elem_print(clt_elem_t *a)
 {
-    gmp_printf("%Zd", a);
+    gmp_printf("%Zd", a->elem);
+}
+
+int
+clt_elem_fread(clt_elem_t *x, FILE *fp)
+{
+    x = clt_elem_new();
+    return mpz_fread(x->elem, fp);
+}
+
+int
+clt_elem_fwrite(clt_elem_t *x, FILE *fp)
+{
+    return mpz_fwrite(x->elem, fp);
 }
 
 clt_state_t *
-clt_state_fread(FILE *const fp)
+clt_state_fread(FILE *fp)
 {
     clt_state_t *s;
     int ret = 1;
@@ -248,24 +265,24 @@ clt_state_fread(FILE *const fp)
     }
 
     mpz_init(s->x0);
-    if (clt_elem_fread(s->x0, fp) == CLT_ERR) {
+    if (mpz_fread(s->x0, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read x0!\n", __func__);
         goto cleanup;
     }
     mpz_init(s->pzt);
-    if (clt_elem_fread(s->pzt, fp) == CLT_ERR) {
+    if (mpz_fread(s->pzt, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read pzt!\n", __func__);
         goto cleanup;
     }
 
-    s->gs = clt_vector_new(s->n);
-    if (clt_vector_fread(s->gs, s->n, fp) == CLT_ERR) {
+    s->gs = mpz_vector_new(s->n);
+    if (mpz_vector_fread(s->gs, s->n, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read gs!\n", __func__);
         goto cleanup;
     }
 
-    s->zinvs = clt_vector_new(s->nzs);
-    if (clt_vector_fread(s->zinvs, s->nzs, fp) == CLT_ERR) {
+    s->zinvs = mpz_vector_new(s->nzs);
+    if (mpz_vector_fread(s->zinvs, s->nzs, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read zinvs!\n", __func__);
         goto cleanup;
     }
@@ -276,8 +293,8 @@ clt_state_fread(FILE *const fp)
             goto cleanup;
         }
     } else {
-        s->crt_coeffs = clt_vector_new(s->n);
-        if (clt_vector_fread(s->crt_coeffs, s->n, fp) != 0) {
+        s->crt_coeffs = mpz_vector_new(s->n);
+        if (mpz_vector_fread(s->crt_coeffs, s->n, fp) != 0) {
             fprintf(stderr, "[%s] couldn't read crt_coeffs!\n", __func__);
             goto cleanup;
         }
@@ -322,19 +339,19 @@ clt_state_fwrite(clt_state_t *const s, FILE *const fp)
         fprintf(stderr, "[%s] failed to save nu!\n", __func__);
         goto cleanup;
     }
-    if (clt_elem_fwrite(s->x0, fp) == CLT_ERR) {
+    if (mpz_fwrite(s->x0, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save x0!\n", __func__);
         goto cleanup;
     }
-    if (clt_elem_fwrite(s->pzt, fp) == CLT_ERR) {
+    if (mpz_fwrite(s->pzt, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save pzt!\n", __func__);
         goto cleanup;
     }
-    if (clt_vector_fwrite(s->gs, s->n, fp) == CLT_ERR) {
+    if (mpz_vector_fwrite(s->gs, s->n, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save gs!\n", __func__);
         goto cleanup;
     }
-    if (clt_vector_fwrite(s->zinvs, s->nzs, fp) == CLT_ERR) {
+    if (mpz_vector_fwrite(s->zinvs, s->nzs, fp) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save zinvs!\n", __func__);
         goto cleanup;
     }
@@ -344,7 +361,7 @@ clt_state_fwrite(clt_state_t *const s, FILE *const fp)
             goto cleanup;
         }
     } else {
-        if (clt_vector_fwrite(s->crt_coeffs, s->n, fp) != 0) {
+        if (mpz_vector_fwrite(s->crt_coeffs, s->n, fp) != 0) {
             fprintf(stderr, "[%s] failed to save crt_coefs!\n", __func__);
             goto cleanup;
         }
@@ -396,9 +413,9 @@ clt_pp_fread(FILE *fp)
 
     if (size_t_fread(fp, &pp->nu) == CLT_ERR)
         goto cleanup;
-    if (clt_elem_fread(pp->x0, fp) == CLT_ERR)
+    if (mpz_fread(pp->x0, fp) == CLT_ERR)
         goto cleanup;
-    if (clt_elem_fread(pp->pzt, fp) == CLT_ERR)
+    if (mpz_fread(pp->pzt, fp) == CLT_ERR)
         goto cleanup;
     ret = CLT_OK;
 cleanup:
@@ -417,9 +434,9 @@ clt_pp_fwrite(clt_pp_t *pp, FILE *fp)
 
     if (size_t_fwrite(fp, pp->nu) == CLT_ERR)
         goto cleanup;
-    if (clt_elem_fwrite(pp->x0, fp) == CLT_ERR)
+    if (mpz_fwrite(pp->x0, fp) == CLT_ERR)
         goto cleanup;
-    if (clt_elem_fwrite(pp->pzt, fp) == CLT_ERR)
+    if (mpz_fwrite(pp->pzt, fp) == CLT_ERR)
         goto cleanup;
     ret = CLT_OK;
 cleanup:
@@ -430,7 +447,7 @@ cleanup:
 // helper functions
 
 static int
-size_t_fread(FILE *const fp, size_t *x)
+size_t_fread(FILE *fp, size_t *x)
 {
     if (fread(x, sizeof x[0], 1, fp) != 1)
         return CLT_ERR;
@@ -438,67 +455,13 @@ size_t_fread(FILE *const fp, size_t *x)
 }
 
 static int
-size_t_fwrite(FILE *const fp, size_t x)
+size_t_fwrite(FILE *fp, size_t x)
 {
     if (fwrite(&x, sizeof x, 1, fp) != 1)
         return CLT_ERR;
     return CLT_OK;
 }
 
-int
-clt_elem_fread(clt_elem_t x, FILE *const fp)
-{
-    if (mpz_inp_raw(x, fp) == 0)
-        return CLT_ERR;
-    return CLT_OK;
-}
-
-int
-clt_elem_fwrite(clt_elem_t x, FILE *const fp)
-{
-    if (mpz_out_raw(fp, x) == 0)
-        return CLT_ERR;
-    return CLT_OK;
-}
-
-static clt_elem_t *
-clt_vector_new(size_t n)
-{
-    clt_elem_t *v;
-    if ((v = calloc(n, sizeof v[0])) == NULL)
-        return NULL;
-    for (size_t i = 0; i < n; ++i)
-        mpz_init(v[i]);
-    return v;
-}
-
-static void
-clt_vector_free(clt_elem_t *v, size_t n)
-{
-    for (size_t i = 0; i < n; ++i)
-        mpz_clear(v[i]);
-    free(v);
-}
-
-int
-clt_vector_fread(clt_elem_t *m, size_t len, FILE *const fp)
-{
-    for (size_t i = 0; i < len; ++i) {
-        if (mpz_inp_raw(m[i], fp) == 0)
-            return CLT_ERR;
-    }
-    return CLT_OK;
-}
-
-int
-clt_vector_fwrite(clt_elem_t *m, size_t len, FILE *const fp)
-{
-    for (size_t i = 0; i < len; ++i) {
-        if (mpz_out_raw(fp, m[i]) == 0)
-            return CLT_ERR;
-    }
-    return CLT_OK;
-}
 
 static double
 current_time(void)
@@ -537,7 +500,7 @@ static inline size_t nb_of_bits(size_t x)
 }
 
 static int
-gen_primes(clt_elem_t *v, aes_randstate_t *rngs, size_t n, size_t len, bool verbose)
+gen_primes(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t len, bool verbose)
 {
     double start = current_time();
     int count = 0;
@@ -557,7 +520,7 @@ gen_primes(clt_elem_t *v, aes_randstate_t *rngs, size_t n, size_t len, bool verb
 }
 
 static int
-gen_primes_composite_ps(clt_elem_t *v, aes_randstate_t *rngs, size_t n, size_t eta, bool verbose)
+gen_primes_composite_ps(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t eta, bool verbose)
 {
     int count = 0;
     double start = current_time();
@@ -577,7 +540,7 @@ gen_primes_composite_ps(clt_elem_t *v, aes_randstate_t *rngs, size_t n, size_t e
     }
 #pragma omp parallel for
     for (size_t i = 0; i < n; i++) {
-        clt_elem_t p_unif;
+        mpz_t p_unif;
         mpz_set_ui(v[i], 1);
         mpz_init(p_unif);
         /* generate a p_i */
@@ -601,7 +564,7 @@ gen_primes_composite_ps(clt_elem_t *v, aes_randstate_t *rngs, size_t n, size_t e
 }
 
 static void
-crt_coeffs(clt_elem_t *coeffs, clt_elem_t *ps, size_t n, clt_elem_t x0, bool verbose)
+crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
 {
     const double start = current_time();
     int count = 0;
@@ -609,7 +572,7 @@ crt_coeffs(clt_elem_t *coeffs, clt_elem_t *ps, size_t n, clt_elem_t x0, bool ver
         fprintf(stderr, "  Generating CRT coefficients:\n");
 #pragma omp parallel for
     for (size_t i = 0; i < n; i++) {
-        clt_elem_t q;
+        mpz_t q;
         mpz_init(q);
         mpz_div(q, x0, ps[i]);
         mpz_invert(coeffs[i], q, ps[i]);
@@ -627,12 +590,12 @@ crt_coeffs(clt_elem_t *coeffs, clt_elem_t *ps, size_t n, clt_elem_t x0, bool ver
 static void
 clt_state_new_polylog(clt_state_t *s, size_t nmults, size_t eta, bool verbose)
 {
-    clt_elem_t **ps;
+    mpz_t **ps;
     eta += 50 * nmults;
 
     ps = calloc(nmults + 1, sizeof ps[0]);
     for (size_t i = 0; i < nmults + 1; ++i) {
-        ps[i] = clt_vector_new(s->n);
+        ps[i] = mpz_vector_new(s->n);
         gen_primes(ps[i], s->rngs, s->n, eta, verbose);
         eta -= 50;
     }
@@ -644,7 +607,7 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
 {
     clt_state_t *s;
     size_t alpha, beta, eta, rho_f;
-    clt_elem_t *ps, *zs;
+    mpz_t *ps, *zs;
     double start_time = 0.0;
     int count;
     const bool verbose = flags & CLT_FLAG_VERBOSE;
@@ -739,10 +702,10 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
         free(buf);
     }
 
-    s->zinvs = clt_vector_new(s->nzs);
-    s->gs = clt_vector_new(s->n);
+    s->zinvs = mpz_vector_new(s->nzs);
+    s->gs = mpz_vector_new(s->n);
     if (!(s->flags & CLT_FLAG_OPT_CRT_TREE)) {
-        s->crt_coeffs = clt_vector_new(s->n);
+        s->crt_coeffs = mpz_vector_new(s->n);
     }
     mpz_init_set_ui(s->x0,  1);
     mpz_init_set_ui(s->pzt, 0);
@@ -752,8 +715,8 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
         return s;
     }
 
-    ps = clt_vector_new(s->n);
-    zs = clt_vector_new(s->nzs);
+    ps = mpz_vector_new(s->n);
+    zs = mpz_vector_new(s->nzs);
 
     if (verbose) {
         fprintf(stderr, "  Generating p_i's and g_i's:");
@@ -769,7 +732,7 @@ generate_ps:
     }
     if (opts && opts->moduli && opts->nmoduli) {
         for (size_t i = 0; i < opts->nmoduli; ++i)
-            clt_elem_set(s->gs[i], opts->moduli[i]);
+            mpz_set(s->gs[i], opts->moduli[i]);
         gen_primes(s->gs + opts->nmoduli, s->rngs, s->n - opts->nmoduli, alpha, verbose);
     } else {
         gen_primes(s->gs, s->rngs, s->n, alpha, verbose);
@@ -841,11 +804,11 @@ generate_ps:
     }
 
     {
-        clt_elem_t zk;
+        mpz_t zk;
         mpz_init_set_ui(zk, 1);
         /* compute z_1^t_1 ... z_k^t_k mod x0 */
         for (size_t i = 0; i < s->nzs; ++i) {
-            clt_elem_t tmp;
+            mpz_t tmp;
             mpz_init(tmp);
             mpz_powm_ui(tmp, zs[i], params->pows[i], s->x0);
             mpz_mul_mod(zk, zk, tmp, s->x0);
@@ -856,7 +819,7 @@ generate_ps:
         }
 #pragma omp parallel for
         for (size_t i = 0; i < s->n; ++i) {
-            clt_elem_t tmp, qpi, rnd;
+            mpz_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
             /* compute ((g_i^{-1} mod p_i) * z * r_i * (x0 / p_i) */
             mpz_invert(tmp, s->gs[i], ps[i]);
@@ -884,8 +847,8 @@ generate_ps:
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
     }
 
-    clt_vector_free(ps, s->n);
-    clt_vector_free(zs, s->nzs);
+    mpz_vector_free(ps, s->n);
+    mpz_vector_free(zs, s->nzs);
 
     return s;
 }
@@ -894,12 +857,12 @@ void
 clt_state_free(clt_state_t *s)
 {
     mpz_clears(s->x0, s->pzt, NULL);
-    clt_vector_free(s->gs, s->n);
-    clt_vector_free(s->zinvs, s->nzs);
+    mpz_vector_free(s->gs, s->n);
+    mpz_vector_free(s->zinvs, s->nzs);
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         crt_tree_free(s->crt);
     } else {
-        clt_vector_free(s->crt_coeffs, s->n);
+        mpz_vector_free(s->crt_coeffs, s->n);
     }
     if (s->rngs) {
         for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
@@ -910,7 +873,7 @@ clt_state_free(clt_state_t *s)
     free(s);
 }
 
-clt_elem_t *
+mpz_t *
 clt_state_moduli(const clt_state_t *s)
 {
     return s->gs;

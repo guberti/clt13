@@ -12,11 +12,13 @@ set(clt13_SOURCES
   src/clt13.c
   src/crt_tree.c
   src/estimates.c
+  src/utils.c
   )
 set(clt13_HEADERS
   src/clt13.h
   src/crt_tree.h
   src/estimates.h
+  src/utils.h
   )
 
 add_library(clt13 SHARED ${clt13_SOURCES})

@@ -44,7 +44,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     clt_state_t *mmap;
     clt_pp_t *pp;
-    clt_elem_t *moduli;
+    mpz_t *moduli;
     aes_randstate_t rng;
     int pows[nzs];
 
@@ -129,8 +129,10 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         top_level[i] = 1;
     }
 
-    mpz_t x0, x1, xp;
-    mpz_inits(x0, x1, xp, NULL);
+    clt_elem_t *x0, *x1, *xp;
+    x0 = clt_elem_new();
+    x1 = clt_elem_new();
+    xp = clt_elem_new();
 
     clt_encode(x0, mmap, 1, zero, top_level);
     clt_encode(x1, mmap, 1, zero, top_level);
@@ -201,9 +203,10 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     // zimmerman-like test
 
-    mpz_t c, in0[2], in1[2], cin[2];
+    mpz_t in0[2], in1[2], cin[2];
+    clt_elem_t *c = clt_elem_new();
 
-    mpz_inits(c, in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
+    mpz_inits(in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
 
     mpz_urandomb_aes(in1[0], rng, lambda);
     mpz_mod(in1[0], in1[0], moduli[0]);
@@ -249,8 +252,12 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     clt_pp_free(pp);
     clt_state_free(mmap);
-    mpz_clears(c, x0, x1, xp, x[0], zero[0], one[0], two[0], three[0],
+    mpz_clears(x[0], zero[0], one[0], two[0], three[0],
                in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
+    clt_elem_free(c);
+    clt_elem_free(x0);
+    clt_elem_free(x1);
+    clt_elem_free(xp);
     aes_randclear(rng);
 
     {
@@ -268,7 +275,8 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     clt_state_t *s;
     clt_pp_t *pp;
     aes_randstate_t rng;
-    mpz_t zero, one, value, result, top_one, top_zero;
+    mpz_t zero, one;
+    clt_elem_t *value, *result, *top_one, *top_zero;
     int ok = 1;
 
     clt_params_t params = {
@@ -278,12 +286,16 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
         .pows = top_level
     };
 
+    value = clt_elem_new();
+    result = clt_elem_new();
+    top_one = clt_elem_new();
+    top_zero = clt_elem_new();
+
     printf("Testing levels: λ = %lu, κ = %lu\n", lambda, kappa);
 
     aes_randinit(rng);
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
-    mpz_inits(value, result, top_one, top_zero, NULL);
 
     for (ulong i = 0; i < kappa; ++i)
         top_level[i] = 1;
@@ -345,7 +357,11 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     clt_pp_free(pp);
     clt_state_free(s);
 
-    mpz_clears(value, result, top_one, top_zero, zero, one, NULL);
+    mpz_clears(zero, one, NULL);
+    clt_elem_free(value);
+    clt_elem_free(result);
+    clt_elem_free(top_one);
+    clt_elem_free(top_zero);
     aes_randclear(rng);
 
     return !ok;
