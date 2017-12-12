@@ -16,7 +16,7 @@ set(clt13_SOURCES
   )
 
 add_library(clt13 SHARED ${clt13_SOURCES})
-target_link_libraries(clt13 PRIVATE gmp aesrand)
+target_link_libraries(clt13 PUBLIC gmp aesrand)
 
 include(FindOpenMP)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -Werror -std=gnu11 -march=native ${OpenMP_C_FLAGS}")
