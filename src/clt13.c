@@ -760,7 +760,7 @@ generate_ps:
         for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) {
             product(s->polylog.x0s[i], pss[i], s->n, verbose);
         }
-        crt_coeffs(s->crt_coeffs, pss[0], s->polylog.x0s[0], verbose);
+        crt_coeffs(s->crt_coeffs, pss[0], s->n, s->polylog.x0s[0], verbose);
     } else if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         start_time = current_time();
         if (verbose)
