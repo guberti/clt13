@@ -194,6 +194,8 @@ clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt
     }
     mpz_add(rop->elem, a->elem, b->elem);
     mpz_mod(rop->elem, rop->elem, pp->x0);
+    if (pp->polylog)
+        rop->level = a->level;
     return CLT_OK;
 }
 
@@ -206,6 +208,8 @@ clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt
     }
     mpz_sub(rop->elem, a->elem, b->elem);
     mpz_mod(rop->elem, rop->elem, pp->x0);
+    if (pp->polylog)
+        rop->level = a->level;
     return CLT_OK;
 }
 
@@ -228,6 +232,8 @@ clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsign
 {
     mpz_mul_ui(rop->elem, a->elem, b);
     mpz_mod(rop->elem, rop->elem, pp->x0);
+    if (pp->polylog)
+        rop->level = a->level;
     return CLT_OK;
 }
 
@@ -240,15 +246,21 @@ clt_elem_print(const clt_elem_t *a)
 int
 clt_elem_fread(clt_elem_t *x, FILE *fp)
 {
-    /* TODO: include level here! */
-    return mpz_fread(x->elem, fp);
+    if (mpz_fread(x->elem, fp) == CLT_ERR)
+        return CLT_ERR;
+    if (size_t_fread(fp, &x->level) == CLT_ERR)
+        return CLT_ERR;
+    return CLT_OK;
 }
 
 int
 clt_elem_fwrite(clt_elem_t *x, FILE *fp)
 {
-    /* TODO: include level here! */
-    return mpz_fwrite(x->elem, fp);
+    if (mpz_fwrite(x->elem, fp) == CLT_ERR)
+        return CLT_ERR;
+    if (size_t_fwrite(fp, x->level) == CLT_ERR)
+        return CLT_ERR;
+    return CLT_OK;
 }
 
 clt_state_t *
