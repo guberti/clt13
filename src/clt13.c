@@ -764,26 +764,23 @@ generate_ps:
             gen_primes(ps, s->rngs, s->n, eta, verbose);
         }
     }
+
     if (s->flags & CLT_FLAG_POLYLOG) {
-        start_time = current_time();
         if (verbose)
-            fprintf(stderr, "  Computing x0s:\n");
+            fprintf(stderr, "  Computing x0's:\n");
         for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) {
             product(s->polylog.x0s[i], pss[i], s->n, verbose);
         }
         crt_coeffs(s->crt_coeffs, pss[0], s->n, s->polylog.x0s[0], verbose);
     } else if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        start_time = current_time();
         if (verbose)
-            fprintf(stderr, "  Generating CRT-Tree: ");
-        s->crt = crt_tree_new(ps, s->n);
-        if (s->crt == NULL) {
-            /* if crt_tree_init fails, regenerate with new p_i's */
+            fprintf(stderr, "  Generating CRT tree: ");
+        if ((s->crt = crt_tree_new(ps, s->n)) == NULL) {
+            /* if crt_tree_new fails, regenerate with new p_i's */
             if (verbose)
-                fprintf(stderr, "(restarting) ");
+                fprintf(stderr, "(restarting)\n");
             goto generate_ps;
         }
-        /* crt_tree_init succeeded, set x0 */
         mpz_set(s->x0, s->crt->mod);
         if (verbose)
             fprintf(stderr, "[%.2fs]\n", current_time() - start_time);
