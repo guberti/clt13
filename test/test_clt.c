@@ -57,9 +57,12 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         .lambda = lambda,
         .kappa = kappa,
         .nzs = nzs,
-        .pows = pows
+        .pows = pows,
     };
-    mmap = clt_state_new(&params, NULL, 0, flags, rng);
+    clt_params_opt_t opts = {
+        .nlayers = 1,
+    };
+    mmap = clt_state_new(&params, &opts, 0, flags, rng);
     pp = clt_pp_new(mmap);
 
     /* Test read/write */
@@ -421,10 +424,10 @@ main(int argc, char *argv[])
     if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
 
-    printf("* polylog\n");
-    flags = default_flags | CLT_FLAG_POLYLOG;
-    if (test(flags, nzs, lambda, kappa) == 1)
-        return 1;
+    /* printf("* polylog\n"); */
+    /* flags = default_flags | CLT_FLAG_POLYLOG; */
+    /* if (test(flags, nzs, lambda, kappa) == 1) */
+    /*     return 1; */
 
     return 0;
 }

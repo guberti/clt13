@@ -15,6 +15,7 @@ typedef struct clt_elem_t clt_elem_t;
 typedef struct clt_state_t clt_state_t;
 typedef struct clt_pp_t clt_pp_t;
 
+/* Required parameters to clt_state_new */
 typedef struct {
     /* security parameter */
     size_t lambda;
@@ -26,6 +27,7 @@ typedef struct {
     int *pows;
 } clt_params_t;
 
+/* Optional parameters to clt_state_new */
 typedef struct {
     /* minimum number of slots needed */
     size_t min_slots;
@@ -33,6 +35,8 @@ typedef struct {
     mpz_t *moduli;
     /* number of plaintext moduli given */
     size_t nmoduli;
+    /* number of multiplication layers */
+    size_t nlayers;
 } clt_params_opt_t;
 
 #define CLT_FLAG_NONE 0x00
@@ -84,11 +88,11 @@ int clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp);
 clt_elem_t * clt_elem_new(void);
 void clt_elem_free(clt_elem_t *e);
 void clt_elem_set(clt_elem_t *a, const clt_elem_t *b);
-void clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
-void clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
-void clt_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
-void clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsigned int b);
-void clt_elem_print(clt_elem_t *a);
+int clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+int clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+int clt_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+int clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsigned int b);
+void clt_elem_print(const clt_elem_t *a);
 int clt_elem_fread(clt_elem_t *x, FILE *fp);
 int clt_elem_fwrite(clt_elem_t *x, FILE *fp);
 
