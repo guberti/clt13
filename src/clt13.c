@@ -747,7 +747,13 @@ generate_ps:
         if (verbose) fprintf(stderr, "\n");
         gen_primes(ps, s->rngs, s->n, eta, verbose);
     }
-    gen_primes(s->gs, s->rngs, s->n, alpha, verbose);
+    if (opts && opts->moduli && opts->nmoduli) {
+        for (size_t i = 0; i < opts->nmoduli; ++i)
+            clt_elem_set(s->gs[i], opts->moduli[i]);
+        gen_primes(s->gs + opts->nmoduli, s->rngs, s->n - opts->nmoduli, alpha, verbose);
+    } else {
+        gen_primes(s->gs, s->rngs, s->n, alpha, verbose);
+    }
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         if (verbose) {

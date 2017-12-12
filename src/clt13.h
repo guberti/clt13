@@ -16,18 +16,23 @@ typedef struct clt_state clt_state;
 typedef struct clt_pp clt_pp;
 
 typedef struct {
-    /* Security parameter */
+    /* security parameter */
     size_t lambda;
-    /* Multilinearity */
+    /* multilinearity */
     size_t kappa;
-    /* Number of Zs */
+    /* number of z's */
     size_t nzs;
-    /* Powers for the Zs */
+    /* powers for the z's */
     int *pows;
 } clt_params_t;
 
 typedef struct {
+    /* minimum number of slots needed */
     size_t min_slots;
+    /* plaintext moduli */
+    clt_elem_t *moduli;
+    /* number of plaintext moduli given */
+    size_t nmoduli;
 } clt_params_opt_t;
 
 #define CLT_FLAG_NONE 0x00
