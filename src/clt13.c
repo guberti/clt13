@@ -241,7 +241,6 @@ int
 clt_elem_fread(clt_elem_t *x, FILE *fp)
 {
     /* TODO: include level here! */
-    x = clt_elem_new();
     return mpz_fread(x->elem, fp);
 }
 
