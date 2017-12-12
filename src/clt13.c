@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,14 +17,18 @@
  * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
 #define ETAP_DEFAULT 420
 
-typedef unsigned long ulong;
-
 struct clt_state {
     size_t n;
     size_t nzs;
     size_t rho;
     size_t nu;
-    clt_elem_t x0;
+    union {
+        clt_elem_t x0;
+        struct {
+            clt_elem_t x0s;
+            size_t nmults;
+        } polylog_t;
+    };
     clt_elem_t pzt;
     clt_elem_t *gs;
     clt_elem_t *zinvs;
@@ -32,7 +37,7 @@ struct clt_state {
         crt_tree *crt;
         clt_elem_t *crt_coeffs;
     };
-    ulong flags;
+    size_t flags;
 };
 
 struct clt_pp {
@@ -41,23 +46,12 @@ struct clt_pp {
     size_t nu;
 };
 
-static void clt_vector_free(clt_elem_t *v, size_t n);
 static clt_elem_t * clt_vector_new(size_t n);
+static void clt_vector_free(clt_elem_t *v, size_t n);
 
 static double current_time(void);
-static int ulong_fread(FILE *const fp, ulong *x);
-static int ulong_fwrite(FILE *const fp, ulong x);
-static void print_progress (size_t cur, size_t total);
-
-static inline ulong nb_of_bits(ulong x)
-{
-    ulong nb = 0;
-    while (x > 0) {
-        x >>= 1;
-        nb++;
-    }
-    return nb;
-}
+static int size_t_fread(FILE *const fp, size_t *x);
+static int size_t_fwrite(FILE *const fp, size_t x);
 
 static inline void
 mpz_mod_near(mpz_t rop, const mpz_t a, const mpz_t p)
@@ -79,14 +73,14 @@ mpz_mul_mod(mpz_t rop, mpz_t a, const mpz_t b, const mpz_t p)
 }
 
 static inline void
-mpz_random_(mpz_t rop, aes_randstate_t rng, ulong len)
+mpz_random_(mpz_t rop, aes_randstate_t rng, size_t len)
 {
     mpz_urandomb_aes(rop, rng, len);
     mpz_setbit(rop, len-1);
 }
 
 static inline void
-mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
+mpz_prime(mpz_t rop, aes_randstate_t rng, size_t len)
 {
     mpz_t p_unif;
     mpz_init(p_unif);
@@ -96,368 +90,6 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, ulong len)
     } while (mpz_tstbit(rop, len) == 1);
     assert(mpz_tstbit(rop, len-1) == 1);
     mpz_clear(p_unif);
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-// state
-
-clt_state *
-clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *const pows,
-              size_t min_slots, size_t ncores, size_t flags,
-              aes_randstate_t rng)
-{
-    clt_state *s;
-    size_t alpha, beta, eta, rho_f;
-    clt_elem_t *ps, *zs;
-    double start_time = 0.0;
-    int count = 0;
-
-    s = malloc(sizeof s[0]);
-    if (s == NULL)
-        return NULL;
-
-    if (ncores == 0)
-        ncores = sysconf(_SC_NPROCESSORS_ONLN);
-    (void) omp_set_num_threads(ncores);
-
-    /* calculate CLT parameters */
-    s->nzs = nzs;
-    alpha  = lambda;                   /* bitsize of g_i primes */
-    beta   = lambda;                   /* bitsize of h_i entries */
-    s->rho = lambda;                   /* bitsize of randomness */
-    rho_f  = kappa * (s->rho + alpha); /* max bitsize of r_i's */
-    eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
-    s->n   = MAX(estimate_n(lambda, eta, flags), min_slots);  /* number of primes */
-    eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
-    s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
-    s->flags = flags;
-
-    /* Loop until a fixed point reached for choosing eta, n, and nu */
-    {
-        ulong old_eta = 0, old_n = 0, old_nu = 0;
-        int i = 0;
-        for (; i < 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu);
-             ++i) {
-            old_eta = eta, old_n = s->n, old_nu = s->nu;
-            eta = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
-            s->n = MAX(estimate_n(lambda, eta, flags), min_slots);
-            s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
-        }
-
-        if (i == 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu)) {
-            fprintf(stderr, "Error: unable to find valid η, n, and ν choices\n");
-            free(s);
-            return NULL;
-        }
-    }
-
-    /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
-    assert(s->nu >= alpha + 6);
-    assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
-    assert(s->n >= min_slots);
-
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  λ: %ld\n", lambda);
-        fprintf(stderr, "  κ: %ld\n", kappa);
-        fprintf(stderr, "  α: %ld\n", alpha);
-        fprintf(stderr, "  β: %ld\n", beta);
-        fprintf(stderr, "  η: %ld\n", eta);
-        fprintf(stderr, "  ν: %ld\n", s->nu);
-        fprintf(stderr, "  ρ: %ld\n", s->rho);
-        fprintf(stderr, "  ρ_f: %ld\n", rho_f);
-        fprintf(stderr, "  n: %ld\n", s->n);
-        fprintf(stderr, "  nzs: %ld\n", s->nzs);
-        fprintf(stderr, "  ncores: %ld\n", ncores);
-        fprintf(stderr, "  Flags: \n");
-        if (s->flags & CLT_FLAG_OPT_CRT_TREE)
-            fprintf(stderr, "    CRT TREE\n");
-        if (s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)
-            fprintf(stderr, "    PARALLEL ENCODE\n");
-        if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS)
-            fprintf(stderr, "    COMPOSITE PS\n");
-        if (s->flags & CLT_FLAG_SEC_IMPROVED_BKZ)
-            fprintf(stderr, "    IMPROVED BKZ\n");
-        if (s->flags & CLT_FLAG_SEC_CONSERVATIVE)
-            fprintf(stderr, "    CONSERVATIVE\n");
-        if (s->flags & CLT_FLAG_POLYLOG)
-            fprintf(stderr, "    POLYLOG\n");
-    }
-
-    /* Generate randomness for each core */
-    s->rngs = calloc(MAX(s->n, s->nzs), sizeof(aes_randstate_t));
-    for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
-        unsigned char *buf;
-        size_t nbytes;
-
-        buf = random_aes(rng, 128, &nbytes);
-        aes_randinit_seedn(s->rngs[i], (char *) buf, nbytes, NULL, 0);
-        free(buf);
-    }
-
-    ps = clt_vector_new(s->n);
-    zs = clt_vector_new(s->nzs);
-    s->zinvs = clt_vector_new(s->nzs);
-    s->gs = clt_vector_new(s->n);
-    if (!(s->flags & CLT_FLAG_OPT_CRT_TREE)) {
-        s->crt_coeffs = clt_vector_new(s->n);
-    }
-
-    /* initialize gmp variables */
-    mpz_init_set_ui(s->x0,  1);
-    mpz_init_set_ui(s->pzt, 0);
-    for (ulong i = 0; i < s->n; ++i) {
-        mpz_init_set_ui(ps[i], 1);
-    }
-    /* Generate p_i's and g_i's, as well as x0 = \prod p_i */
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating p_i's and g_i's:");
-        start_time = current_time();
-    }
-
-GEN_PIS:
-    if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
-        ulong etap = ETAP_DEFAULT;
-        if (eta > 350)
-            /* TODO: change how we set etap, should be resistant to factoring x_0 */
-            for (/* */; eta % etap < 350; etap++)
-                ;
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "[eta_p: %lu] ", etap);
-        }
-        ulong nchunks = eta / etap;
-        ulong leftover = eta - nchunks * etap;
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "[nchunks=%lu leftover=%lu]\n", nchunks, leftover);
-            print_progress(count, s->n);
-        }
-#pragma omp parallel for
-        for (ulong i = 0; i < s->n; i++) {
-            clt_elem_t p_unif;
-            mpz_set_ui(ps[i], 1);
-            mpz_init(p_unif);
-            /* generate a p_i */
-            for (ulong j = 0; j < nchunks; j++) {
-                mpz_prime(p_unif, s->rngs[i], etap);
-                mpz_mul(ps[i], ps[i], p_unif);
-            }
-            mpz_prime(p_unif, s->rngs[i], leftover);
-            mpz_mul(ps[i], ps[i], p_unif);
-            /* generate a g_i */
-            mpz_prime(s->gs[i], s->rngs[i], alpha);
-            mpz_clear(p_unif);
-
-            if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
-                print_progress(++count, s->n);
-            }
-        }
-    } else {
-        /* Don't use composite p's optimization */
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "\n");
-            print_progress(count, s->n);
-        }
-#pragma omp parallel for
-        for (ulong i = 0; i < s->n; i++) {
-            /* generate a p_i */
-            mpz_prime(ps[i], s->rngs[i], eta);
-            /* generate a g_i */
-            mpz_prime(s->gs[i], s->rngs[i], alpha);
-            if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
-                print_progress(++count, s->n);
-            }
-        }
-    }
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
-    }
-
-    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "  Generating CRT-Tree: ");
-            start_time = current_time();
-        }
-        s->crt = crt_tree_new(ps, s->n);
-        if (s->crt == NULL) {
-            /* if crt_tree_init fails, regenerate with new p_i's */
-            if (s->flags & CLT_FLAG_VERBOSE) {
-                fprintf(stderr, "(restarting) ");
-            }
-            goto GEN_PIS;
-        }
-        /* crt_tree_init succeeded, set x0 */
-        mpz_set(s->x0, s->crt->mod);
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "[%.2fs]\n", current_time() - start_time);
-        }
-    } else {
-        /* Don't use CRT tree optimization */
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "  Computing x0: \n");
-            start_time = current_time();
-        }
-
-        /* calculate x0 the hard way */
-        for (ulong i = 0; i < s->n; i++) {
-            mpz_mul(s->x0, s->x0, ps[i]);
-            if (s->flags & CLT_FLAG_VERBOSE)
-                print_progress(i, s->n-1);
-        }
-
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
-        }
-
-        /* Compute CRT coefficients */
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "  Generating CRT coefficients:\n");
-            start_time = current_time();
-            count = 0;
-        }
-#pragma omp parallel for
-        for (unsigned long i = 0; i < s->n; i++) {
-            clt_elem_t q;
-            mpz_init(q);
-            mpz_div(q, s->x0, ps[i]);
-            mpz_invert(s->crt_coeffs[i], q, ps[i]);
-            mpz_mul_mod(s->crt_coeffs[i], s->crt_coeffs[i], q, s->x0);
-            mpz_clear(q);
-
-            if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
-                print_progress(++count, s->n);
-            }
-        }
-        if (s->flags & CLT_FLAG_VERBOSE) {
-            fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
-        }
-    }
-
-    /* Compute z_i's */
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating z_i's:\n");
-        start_time = current_time();
-        count = 0;
-    }
-#pragma omp parallel for
-    for (ulong i = 0; i < s->nzs; ++i) {
-        do {
-            mpz_urandomm_aes(zs[i], s->rngs[i], s->x0);
-        } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
-        if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
-            print_progress(++count, s->nzs);
-        }
-    }
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
-    }
-
-    /* Compute pzt */
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "  Generating pzt:\n");
-        start_time = current_time();
-        count = 0;
-    }
-
-    {
-        clt_elem_t zk;
-        mpz_init_set_ui(zk, 1);
-        /* compute z_1^t_1 ... z_k^t_k mod x0 */
-        for (ulong i = 0; i < s->nzs; ++i) {
-            clt_elem_t tmp;
-            mpz_init(tmp);
-            mpz_powm_ui(tmp, zs[i], pows[i], s->x0);
-            mpz_mul_mod(zk, zk, tmp, s->x0);
-            mpz_clear(tmp);
-            if (s->flags & CLT_FLAG_VERBOSE) {
-                print_progress(++count, s->n + s->nzs);
-            }
-        }
-#pragma omp parallel for
-        for (ulong i = 0; i < s->n; ++i) {
-            clt_elem_t tmp, qpi, rnd;
-            mpz_inits(tmp, qpi, rnd, NULL);
-            /* compute ((g_i^{-1} mod p_i) * z * r_i * (x0 / p_i) */
-            mpz_invert(tmp, s->gs[i], ps[i]);
-            mpz_mul_mod(tmp, tmp, zk, ps[i]);
-            do {
-                mpz_random_(rnd, s->rngs[i], beta);
-            } while (mpz_cmp(rnd, s->gs[i]) == 0);
-            mpz_mul(tmp, tmp, rnd);
-            mpz_div(qpi, s->x0, ps[i]);
-            mpz_mul_mod(tmp, tmp, qpi, s->x0);
-#pragma omp critical
-            {
-                mpz_add(s->pzt, s->pzt, tmp);
-            }
-            mpz_clears(tmp, qpi, rnd, NULL);
-            if (s->flags & CLT_FLAG_VERBOSE) {
-#pragma omp critical
-                print_progress(++count, s->n + s->nzs);
-            }
-        }
-        mpz_mod_near(s->pzt, s->pzt, s->x0);
-        mpz_clear(zk);
-    }
-    if (s->flags & CLT_FLAG_VERBOSE) {
-        fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
-    }
-
-    clt_vector_free(ps, s->n);
-    clt_vector_free(zs, s->nzs);
-
-    return s;
-}
-
-void
-clt_state_delete(clt_state *s)
-{
-    mpz_clears(s->x0, s->pzt, NULL);
-    for (ulong i = 0; i < s->n; ++i) {
-        mpz_clear(s->gs[i]);
-    }
-    free(s->gs);
-    for (ulong i = 0; i < s->nzs; i++) {
-        mpz_clear(s->zinvs[i]);
-    }
-    free(s->zinvs);
-    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        crt_tree_free(s->crt);
-        /* free(s->crt); */
-    } else {
-        for (ulong i = 0; i < s->n; i++) {
-            mpz_clear(s->crt_coeffs[i]);
-        }
-        free(s->crt_coeffs);
-    }
-    if (s->rngs) {
-        for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
-            aes_randclear(s->rngs[i]);
-        }
-        free(s->rngs);
-    }
-    free(s);
-}
-
-clt_elem_t *
-clt_state_moduli(const clt_state *const s)
-{
-    return s->gs;
-}
-
-size_t
-clt_state_nslots(const clt_state *const s)
-{
-    return s->n;
-}
-
-size_t
-clt_state_nzs(const clt_state *const s)
-{
-    return s->nzs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -475,7 +107,7 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
         /* slots[i] = m[i] + r*g[i] */
         clt_elem_t *slots = clt_vector_new(s->n);
 #pragma omp parallel for
-        for (ulong i = 0; i < s->n; i++) {
+        for (size_t i = 0; i < s->n; i++) {
             mpz_random_(slots[i], s->rngs[i], s->rho);
             mpz_mul(slots[i], slots[i], s->gs[i]);
             if (i < nins)
@@ -594,23 +226,23 @@ clt_state_fread(FILE *const fp)
     if (s == NULL)
         return NULL;
 
-    if (ulong_fread(fp, &s->flags) == CLT_ERR) {
+    if (size_t_fread(fp, &s->flags) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read flags!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fread(fp, &s->n) == CLT_ERR) {
+    if (size_t_fread(fp, &s->n) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read n!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fread(fp, &s->nzs) == CLT_ERR) {
+    if (size_t_fread(fp, &s->nzs) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read nzs!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fread(fp, &s->rho) == CLT_ERR) {
+    if (size_t_fread(fp, &s->rho) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read rho!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fread(fp, &s->nu) == CLT_ERR) {
+    if (size_t_fread(fp, &s->nu) == CLT_ERR) {
         fprintf(stderr, "[%s] couldn't read nu!\n", __func__);
         goto cleanup;
     }
@@ -652,7 +284,7 @@ clt_state_fread(FILE *const fp)
     }
 
     s->rngs = malloc(sizeof(aes_randstate_t) * MAX(s->n, s->nzs));
-    for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
+    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
         aes_randstate_fread(s->rngs[i], fp);
     }
     ret = 0;
@@ -670,23 +302,23 @@ clt_state_fwrite(clt_state *const s, FILE *const fp)
 {
     int ret = CLT_ERR;
 
-    if (ulong_fwrite(fp, s->flags) == CLT_ERR) {
+    if (size_t_fwrite(fp, s->flags) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save flags!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fwrite(fp, s->n) == CLT_ERR) {
+    if (size_t_fwrite(fp, s->n) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save n!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fwrite(fp, s->nzs) == CLT_ERR) {
+    if (size_t_fwrite(fp, s->nzs) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save n!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fwrite(fp, s->rho) == CLT_ERR) {
+    if (size_t_fwrite(fp, s->rho) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save rho!\n", __func__);
         goto cleanup;
     }
-    if (ulong_fwrite(fp, s->nu) == CLT_ERR) {
+    if (size_t_fwrite(fp, s->nu) == CLT_ERR) {
         fprintf(stderr, "[%s] failed to save nu!\n", __func__);
         goto cleanup;
     }
@@ -718,7 +350,7 @@ clt_state_fwrite(clt_state *const s, FILE *const fp)
         }
     }
 
-    for (ulong i = 0; i < MAX(s->n, s->nzs); ++i) {
+    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
         aes_randstate_fwrite(s->rngs[i], fp);
     }
 
@@ -762,7 +394,7 @@ clt_pp_fread(FILE *const fp)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
 
-    if (ulong_fread(fp, &pp->nu) == CLT_ERR)
+    if (size_t_fread(fp, &pp->nu) == CLT_ERR)
         goto cleanup;
     if (clt_elem_fread(pp->x0, fp) == CLT_ERR)
         goto cleanup;
@@ -783,7 +415,7 @@ clt_pp_fwrite(clt_pp *const pp, FILE *const fp)
 {
     int ret = CLT_ERR;
 
-    if (ulong_fwrite(fp, pp->nu) == CLT_ERR)
+    if (size_t_fwrite(fp, pp->nu) == CLT_ERR)
         goto cleanup;
     if (clt_elem_fwrite(pp->x0, fp) == CLT_ERR)
         goto cleanup;
@@ -798,7 +430,7 @@ cleanup:
 // helper functions
 
 static int
-ulong_fread(FILE *const fp, ulong *x)
+size_t_fread(FILE *const fp, size_t *x)
 {
     if (fread(x, sizeof x[0], 1, fp) != 1)
         return CLT_ERR;
@@ -806,7 +438,7 @@ ulong_fread(FILE *const fp, ulong *x)
 }
 
 static int
-ulong_fwrite(FILE *const fp, ulong x)
+size_t_fwrite(FILE *const fp, size_t x)
 {
     if (fwrite(&x, sizeof x, 1, fp) != 1)
         return CLT_ERR;
@@ -849,9 +481,9 @@ clt_vector_free(clt_elem_t *v, size_t n)
 }
 
 int
-clt_vector_fread(clt_elem_t *m, ulong len, FILE *const fp)
+clt_vector_fread(clt_elem_t *m, size_t len, FILE *const fp)
 {
-    for (ulong i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
         if (mpz_inp_raw(m[i], fp) == 0)
             return CLT_ERR;
     }
@@ -859,9 +491,9 @@ clt_vector_fread(clt_elem_t *m, ulong len, FILE *const fp)
 }
 
 int
-clt_vector_fwrite(clt_elem_t *m, ulong len, FILE *const fp)
+clt_vector_fwrite(clt_elem_t *m, size_t len, FILE *const fp)
 {
-    for (ulong i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
         if (mpz_out_raw(fp, m[i]) == 0)
             return CLT_ERR;
     }
@@ -892,4 +524,393 @@ print_progress(size_t cur, size_t total)
         fflush(stderr);
         last_val = val;
     }
+}
+
+static inline size_t nb_of_bits(size_t x)
+{
+    size_t nb = 0;
+    while (x > 0) {
+        x >>= 1;
+        nb++;
+    }
+    return nb;
+}
+
+static int
+gen_primes(clt_elem_t *v, aes_randstate_t *rngs, size_t n, size_t len, bool verbose)
+{
+    double start = current_time();
+    int count = 0;
+    fprintf(stderr, "%lu", len);
+    print_progress(count, n);
+#pragma omp parallel for
+    for (size_t i = 0; i < n; ++i) {
+        mpz_prime(v[i], rngs[i], len);
+        if (verbose) {
+#pragma omp critical
+            print_progress(++count, n);
+        }
+    }
+    if (verbose)
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
+    return CLT_OK;
+}
+
+static int
+gen_primes_composite_ps(clt_elem_t *v, aes_randstate_t *rngs, size_t n, size_t eta, bool verbose)
+{
+    int count = 0;
+    double start = current_time();
+    size_t etap = ETAP_DEFAULT;
+    if (eta > 350)
+        /* TODO: change how we set etap, should be resistant to factoring x_0 */
+        for (/* */; eta % etap < 350; etap++)
+            ;
+    if (verbose) {
+        fprintf(stderr, " [eta_p: %lu] ", etap);
+    }
+    size_t nchunks = eta / etap;
+    size_t leftover = eta - nchunks * etap;
+    if (verbose) {
+        fprintf(stderr, "[nchunks=%lu leftover=%lu]\n", nchunks, leftover);
+        print_progress(count, n);
+    }
+#pragma omp parallel for
+    for (size_t i = 0; i < n; i++) {
+        clt_elem_t p_unif;
+        mpz_set_ui(v[i], 1);
+        mpz_init(p_unif);
+        /* generate a p_i */
+        for (size_t j = 0; j < nchunks; j++) {
+            mpz_prime(p_unif, rngs[i], etap);
+            mpz_mul(v[i], v[i], p_unif);
+        }
+        mpz_prime(p_unif, rngs[i], leftover);
+        mpz_mul(v[i], v[i], p_unif);
+        mpz_clear(p_unif);
+
+        if (verbose) {
+#pragma omp critical
+            print_progress(++count, n);
+        }
+    }
+    if (verbose) {
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
+    }
+    return CLT_OK;
+}
+
+static void
+crt_coeffs(clt_elem_t *coeffs, clt_elem_t *ps, size_t n, clt_elem_t x0, bool verbose)
+{
+    const double start = current_time();
+    int count = 0;
+    if (verbose)
+        fprintf(stderr, "  Generating CRT coefficients:\n");
+#pragma omp parallel for
+    for (size_t i = 0; i < n; i++) {
+        clt_elem_t q;
+        mpz_init(q);
+        mpz_div(q, x0, ps[i]);
+        mpz_invert(coeffs[i], q, ps[i]);
+        mpz_mul_mod(coeffs[i], coeffs[i], q, x0);
+        mpz_clear(q);
+        if (verbose) {
+#pragma omp critical
+            print_progress(++count, n);
+        }
+    }
+    if (verbose)
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
+}
+
+clt_state *
+clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
+              size_t min_slots, size_t ncores, size_t flags,
+              aes_randstate_t rng)
+{
+    clt_state *s;
+    size_t alpha, beta, eta, rho_f;
+    clt_elem_t *ps, *zs;
+    double start_time = 0.0;
+    int count;
+    const bool verbose = flags & CLT_FLAG_VERBOSE;
+
+    if (flags & CLT_FLAG_POLYLOG &&
+        (flags & CLT_FLAG_OPT_CRT_TREE || flags & CLT_FLAG_OPT_PARALLEL_ENCODE
+         || flags & CLT_FLAG_OPT_COMPOSITE_PS)) {
+        fprintf(stderr, "error: polylog not (yet) compatible with CLT optimizations\n");
+        return NULL;
+    }
+
+    s = calloc(1, sizeof s[0]);
+    if (s == NULL)
+        return NULL;
+
+    if (ncores == 0)
+        ncores = sysconf(_SC_NPROCESSORS_ONLN);
+    (void) omp_set_num_threads(ncores);
+
+    /* calculate CLT parameters */
+    s->nzs = nzs;
+    alpha  = lambda;                   /* bitsize of g_i primes */
+    beta   = lambda;                   /* bitsize of h_i entries */
+    s->rho = lambda;                   /* bitsize of randomness */
+    rho_f  = kappa * (s->rho + alpha); /* max bitsize of r_i's */
+    eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
+    s->n   = MAX(estimate_n(lambda, eta, flags), min_slots);  /* number of primes */
+    eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
+    s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
+    s->flags = flags;
+
+    /* Loop until a fixed point reached for choosing eta, n, and nu */
+    {
+        size_t old_eta = 0, old_n = 0, old_nu = 0;
+        int i = 0;
+        for (; i < 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu);
+             ++i) {
+            old_eta = eta, old_n = s->n, old_nu = s->nu;
+            eta = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
+            s->n = MAX(estimate_n(lambda, eta, flags), min_slots);
+            s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
+        }
+
+        if (i == 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu)) {
+            fprintf(stderr, "error: unable to find valid η, n, and ν choices\n");
+            free(s);
+            return NULL;
+        }
+    }
+
+    /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
+    assert(s->nu >= alpha + 6);
+    assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
+    assert(s->n >= min_slots);
+
+    if (verbose) {
+        fprintf(stderr, "  λ: %ld\n", lambda);
+        fprintf(stderr, "  κ: %ld\n", kappa);
+        fprintf(stderr, "  α: %ld\n", alpha);
+        fprintf(stderr, "  β: %ld\n", beta);
+        fprintf(stderr, "  η: %ld\n", eta);
+        fprintf(stderr, "  ν: %ld\n", s->nu);
+        fprintf(stderr, "  ρ: %ld\n", s->rho);
+        fprintf(stderr, "  ρ_f: %ld\n", rho_f);
+        fprintf(stderr, "  n: %ld\n", s->n);
+        fprintf(stderr, "  nzs: %ld\n", s->nzs);
+        fprintf(stderr, "  ncores: %ld\n", ncores);
+        fprintf(stderr, "  Flags: \n");
+        if (s->flags & CLT_FLAG_OPT_CRT_TREE)
+            fprintf(stderr, "    CRT TREE\n");
+        if (s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)
+            fprintf(stderr, "    PARALLEL ENCODE\n");
+        if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS)
+            fprintf(stderr, "    COMPOSITE PS\n");
+        if (s->flags & CLT_FLAG_SEC_IMPROVED_BKZ)
+            fprintf(stderr, "    IMPROVED BKZ\n");
+        if (s->flags & CLT_FLAG_SEC_CONSERVATIVE)
+            fprintf(stderr, "    CONSERVATIVE\n");
+        if (s->flags & CLT_FLAG_POLYLOG)
+            fprintf(stderr, "    POLYLOG\n");
+    }
+
+    /* Generate randomness for each core */
+    s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
+    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
+        unsigned char *buf;
+        size_t nbytes;
+
+        buf = random_aes(rng, 128, &nbytes);
+        aes_randinit_seedn(s->rngs[i], (char *) buf, nbytes, NULL, 0);
+        free(buf);
+    }
+
+    ps = clt_vector_new(s->n);
+    zs = clt_vector_new(s->nzs);
+    s->zinvs = clt_vector_new(s->nzs);
+    s->gs = clt_vector_new(s->n);
+    if (!(s->flags & CLT_FLAG_OPT_CRT_TREE)) {
+        s->crt_coeffs = clt_vector_new(s->n);
+    }
+    mpz_init_set_ui(s->x0,  1);
+    mpz_init_set_ui(s->pzt, 0);
+
+    if (verbose) {
+        fprintf(stderr, "  Generating p_i's and g_i's:");
+        start_time = current_time();
+    }
+
+generate_ps:
+    if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
+        gen_primes_composite_ps(ps, s->rngs, s->n, eta, verbose);
+    } else {
+        if (verbose) fprintf(stderr, "\n");
+        gen_primes(ps, s->rngs, s->n, eta, verbose);
+    }
+    gen_primes(s->gs, s->rngs, s->n, alpha, verbose);
+
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        if (verbose) {
+            fprintf(stderr, "  Generating CRT-Tree: ");
+            start_time = current_time();
+        }
+        s->crt = crt_tree_new(ps, s->n);
+        if (s->crt == NULL) {
+            /* if crt_tree_init fails, regenerate with new p_i's */
+            if (verbose)
+                fprintf(stderr, "(restarting) ");
+            goto generate_ps;
+        }
+        /* crt_tree_init succeeded, set x0 */
+        mpz_set(s->x0, s->crt->mod);
+        if (verbose) {
+            fprintf(stderr, "[%.2fs]\n", current_time() - start_time);
+        }
+    } else {
+        /* Don't use CRT tree optimization */
+        if (verbose) {
+            fprintf(stderr, "  Computing x0: \n");
+            start_time = current_time();
+        }
+
+        /* calculate x0 the hard way */
+        /* TODO: could parallelize this if desired */
+        for (size_t i = 0; i < s->n; i++) {
+            mpz_mul(s->x0, s->x0, ps[i]);
+            if (verbose)
+                print_progress(i, s->n-1);
+        }
+
+        if (verbose)
+            fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
+
+        crt_coeffs(s->crt_coeffs, ps, s->n, s->x0, verbose);
+    }
+
+    /* Compute z_i's */
+    if (verbose) {
+        fprintf(stderr, "  Generating z_i's:\n");
+        start_time = current_time();
+        count = 0;
+    }
+#pragma omp parallel for
+    for (size_t i = 0; i < s->nzs; ++i) {
+        do {
+            mpz_urandomm_aes(zs[i], s->rngs[i], s->x0);
+        } while (mpz_invert(s->zinvs[i], zs[i], s->x0) == 0);
+        if (verbose) {
+#pragma omp critical
+            print_progress(++count, s->nzs);
+        }
+    }
+    if (verbose) {
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
+    }
+
+    /* Compute pzt */
+    if (verbose) {
+        fprintf(stderr, "  Generating pzt:\n");
+        start_time = current_time();
+        count = 0;
+    }
+
+    {
+        clt_elem_t zk;
+        mpz_init_set_ui(zk, 1);
+        /* compute z_1^t_1 ... z_k^t_k mod x0 */
+        for (size_t i = 0; i < s->nzs; ++i) {
+            clt_elem_t tmp;
+            mpz_init(tmp);
+            mpz_powm_ui(tmp, zs[i], pows[i], s->x0);
+            mpz_mul_mod(zk, zk, tmp, s->x0);
+            mpz_clear(tmp);
+            if (verbose) {
+                print_progress(++count, s->n + s->nzs);
+            }
+        }
+#pragma omp parallel for
+        for (size_t i = 0; i < s->n; ++i) {
+            clt_elem_t tmp, qpi, rnd;
+            mpz_inits(tmp, qpi, rnd, NULL);
+            /* compute ((g_i^{-1} mod p_i) * z * r_i * (x0 / p_i) */
+            mpz_invert(tmp, s->gs[i], ps[i]);
+            mpz_mul_mod(tmp, tmp, zk, ps[i]);
+            do {
+                mpz_random_(rnd, s->rngs[i], beta);
+            } while (mpz_cmp(rnd, s->gs[i]) == 0);
+            mpz_mul(tmp, tmp, rnd);
+            mpz_div(qpi, s->x0, ps[i]);
+            mpz_mul_mod(tmp, tmp, qpi, s->x0);
+#pragma omp critical
+            {
+                mpz_add(s->pzt, s->pzt, tmp);
+            }
+            mpz_clears(tmp, qpi, rnd, NULL);
+            if (verbose) {
+#pragma omp critical
+                print_progress(++count, s->n + s->nzs);
+            }
+        }
+        mpz_mod_near(s->pzt, s->pzt, s->x0);
+        mpz_clear(zk);
+    }
+    if (verbose) {
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
+    }
+
+    clt_vector_free(ps, s->n);
+    clt_vector_free(zs, s->nzs);
+
+    return s;
+}
+
+void
+clt_state_new_polylog(clt_state *s, size_t nmults, size_t eta, bool verbose)
+{
+    clt_elem_t **ps;
+    eta += 50 * nmults;
+
+    ps = calloc(nmults, sizeof ps[0]);
+    for (size_t i = 0; i < nmults; ++i) {
+        gen_primes(ps[i], s->rngs, s->n, eta, verbose);
+        eta -= 50;
+    }
+}
+
+void
+clt_state_delete(clt_state *s)
+{
+    mpz_clears(s->x0, s->pzt, NULL);
+    clt_vector_free(s->gs, s->n);
+    clt_vector_free(s->zinvs, s->nzs);
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        crt_tree_free(s->crt);
+    } else {
+        clt_vector_free(s->crt_coeffs, s->n);
+    }
+    if (s->rngs) {
+        for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
+            aes_randclear(s->rngs[i]);
+        }
+        free(s->rngs);
+    }
+    free(s);
+}
+
+clt_elem_t *
+clt_state_moduli(const clt_state *const s)
+{
+    return s->gs;
+}
+
+size_t
+clt_state_nslots(const clt_state *const s)
+{
+    return s->n;
+}
+
+size_t
+clt_state_nzs(const clt_state *const s)
+{
+    return s->nzs;
 }

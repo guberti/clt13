@@ -392,5 +392,10 @@ main(int argc, char *argv[])
     if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
 
+    printf("* polylog\n");
+    flags = default_flags | CLT_FLAG_POLYLOG;
+    if (test(flags, nzs, lambda, kappa) == 1)
+        return 1;
+
     return 0;
 }
