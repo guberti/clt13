@@ -739,8 +739,6 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
         free(buf);
     }
 
-    ps = clt_vector_new(s->n);
-    zs = clt_vector_new(s->nzs);
     s->zinvs = clt_vector_new(s->nzs);
     s->gs = clt_vector_new(s->n);
     if (!(s->flags & CLT_FLAG_OPT_CRT_TREE)) {
@@ -748,6 +746,14 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
     }
     mpz_init_set_ui(s->x0,  1);
     mpz_init_set_ui(s->pzt, 0);
+
+    if (s->flags & CLT_FLAG_POLYLOG) {
+        clt_state_new_polylog(s, 1 /* FIXME: */, eta, verbose);
+        return s;
+    }
+
+    ps = clt_vector_new(s->n);
+    zs = clt_vector_new(s->nzs);
 
     if (verbose) {
         fprintf(stderr, "  Generating p_i's and g_i's:");
@@ -885,18 +891,6 @@ generate_ps:
 }
 
 void
-clt_state_new_polylog(clt_state *s, size_t nmults, size_t eta, bool verbose)
-{
-    clt_elem_t **ps;
-    eta += 50 * nmults;
-
-    ps = calloc(nmults, sizeof ps[0]);
-    for (size_t i = 0; i < nmults; ++i) {
-        gen_primes(ps[i], s->rngs, s->n, eta, verbose);
-        eta -= 50;
-    }
-}
-
 clt_state_free(clt_state_t *s)
 {
     mpz_clears(s->x0, s->pzt, NULL);
