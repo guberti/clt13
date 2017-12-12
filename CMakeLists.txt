@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
-project(clt13 VERSION 1.0.0 LANGUAGES C)
+project(clt13 VERSION 0.1.0 LANGUAGES C)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -14,17 +14,9 @@ set(clt13_SOURCES
   src/estimates.c
   src/utils.c
   )
-set(clt13_HEADERS
-  src/clt13.h
-  src/crt_tree.h
-  src/estimates.h
-  src/utils.h
-  )
 
 add_library(clt13 SHARED ${clt13_SOURCES})
-target_include_directories(clt13 PRIVATE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
-target_link_libraries(clt13 PUBLIC gmp aesrand)
+target_link_libraries(clt13 PRIVATE gmp aesrand)
 
 include(FindOpenMP)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -Werror -std=gnu11 -march=native ${OpenMP_C_FLAGS}")
