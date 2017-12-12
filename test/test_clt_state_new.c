@@ -28,7 +28,7 @@ main(void)
     if (s == NULL)
         goto cleanup;
 
-    clt_state_delete(s);
+    clt_state_free(s);
     ret = 0;
 cleanup:
     aes_randclear(rng);

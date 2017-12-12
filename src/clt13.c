@@ -378,7 +378,7 @@ clt_pp_new(const clt_state *mmap)
 }
 
 void
-clt_pp_delete(clt_pp *pp)
+clt_pp_free(clt_pp *pp)
 {
     mpz_clears(pp->x0, pp->pzt, NULL);
     free(pp);
@@ -405,7 +405,7 @@ cleanup:
     if (ret == CLT_OK) {
         return pp;
     } else {
-        clt_pp_delete(pp);
+        clt_pp_free(pp);
         return NULL;
     }
 }
@@ -883,8 +883,7 @@ clt_state_new_polylog(clt_state *s, size_t nmults, size_t eta, bool verbose)
     }
 }
 
-void
-clt_state_delete(clt_state *s)
+clt_state_free(clt_state *s)
 {
     mpz_clears(s->x0, s->pzt, NULL);
     clt_vector_free(s->gs, s->n);

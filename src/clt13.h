@@ -59,7 +59,7 @@ typedef struct {
 clt_state * clt_state_new(const clt_params_t *params,
                           const clt_params_opt_t *opts, size_t ncores,
                           size_t flags, aes_randstate_t rng);
-void clt_state_delete(clt_state *s);
+void clt_state_free(clt_state *s);
 clt_state * clt_state_fread(FILE *fp);
 int clt_state_fwrite(clt_state *s, FILE *fp);
 clt_elem_t * clt_state_moduli(const clt_state *s);
@@ -69,7 +69,7 @@ size_t clt_state_nzs(const clt_state *s);
 // public parameters
 
 clt_pp * clt_pp_new(const clt_state *mmap);
-void clt_pp_delete(clt_pp *pp);
+void clt_pp_free(clt_pp *pp);
 clt_pp * clt_pp_fread(FILE *fp);
 int clt_pp_fwrite(clt_pp *pp, FILE *fp);
 
