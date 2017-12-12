@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/time.h>
 #include <unistd.h>
 #include <omp.h>
 
@@ -20,6 +19,7 @@
 
 struct clt_elem_t {
     mpz_t elem;
+    size_t level;
 };
 
 struct clt_state_t {
@@ -50,10 +50,6 @@ struct clt_pp_t {
     mpz_t pzt;
     size_t nu;
 };
-
-static double current_time(void);
-static int size_t_fread(FILE *const fp, size_t *x);
-static int size_t_fwrite(FILE *const fp, size_t x);
 
 static inline void
 mpz_mod_near(mpz_t rop, const mpz_t a, const mpz_t p)
@@ -441,52 +437,6 @@ clt_pp_fwrite(clt_pp_t *pp, FILE *fp)
     ret = CLT_OK;
 cleanup:
     return ret;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// helper functions
-
-static int
-size_t_fread(FILE *fp, size_t *x)
-{
-    if (fread(x, sizeof x[0], 1, fp) != 1)
-        return CLT_ERR;
-    return CLT_OK;
-}
-
-static int
-size_t_fwrite(FILE *fp, size_t x)
-{
-    if (fwrite(&x, sizeof x, 1, fp) != 1)
-        return CLT_ERR;
-    return CLT_OK;
-}
-
-
-static double
-current_time(void)
-{
-    struct timeval t;
-    gettimeofday(&t, NULL);
-    return t.tv_sec + (double) (t.tv_usec / 1000000.0);
-}
-
-#define PBSTR "||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||"
-#define PBWIDTH 60
-
-static void
-print_progress(size_t cur, size_t total)
-{
-    static int last_val = 0;
-    double percentage = (double) cur / total;
-    int val  = percentage * 100;
-    int lpad = percentage * PBWIDTH;
-    int rpad = PBWIDTH - lpad;
-    if (val != last_val) {
-        fprintf(stderr, "\r\t%3d%% [%.*s%*s] %lu/%lu", val, lpad, PBSTR, rpad, "", cur, total);
-        fflush(stderr);
-        last_val = val;
-    }
 }
 
 static inline size_t nb_of_bits(size_t x)
