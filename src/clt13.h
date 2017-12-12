@@ -15,6 +15,21 @@ typedef mpz_t clt_elem_t;
 typedef struct clt_state clt_state;
 typedef struct clt_pp clt_pp;
 
+typedef struct {
+    /* Security parameter */
+    size_t lambda;
+    /* Multilinearity */
+    size_t kappa;
+    /* Number of Zs */
+    size_t nzs;
+    /* Powers for the Zs */
+    int *pows;
+} clt_params_t;
+
+typedef struct {
+    size_t min_slots;
+} clt_params_opt_t;
+
 #define CLT_FLAG_NONE 0x00
 /* Be verbose */
 #define CLT_FLAG_VERBOSE 0x01
@@ -36,8 +51,8 @@ typedef struct clt_pp clt_pp;
       | CLT_FLAG_OPT_COMPOSITE_PS               \
         )
 
-clt_state * clt_state_new(size_t kappa, size_t lambda, size_t nzs,
-                          const int *pows, size_t min_slots, size_t ncores,
+clt_state * clt_state_new(const clt_params_t *params,
+                          const clt_params_opt_t *opts, size_t ncores,
                           size_t flags, aes_randstate_t rng);
 void clt_state_delete(clt_state *s);
 clt_state * clt_state_fread(FILE *fp);

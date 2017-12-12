@@ -53,7 +53,13 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     aes_randinit(rng);
     for (ulong i = 0; i < nzs; i++) pows[i] = 1;
 
-    mmap = clt_state_new(kappa, lambda, nzs, pows, 0, 0, flags, rng);
+    clt_params_t params = {
+        .lambda = lambda,
+        .kappa = kappa,
+        .nzs = nzs,
+        .pows = pows
+    };
+    mmap = clt_state_new(&params, NULL, 0, flags, rng);
     pp = clt_pp_new(mmap);
 
     /* Test read/write */
@@ -265,6 +271,13 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     mpz_t zero, one, value, result, top_one, top_zero;
     int ok = 1;
 
+    clt_params_t params = {
+        .lambda = lambda,
+        .kappa = kappa,
+        .nzs = kappa,
+        .pows = top_level
+    };
+
     printf("Testing levels: λ = %lu, κ = %lu\n", lambda, kappa);
 
     aes_randinit(rng);
@@ -275,7 +288,7 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     for (ulong i = 0; i < kappa; ++i)
         top_level[i] = 1;
 
-    s = clt_state_new(kappa, lambda, kappa, top_level, 0, 0, flags, rng);
+    s = clt_state_new(&params, NULL, 0, flags, rng);
     pp = clt_pp_new(s);
 
     clt_encode(top_one, s, 1, &one, top_level);

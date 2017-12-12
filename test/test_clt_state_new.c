@@ -13,11 +13,18 @@ main(void)
     aes_randstate_t rng;
     int ret = 1;
 
+    clt_params_t params = {
+        .lambda = lambda,
+        .kappa = kappa,
+        .nzs = nzs,
+        .pows = pows
+    };
+
     aes_randinit(rng);
     for (int i = 0; i < nzs; ++i)
         pows[i] = 1;
 
-    s = clt_state_new(kappa, lambda, nzs, pows, 0, 0, flags, rng);
+    s = clt_state_new(&params, NULL, 0, flags, rng);
     if (s == NULL)
         goto cleanup;
 

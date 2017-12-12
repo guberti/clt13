@@ -625,9 +625,8 @@ crt_coeffs(clt_elem_t *coeffs, clt_elem_t *ps, size_t n, clt_elem_t x0, bool ver
 }
 
 clt_state *
-clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
-              size_t min_slots, size_t ncores, size_t flags,
-              aes_randstate_t rng)
+clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
+              size_t ncores, size_t flags, aes_randstate_t rng)
 {
     clt_state *s;
     size_t alpha, beta, eta, rho_f;
@@ -635,6 +634,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
     double start_time = 0.0;
     int count;
     const bool verbose = flags & CLT_FLAG_VERBOSE;
+    const size_t min_slots = opts ? opts->min_slots : 0;
 
     if (flags & CLT_FLAG_POLYLOG &&
         (flags & CLT_FLAG_OPT_CRT_TREE || flags & CLT_FLAG_OPT_PARALLEL_ENCODE
@@ -652,13 +652,13 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
     (void) omp_set_num_threads(ncores);
 
     /* calculate CLT parameters */
-    s->nzs = nzs;
-    alpha  = lambda;                   /* bitsize of g_i primes */
-    beta   = lambda;                   /* bitsize of h_i entries */
-    s->rho = lambda;                   /* bitsize of randomness */
-    rho_f  = kappa * (s->rho + alpha); /* max bitsize of r_i's */
+    s->nzs = params->nzs;
+    alpha  = params->lambda;           /* bitsize of g_i primes */
+    beta   = params->lambda;           /* bitsize of h_i entries */
+    s->rho = params->lambda;           /* bitsize of randomness */
+    rho_f  = params->kappa * (s->rho + alpha); /* max bitsize of r_i's */
     eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
-    s->n   = MAX(estimate_n(lambda, eta, flags), min_slots);  /* number of primes */
+    s->n   = MAX(estimate_n(params->lambda, eta, flags), min_slots); /* number of primes */
     eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
     s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
     s->flags = flags;
@@ -671,7 +671,7 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
              ++i) {
             old_eta = eta, old_n = s->n, old_nu = s->nu;
             eta = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
-            s->n = MAX(estimate_n(lambda, eta, flags), min_slots);
+            s->n = MAX(estimate_n(params->lambda, eta, flags), min_slots);
             s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
         }
 
@@ -688,8 +688,8 @@ clt_state_new(size_t kappa, size_t lambda, size_t nzs, const int *pows,
     assert(s->n >= min_slots);
 
     if (verbose) {
-        fprintf(stderr, "  λ: %ld\n", lambda);
-        fprintf(stderr, "  κ: %ld\n", kappa);
+        fprintf(stderr, "  λ: %ld\n", params->lambda);
+        fprintf(stderr, "  κ: %ld\n", params->kappa);
         fprintf(stderr, "  α: %ld\n", alpha);
         fprintf(stderr, "  β: %ld\n", beta);
         fprintf(stderr, "  η: %ld\n", eta);
@@ -821,7 +821,7 @@ generate_ps:
         for (size_t i = 0; i < s->nzs; ++i) {
             clt_elem_t tmp;
             mpz_init(tmp);
-            mpz_powm_ui(tmp, zs[i], pows[i], s->x0);
+            mpz_powm_ui(tmp, zs[i], params->pows[i], s->x0);
             mpz_mul_mod(zk, zk, tmp, s->x0);
             mpz_clear(tmp);
             if (verbose) {
