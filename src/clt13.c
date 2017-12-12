@@ -17,7 +17,7 @@
  * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
 #define ETAP_DEFAULT 420
 
-struct clt_state {
+struct clt_state_t {
     size_t n;
     size_t nzs;
     size_t rho;
@@ -40,7 +40,7 @@ struct clt_state {
     size_t flags;
 };
 
-struct clt_pp {
+struct clt_pp_t {
     clt_elem_t x0;
     clt_elem_t pzt;
     size_t nu;
@@ -96,7 +96,7 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, size_t len)
 // encodings
 
 void
-clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
+clt_encode(clt_elem_t rop, const clt_state_t *s, size_t nins, mpz_t *ins,
            const int *pows)
 {
     if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)) {
@@ -149,7 +149,7 @@ clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
 }
 
 int
-clt_is_zero(const clt_elem_t c, const clt_pp *pp)
+clt_is_zero(const clt_elem_t c, const clt_pp_t *pp)
 {
     int ret;
 
@@ -183,28 +183,28 @@ clt_elem_set(clt_elem_t a, const clt_elem_t b)
 }
 
 void
-clt_elem_add(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b)
+clt_elem_add(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b)
 {
     mpz_add(rop, a, b);
     mpz_mod(rop, rop, pp->x0);
 }
 
 void
-clt_elem_sub(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b)
+clt_elem_sub(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b)
 {
     mpz_sub(rop, a, b);
     mpz_mod(rop, rop, pp->x0);
 }
 
 void
-clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b)
+clt_elem_mul(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b)
 {
     mpz_mul(rop, a, b);
     mpz_mod(rop, rop, pp->x0);
 }
 
 void
-clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, unsigned int b)
+clt_elem_mul_ui(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, unsigned int b)
 {
     mpz_mul_ui(rop, a, b);
     mpz_mod(rop, rop, pp->x0);
@@ -216,13 +216,13 @@ clt_elem_print(clt_elem_t a)
     gmp_printf("%Zd", a);
 }
 
-clt_state *
+clt_state_t *
 clt_state_fread(FILE *const fp)
 {
-    clt_state *s;
+    clt_state_t *s;
     int ret = 1;
 
-    s = calloc(1, sizeof(clt_state));
+    s = calloc(1, sizeof s[0]);
     if (s == NULL)
         return NULL;
 
@@ -283,7 +283,7 @@ clt_state_fread(FILE *const fp)
         }
     }
 
-    s->rngs = malloc(sizeof(aes_randstate_t) * MAX(s->n, s->nzs));
+    s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
     for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
         aes_randstate_fread(s->rngs[i], fp);
     }
@@ -298,7 +298,7 @@ cleanup:
 }
 
 int
-clt_state_fwrite(clt_state *const s, FILE *const fp)
+clt_state_fwrite(clt_state_t *const s, FILE *const fp)
 {
     int ret = CLT_ERR;
 
@@ -362,12 +362,12 @@ cleanup:
 ////////////////////////////////////////////////////////////////////////////////
 // public parameters
 
-clt_pp *
-clt_pp_new(const clt_state *mmap)
+clt_pp_t *
+clt_pp_new(const clt_state_t *mmap)
 {
-    clt_pp *pp;
+    clt_pp_t *pp;
 
-    pp = calloc(1, sizeof(clt_pp));
+    pp = calloc(1, sizeof pp[0]);
     if (pp == NULL)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
@@ -378,19 +378,19 @@ clt_pp_new(const clt_state *mmap)
 }
 
 void
-clt_pp_free(clt_pp *pp)
+clt_pp_free(clt_pp_t *pp)
 {
     mpz_clears(pp->x0, pp->pzt, NULL);
     free(pp);
 }
 
-clt_pp *
-clt_pp_fread(FILE *const fp)
+clt_pp_t *
+clt_pp_fread(FILE *fp)
 {
-    clt_pp *pp;
+    clt_pp_t *pp;
     int ret = CLT_ERR;
 
-    if ((pp = calloc(1, sizeof(clt_pp))) == NULL)
+    if ((pp = calloc(1, sizeof pp[0])) == NULL)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
 
@@ -411,7 +411,7 @@ cleanup:
 }
 
 int
-clt_pp_fwrite(clt_pp *const pp, FILE *const fp)
+clt_pp_fwrite(clt_pp_t *pp, FILE *fp)
 {
     int ret = CLT_ERR;
 
@@ -624,11 +624,25 @@ crt_coeffs(clt_elem_t *coeffs, clt_elem_t *ps, size_t n, clt_elem_t x0, bool ver
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
 }
 
-clt_state *
+static void
+clt_state_new_polylog(clt_state_t *s, size_t nmults, size_t eta, bool verbose)
+{
+    clt_elem_t **ps;
+    eta += 50 * nmults;
+
+    ps = calloc(nmults + 1, sizeof ps[0]);
+    for (size_t i = 0; i < nmults + 1; ++i) {
+        ps[i] = clt_vector_new(s->n);
+        gen_primes(ps[i], s->rngs, s->n, eta, verbose);
+        eta -= 50;
+    }
+}
+
+clt_state_t *
 clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
               size_t ncores, size_t flags, aes_randstate_t rng)
 {
-    clt_state *s;
+    clt_state_t *s;
     size_t alpha, beta, eta, rho_f;
     clt_elem_t *ps, *zs;
     double start_time = 0.0;
@@ -883,7 +897,7 @@ clt_state_new_polylog(clt_state *s, size_t nmults, size_t eta, bool verbose)
     }
 }
 
-clt_state_free(clt_state *s)
+clt_state_free(clt_state_t *s)
 {
     mpz_clears(s->x0, s->pzt, NULL);
     clt_vector_free(s->gs, s->n);
@@ -903,19 +917,19 @@ clt_state_free(clt_state *s)
 }
 
 clt_elem_t *
-clt_state_moduli(const clt_state *const s)
+clt_state_moduli(const clt_state_t *s)
 {
     return s->gs;
 }
 
 size_t
-clt_state_nslots(const clt_state *const s)
+clt_state_nslots(const clt_state_t *s)
 {
     return s->n;
 }
 
 size_t
-clt_state_nzs(const clt_state *const s)
+clt_state_nzs(const clt_state_t *s)
 {
     return s->nzs;
 }

@@ -42,8 +42,8 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 {
     srand(time(NULL));
 
-    clt_state *mmap;
-    clt_pp *pp;
+    clt_state_t *mmap;
+    clt_pp_t *pp;
     clt_elem_t *moduli;
     aes_randstate_t rng;
     int pows[nzs];
@@ -265,8 +265,8 @@ static int
 test_levels(ulong flags, ulong kappa, ulong lambda)
 {
     int pows[kappa], top_level[kappa];
-    clt_state *s;
-    clt_pp *pp;
+    clt_state_t *s;
+    clt_pp_t *pp;
     aes_randstate_t rng;
     mpz_t zero, one, value, result, top_one, top_zero;
     int ok = 1;

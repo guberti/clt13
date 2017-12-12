@@ -8,7 +8,7 @@ static size_t flags = CLT_FLAG_VERBOSE | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_CO
 int
 main(void)
 {
-    clt_state *s;
+    clt_state_t *s;
     int pows[nzs];
     aes_randstate_t rng;
     int ret = 1;

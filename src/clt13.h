@@ -12,8 +12,8 @@ extern "C" {
 #include <gmp.h>
 
 typedef mpz_t clt_elem_t;
-typedef struct clt_state clt_state;
-typedef struct clt_pp clt_pp;
+typedef struct clt_state_t clt_state_t;
+typedef struct clt_pp_t clt_pp_t;
 
 typedef struct {
     /* security parameter */
@@ -56,38 +56,38 @@ typedef struct {
       | CLT_FLAG_OPT_COMPOSITE_PS               \
         )
 
-clt_state * clt_state_new(const clt_params_t *params,
-                          const clt_params_opt_t *opts, size_t ncores,
-                          size_t flags, aes_randstate_t rng);
-void clt_state_free(clt_state *s);
-clt_state * clt_state_fread(FILE *fp);
-int clt_state_fwrite(clt_state *s, FILE *fp);
-clt_elem_t * clt_state_moduli(const clt_state *s);
-size_t clt_state_nslots(const clt_state *s);
-size_t clt_state_nzs(const clt_state *s);
+clt_state_t * clt_state_new(const clt_params_t *params,
+                            const clt_params_opt_t *opts, size_t ncores,
+                            size_t flags, aes_randstate_t rng);
+void clt_state_free(clt_state_t *s);
+clt_state_t * clt_state_fread(FILE *fp);
+int clt_state_fwrite(clt_state_t *s, FILE *fp);
+clt_elem_t * clt_state_moduli(const clt_state_t *s);
+size_t clt_state_nslots(const clt_state_t *s);
+size_t clt_state_nzs(const clt_state_t *s);
 
 // public parameters
 
-clt_pp * clt_pp_new(const clt_state *mmap);
-void clt_pp_free(clt_pp *pp);
-clt_pp * clt_pp_fread(FILE *fp);
-int clt_pp_fwrite(clt_pp *pp, FILE *fp);
+clt_pp_t * clt_pp_new(const clt_state_t *mmap);
+void clt_pp_free(clt_pp_t *pp);
+clt_pp_t * clt_pp_fread(FILE *fp);
+int clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
 
 // encodings
 
-void clt_encode(clt_elem_t rop, const clt_state *s, size_t nins, mpz_t *ins,
+void clt_encode(clt_elem_t rop, const clt_state_t *s, size_t nins, mpz_t *ins,
                 const int *pows);
-int clt_is_zero(const clt_elem_t c, const clt_pp *pp);
+int clt_is_zero(const clt_elem_t c, const clt_pp_t *pp);
 
 // elements
 
 void clt_elem_init(clt_elem_t rop);
 void clt_elem_clear(clt_elem_t rop);
 void clt_elem_set(clt_elem_t a, const clt_elem_t b);
-void clt_elem_add(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b);
-void clt_elem_sub(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b);
-void clt_elem_mul(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, const clt_elem_t b);
-void clt_elem_mul_ui(clt_elem_t rop, const clt_pp *pp, const clt_elem_t a, unsigned int b);
+void clt_elem_add(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b);
+void clt_elem_sub(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b);
+void clt_elem_mul(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, const clt_elem_t b);
+void clt_elem_mul_ui(clt_elem_t rop, const clt_pp_t *pp, const clt_elem_t a, unsigned int b);
 void clt_elem_print(clt_elem_t a);
 
 int clt_elem_fread(clt_elem_t x, FILE *fp);
