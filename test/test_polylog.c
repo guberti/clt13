@@ -27,25 +27,14 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     clt_state_t *mmap;
     clt_pp_t *pp;
     aes_randstate_t rng;
-    int top[nzs], ix0[nzs], ix1[nzs];
+    int top[nzs];
     int ok = 1;
-    clt_elem_t *x, *y, *out;
+    clt_elem_t *x0, *x1, *x2, *x3, *x4, *x5, *out;
     mpz_t zero, one;
 
-    for (size_t i = 0; i < nzs; i++) {
+    for (size_t i = 0; i < nzs; i++)
         top[i] = 0;
-    }
-
     aes_randinit(rng);
-    for (size_t i = 0; i < nzs; i++) {
-        if (i < nzs / 2) {
-            ix0[i] = 0;
-            ix1[i] = 0;
-        } else {
-            ix0[i] = 0;
-            ix1[i] = 0;
-        }
-    }
 
     clt_params_t params = {
         .lambda = lambda,
@@ -54,27 +43,36 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
         .pows = top,
     };
     clt_params_opt_t opts = {
-        .nlayers = 1,
+        .nlayers = 2,
     };
 
     mmap = clt_state_new(&params, &opts, 0, flags, rng);
     pp = clt_pp_new(mmap);
 
-    x = clt_elem_new();
-    y = clt_elem_new();
+    x0 = clt_elem_new();
+    x1 = clt_elem_new();
+    x2 = clt_elem_new();
+    x3 = clt_elem_new();
+    x4 = clt_elem_new();
+    x5 = clt_elem_new();
     out = clt_elem_new();
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
 
-    clt_encode(x, mmap, 1, &zero, ix0);
-    clt_encode(y, mmap, 1, &one, ix1);
-    /* ok &= expect("is_zero(0)", 1, clt_is_zero(x, pp)); */
-    /* ok &= expect("is_zero(1)", 0, clt_is_zero(y, pp)); */
-    if (polylog)
-        clt_elem_mul_(out, mmap, x, y);
-    else
-        clt_elem_mul(out, pp, x, y);
-    ok &= expect("is_zero(0 * 1)", 1, clt_is_zero(out, pp));
+    clt_encode(x0, mmap, 1, &zero, top);
+    clt_encode(x1, mmap, 1, &one, top);
+    clt_encode(x2, mmap, 1, &one, top);
+    clt_encode(x3, mmap, 1, &one, top);
+    if (polylog) {
+        clt_elem_mul_(x4, mmap, x0, x1);
+        clt_elem_mul_(x5, mmap, x2, x3);
+        clt_elem_mul_(out, mmap, x4, x5);
+    } else {
+        clt_elem_mul(x4, pp, x0, x1);
+        clt_elem_mul(x5, pp, x2, x3);
+        clt_elem_mul(out, pp, x4, x5);
+    }
+    ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_is_zero(out, pp));
 
     return !ok;
 }
@@ -85,7 +83,7 @@ main(int arg, char **argv)
     (void) arg; (void) argv;
 
     size_t lambda = 16;
-    size_t kappa = 2;
+    size_t kappa = 5;
     size_t nzs = 10;
 
     if (test(lambda, kappa, nzs, false) == 1)

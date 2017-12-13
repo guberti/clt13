@@ -81,10 +81,10 @@ int clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
 
 /* Creates an encoding `rop` using CLT state `s` of integers `xs` of length `n`
  * and index set `ix` */
-void clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-                 const int *ix);
-void clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-                 const int *ix, int level);
+int clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
+               const int *ix);
+int clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
+                const int *ix, size_t level);
 int clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp);
 
 // elements

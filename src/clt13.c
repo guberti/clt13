@@ -97,20 +97,23 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, size_t len)
 ////////////////////////////////////////////////////////////////////////////////
 // encodings
 
-void
+int
 clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
            const int *ix)
 {
-    clt_encode_(rop, s, n, xs, ix, 0);
+    return clt_encode_(rop, s, n, xs, ix, 0);
 }
 
-void
+int
 clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-            const int *ix, int level)
+            const int *ix, size_t level)
 {
     if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)) {
         omp_set_num_threads(1);
     }
+
+    if (s->flags & CLT_FLAG_POLYLOG && level > s->polylog.nlayers)
+        return CLT_ERR;
 
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
         /* slots[i] = m[i] + r*g[i] */
@@ -167,6 +170,7 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         }
         mpz_clear(tmp);
     }
+    return CLT_OK;
 }
 
 int
