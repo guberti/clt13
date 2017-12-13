@@ -1,12 +1,13 @@
 *.o
 test_clt
 test_clt_state_new
-test.mmap
-test.pp
+test_polylog
 Makefile
-build
+build/
 CMakeCache.txt
 CMakeFiles/
 *.cmake
 libaesrand/
 *.so
+vgcore.*
+*.out

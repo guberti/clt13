@@ -38,5 +38,6 @@ echo
 
 build libaesrand    https://github.com/5GenCrypto/libaesrand cmake
 
+rm -rf CMakeCache CMakeFiles/
 cmake "${debug}" .
 make

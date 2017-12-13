@@ -24,7 +24,7 @@ ram_usage(void)
 }
 
 static int
-expect(char * desc, int expected, int recieved)
+expect(char *desc, int expected, int recieved)
 {
     if (expected != recieved) {
         printf("\033[1;41m");
@@ -38,7 +38,7 @@ expect(char * desc, int expected, int recieved)
 }
 
 static int
-test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
+test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
 {
     srand(time(NULL));
 
@@ -51,7 +51,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     int ok = 1;
 
     aes_randinit(rng);
-    for (ulong i = 0; i < nzs; i++) pows[i] = 1;
+    for (size_t i = 0; i < nzs; i++) pows[i] = 1;
 
     clt_params_t params = {
         .lambda = lambda,
@@ -59,10 +59,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
         .nzs = nzs,
         .pows = pows,
     };
-    clt_params_opt_t opts = {
-        .nlayers = 1,
-    };
-    mmap = clt_state_new(&params, &opts, 0, flags, rng);
+    mmap = clt_state_new(&params, NULL, 0, flags, rng);
     pp = clt_pp_new(mmap);
 
     /* Test read/write */
@@ -72,18 +69,18 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
         mmap_f = tmpfile();
         if (mmap_f == NULL) {
-            fprintf(stderr, "Couldn't open test.map!\n");
+            fprintf(stderr, "Couldn't open tmpfile!\n");
             exit(1);
         }
 
-        if (clt_state_fwrite(mmap, mmap_f)) {
-            fprintf(stderr, "clt_state_fsave failed!\n");
+        if (clt_state_fwrite(mmap, mmap_f) == CLT_ERR) {
+            fprintf(stderr, "clt_state_fwrite failed!\n");
             exit(1);
         }
         clt_state_free(mmap);
         rewind(mmap_f);
         if ((mmap = clt_state_fread(mmap_f)) == NULL) {
-            fprintf(stderr, "clt_state_fread failed for mmap!\n");
+            fprintf(stderr, "clt_state_fread failed!\n");
             exit(1);
         }
         fclose(mmap_f);
@@ -94,18 +91,17 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
         pp_f = tmpfile();
         if (pp_f == NULL) {
-            fprintf(stderr, "Couldn't open test.pp!\n");
+            fprintf(stderr, "Couldn't open tmpfile!\n");
             exit(1);
         }
-
-        if (clt_pp_fwrite(pp, pp_f) != 0) {
-            fprintf(stderr, "clt_pp_fsave failed!\n");
+        if (clt_pp_fwrite(pp, pp_f) == CLT_ERR) {
+            fprintf(stderr, "clt_pp_fwrite failed!\n");
             exit(1);
         }
         clt_pp_free(pp);
         rewind(pp_f);
         if ((pp = clt_pp_fread(pp_f)) == NULL) {
-            fprintf(stderr, "clt_pp_fread failed for pp!\n");
+            fprintf(stderr, "clt_pp_fread failed!\n");
             exit(1);
         }
         fclose(pp_f);
@@ -128,7 +124,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     mpz_init_set_ui(two[0], 2);
     mpz_init_set_ui(three[0], 3);
 
-    for (ulong i = 0; i < nzs; i++) {
+    for (size_t i = 0; i < nzs; i++) {
         top_level[i] = 1;
     }
 
@@ -144,6 +140,8 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 
     clt_encode(x0, mmap, 1, zero, top_level);
     clt_encode(x1, mmap, 1, one,  top_level);
+    ok &= expect("is_zero(0)", 1, clt_is_zero(x0, pp));
+    ok &= expect("is_zero(1)", 0, clt_is_zero(x1, pp));
     clt_elem_add(xp, pp, x0, x1);
     ok &= expect("is_zero(0 + 1)", 0, clt_is_zero(xp, pp));
 
@@ -180,7 +178,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
     ok &= expect("is_zero(3*[1] - [3])", 1, clt_is_zero(xp, pp));
 
     int ix0[nzs], ix1[nzs];
-    for (ulong i = 0; i < nzs; i++) {
+    for (size_t i = 0; i < nzs; i++) {
         if (i < nzs / 2) {
             ix0[i] = 1;
             ix1[i] = 0;
@@ -272,7 +270,7 @@ test(ulong flags, ulong nzs, ulong lambda, ulong kappa)
 }
 
 static int
-test_levels(ulong flags, ulong kappa, ulong lambda)
+test_levels(size_t flags, size_t kappa, size_t lambda)
 {
     int pows[kappa], top_level[kappa];
     clt_state_t *s;
@@ -300,7 +298,7 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
 
-    for (ulong i = 0; i < kappa; ++i)
+    for (size_t i = 0; i < kappa; ++i)
         top_level[i] = 1;
 
     s = clt_state_new(&params, NULL, 0, flags, rng);
@@ -309,8 +307,8 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
     clt_encode(top_one, s, 1, &one, top_level);
     clt_encode(top_zero, s, 0, &zero, top_level);
 
-    for (ulong i = 0; i < kappa; ++i) {
-        for (ulong j = 0; j < kappa; ++j) {
+    for (size_t i = 0; i < kappa; ++i) {
+        for (size_t j = 0; j < kappa; ++j) {
             if (j != i)
                 pows[j] = 0;
             else
@@ -330,8 +328,8 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
 
     ok &= expect("is_zero(1 * ... * 1 - 1)", 1, clt_is_zero(result, pp));
 
-    for (ulong i = 0; i < kappa; ++i) {
-        for (ulong j = 0; j < kappa; ++j) {
+    for (size_t i = 0; i < kappa; ++i) {
+        for (size_t j = 0; j < kappa; ++j) {
             if (j != i)
                 pows[j] = 0;
             else
@@ -373,11 +371,11 @@ test_levels(ulong flags, ulong kappa, ulong lambda)
 int
 main(int argc, char *argv[])
 {
-    ulong default_flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
-    ulong flags;
-    ulong kappa;
-    ulong lambda = 40;
-    ulong nzs = 10;
+    size_t default_flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
+    size_t flags;
+    size_t kappa;
+    size_t lambda = 40;
+    size_t nzs = 10;
 
     if (argc == 2) {
         lambda = atoi(argv[1]);
@@ -423,11 +421,6 @@ main(int argc, char *argv[])
     flags = default_flags | CLT_FLAG_OPT_CRT_TREE | CLT_FLAG_OPT_PARALLEL_ENCODE | CLT_FLAG_OPT_COMPOSITE_PS;
     if (test(flags, nzs, lambda, kappa) == 1)
         return 1;
-
-    /* printf("* polylog\n"); */
-    /* flags = default_flags | CLT_FLAG_POLYLOG; */
-    /* if (test(flags, nzs, lambda, kappa) == 1) */
-    /*     return 1; */
 
     return 0;
 }

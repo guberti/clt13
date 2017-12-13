@@ -79,8 +79,12 @@ int clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
 
 // encodings
 
-void clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t nins, mpz_t *ins,
-                const int *pows);
+/* Creates an encoding `rop` using CLT state `s` of integers `xs` of length `n`
+ * and index set `ix` */
+void clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
+                 const int *ix);
+void clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
+                 const int *ix, int level);
 int clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp);
 
 // elements
@@ -95,6 +99,8 @@ int clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, un
 void clt_elem_print(const clt_elem_t *a);
 int clt_elem_fread(clt_elem_t *x, FILE *fp);
 int clt_elem_fwrite(clt_elem_t *x, FILE *fp);
+int clt_elem_mul_(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b);
+
 
 #ifdef __cplusplus
 }
