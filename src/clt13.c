@@ -94,23 +94,16 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, size_t len)
     mpz_clear(p_unif);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// encodings
-
-int
-clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-           const int *ix)
-{
-    return clt_encode_(rop, s, n, xs, ix, 0);
-}
-
 int
 clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-            const int *ix, size_t level)
+            const int *ix, size_t rho, size_t level)
 {
     if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)) {
         omp_set_num_threads(1);
     }
+
+    if (rho == 0)
+        rho = s->rho;
 
     if (s->flags & CLT_FLAG_POLYLOG && level > s->polylog.nlayers)
         return CLT_ERR;
@@ -120,7 +113,7 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         mpz_t *slots = mpz_vector_new(s->n);
 #pragma omp parallel for
         for (size_t i = 0; i < s->n; i++) {
-            mpz_random_(slots[i], s->rngs[i], s->rho);
+            mpz_random_(slots[i], s->rngs[i], rho);
             mpz_mul(slots[i], slots[i], s->gs[i]);
             if (i < n)
                 mpz_add(slots[i], slots[i], xs[i]);
@@ -133,7 +126,7 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         for (size_t i = 0; i < s->n; ++i) {
             mpz_t tmp;
             mpz_init(tmp);
-            mpz_random_(tmp, s->rngs[i], s->rho);
+            mpz_random_(tmp, s->rngs[i], rho);
             mpz_mul(tmp, tmp, s->gs[i]);
             if (i < n)
                 mpz_add(tmp, tmp, xs[i]);
@@ -174,6 +167,13 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
 }
 
 int
+clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
+           const int *ix, size_t rho)
+{
+    return clt_encode_(rop, s, n, xs, ix, rho, 0);
+}
+
+int
 clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp)
 {
     int ret;
@@ -183,7 +183,6 @@ clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp)
 
     mpz_mul(tmp, c->elem, pp->pzt);
     mpz_mod_near(tmp, tmp, pp->x0);
-    printf("%lu < %lu - %lu\n", mpz_sizeinbase(tmp, 2), mpz_sizeinbase(pp->x0, 2), pp->nu);
 
     ret = mpz_sizeinbase(tmp, 2) < mpz_sizeinbase(pp->x0, 2) - pp->nu;
     mpz_clears(tmp, x0_, NULL);
@@ -284,7 +283,7 @@ clt_elem_mul_(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const 
         printf("%d ", ix[i]);
     }
     printf("\n");
-    clt_encode_(rop, s, 1, &rop_, ix, a->level + 1);
+    clt_encode_(rop, s, 1, &rop_, ix, 0, a->level + 1);
     free(ix);
     return CLT_OK;
 }
@@ -681,7 +680,7 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
     double start_time = 0.0;
     int count;
     const bool verbose = flags & CLT_FLAG_VERBOSE;
-    const size_t min_slots = opts ? opts->min_slots : 0;
+    const size_t slots = opts ? opts->slots : 0;
 
     if (flags & CLT_FLAG_POLYLOG &&
         (flags & CLT_FLAG_OPT_CRT_TREE || flags & CLT_FLAG_OPT_PARALLEL_ENCODE
@@ -705,7 +704,7 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
     s->rho = params->lambda;           /* bitsize of randomness */
     rho_f  = params->kappa * (s->rho + alpha); /* max bitsize of r_i's */
     eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
-    s->n   = MAX(estimate_n(params->lambda, eta, flags), min_slots); /* number of primes */
+    s->n   = MAX(estimate_n(params->lambda, eta, flags), slots); /* number of primes */
     eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
     s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
     s->flags = flags;
@@ -718,7 +717,7 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
              ++i) {
             old_eta = eta, old_n = s->n, old_nu = s->nu;
             eta = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
-            s->n = MAX(estimate_n(params->lambda, eta, flags), min_slots);
+            s->n = MAX(estimate_n(params->lambda, eta, flags), slots);
             s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
         }
 
@@ -732,7 +731,7 @@ clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
     /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
     assert(s->nu >= alpha + 6);
     assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
-    assert(s->n >= min_slots);
+    assert(s->n >= slots);
 
     if (verbose) {
         fprintf(stderr, "  λ: %ld\n", params->lambda);

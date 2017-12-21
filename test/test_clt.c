@@ -133,46 +133,46 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
     x1 = clt_elem_new();
     xp = clt_elem_new();
 
-    clt_encode(x0, mmap, 1, zero, top_level);
-    clt_encode(x1, mmap, 1, zero, top_level);
+    clt_encode(x0, mmap, 1, zero, top_level, 0);
+    clt_encode(x1, mmap, 1, zero, top_level, 0);
     clt_elem_add(xp, pp, x0, x1);
     ok &= expect("is_zero(0 + 0)", 1, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, zero, top_level);
-    clt_encode(x1, mmap, 1, one,  top_level);
+    clt_encode(x0, mmap, 1, zero, top_level, 0);
+    clt_encode(x1, mmap, 1, one,  top_level, 0);
     ok &= expect("is_zero(0)", 1, clt_is_zero(x0, pp));
     ok &= expect("is_zero(1)", 0, clt_is_zero(x1, pp));
     clt_elem_add(xp, pp, x0, x1);
     ok &= expect("is_zero(0 + 1)", 0, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, one, top_level);
-    clt_encode(x1, mmap, 1, two, top_level);
+    clt_encode(x0, mmap, 1, one, top_level, 0);
+    clt_encode(x1, mmap, 1, two, top_level, 0);
     clt_elem_mul_ui(x0, pp, x0, 2);
     clt_elem_sub(xp, pp, x1, x0);
     ok &= expect("is_zero(2 - 2[1])", 1, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, zero, top_level);
-    clt_encode(x1, mmap, 1, x,    top_level);
+    clt_encode(x0, mmap, 1, zero, top_level, 0);
+    clt_encode(x1, mmap, 1, x,    top_level, 0);
     clt_elem_add(xp, pp, x0, x1);
     ok &= expect("is_zero(0 + x)", 0, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, x, top_level);
-    clt_encode(x1, mmap, 1, x, top_level);
+    clt_encode(x0, mmap, 1, x, top_level, 0);
+    clt_encode(x1, mmap, 1, x, top_level, 0);
     clt_elem_sub(xp, pp, x0, x1);
     ok &= expect("is_zero(x - x)", 1, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, zero, top_level);
-    clt_encode(x1, mmap, 1, x,    top_level);
+    clt_encode(x0, mmap, 1, zero, top_level, 0);
+    clt_encode(x1, mmap, 1, x,    top_level, 0);
     clt_elem_sub(xp, pp, x0, x1);
     ok &= expect("is_zero(0 - x)", 0, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, one,  top_level);
-    clt_encode(x1, mmap, 1, zero, top_level);
+    clt_encode(x0, mmap, 1, one,  top_level, 0);
+    clt_encode(x1, mmap, 1, zero, top_level, 0);
     clt_elem_sub(xp, pp, x0, x1);
     ok &= expect("is_zero(1 - 0)", 0, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, one,  top_level);
-    clt_encode(x1, mmap, 1, three, top_level);
+    clt_encode(x0, mmap, 1, one,  top_level, 0);
+    clt_encode(x1, mmap, 1, three, top_level, 0);
     clt_elem_mul_ui(x0, pp, x0, 3);
     clt_elem_sub(xp, pp, x0, x1);
     ok &= expect("is_zero(3*[1] - [3])", 1, clt_is_zero(xp, pp));
@@ -187,18 +187,18 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
             ix1[i] = 1;
         }
     }
-    clt_encode(x0, mmap, 1, x   , ix0);
-    clt_encode(x1, mmap, 1, zero, ix1);
+    clt_encode(x0, mmap, 1, x   , ix0, 0);
+    clt_encode(x1, mmap, 1, zero, ix1, 0);
     clt_elem_mul(xp, pp, x0, x1);
     ok &= expect("is_zero(x * 0)", 1, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, x  , ix0);
-    clt_encode(x1, mmap, 1, one, ix1);
+    clt_encode(x0, mmap, 1, x  , ix0, 0);
+    clt_encode(x1, mmap, 1, one, ix1, 0);
     clt_elem_mul(xp, pp, x0, x1);
     ok &= expect("is_zero(x * 1)", 0, clt_is_zero(xp, pp));
 
-    clt_encode(x0, mmap, 1, x, ix0);
-    clt_encode(x1, mmap, 1, x, ix1);
+    clt_encode(x0, mmap, 1, x, ix0, 0);
+    clt_encode(x1, mmap, 1, x, ix1, 0);
     clt_elem_mul(xp, pp, x0, x1);
     ok &= expect("is_zero(x * x)", 0, clt_is_zero(xp, pp));
 
@@ -219,9 +219,9 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
     mpz_urandomb_aes(in1[1], rng, 16);
     mpz_mul(cin[1], in0[1], in1[1]);
 
-    clt_encode(x0, mmap, 2, in0, ix0);
-    clt_encode(x1, mmap, 2, in1, ix1);
-    clt_encode(c,  mmap, 2, cin, top_level);
+    clt_encode(x0, mmap, 2, in0, ix0, 0);
+    clt_encode(x1, mmap, 2, in1, ix1, 0);
+    clt_encode(c,  mmap, 2, cin, top_level, 0);
 
     clt_elem_mul(xp, pp, x0, x1);
     clt_elem_sub(xp, pp, xp, c);
@@ -242,9 +242,9 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
     mpz_urandomb_aes(in1[1], rng, 16);
     mpz_mul(cin[1], in0[1], in1[1]);
 
-    clt_encode(x0, mmap, 2, in0, ix0);
-    clt_encode(x1, mmap, 2, in1, ix1);
-    clt_encode(c,  mmap, 2, cin, top_level);
+    clt_encode(x0, mmap, 2, in0, ix0, 0);
+    clt_encode(x1, mmap, 2, in1, ix1, 0);
+    clt_encode(c,  mmap, 2, cin, top_level, 0);
 
     clt_elem_mul(xp, pp, x0, x1);
     clt_elem_sub(xp, pp, xp, c);
@@ -304,8 +304,8 @@ test_levels(size_t flags, size_t kappa, size_t lambda)
     s = clt_state_new(&params, NULL, 0, flags, rng);
     pp = clt_pp_new(s);
 
-    clt_encode(top_one, s, 1, &one, top_level);
-    clt_encode(top_zero, s, 0, &zero, top_level);
+    clt_encode(top_one, s, 1, &one, top_level, 0);
+    clt_encode(top_zero, s, 0, &zero, top_level, 0);
 
     for (size_t i = 0; i < kappa; ++i) {
         for (size_t j = 0; j < kappa; ++j) {
@@ -314,7 +314,7 @@ test_levels(size_t flags, size_t kappa, size_t lambda)
             else
                 pows[j] = 1;
         }
-        clt_encode(value, s, 1, &one, pows);
+        clt_encode(value, s, 1, &one, pows, 0);
         if (i == 0)
             clt_elem_set(result, value);
         else {
@@ -336,10 +336,10 @@ test_levels(size_t flags, size_t kappa, size_t lambda)
                 pows[j] = 1;
         }
         if (i == 0) {
-            clt_encode(value, s, 0, &one, pows);
+            clt_encode(value, s, 0, &one, pows, 0);
             clt_elem_set(result, value);
         } else {
-            clt_encode(value, s, 1, &one, pows);
+            clt_encode(value, s, 1, &one, pows, 0);
             clt_elem_mul(result, pp, result, value);
         }
     }

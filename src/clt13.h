@@ -29,8 +29,8 @@ typedef struct {
 
 /* Optional parameters to clt_state_new */
 typedef struct {
-    /* minimum number of slots needed */
-    size_t min_slots;
+    /* number of slots needed */
+    size_t slots;
     /* plaintext moduli */
     mpz_t *moduli;
     /* number of plaintext moduli given */
@@ -63,44 +63,36 @@ typedef struct {
 clt_state_t * clt_state_new(const clt_params_t *params,
                             const clt_params_opt_t *opts, size_t ncores,
                             size_t flags, aes_randstate_t rng);
-void clt_state_free(clt_state_t *s);
+void          clt_state_free(clt_state_t *s);
 clt_state_t * clt_state_fread(FILE *fp);
-int clt_state_fwrite(clt_state_t *s, FILE *fp);
-mpz_t * clt_state_moduli(const clt_state_t *s);
-size_t clt_state_nslots(const clt_state_t *s);
-size_t clt_state_nzs(const clt_state_t *s);
-
-// public parameters
+int           clt_state_fwrite(clt_state_t *s, FILE *fp);
+mpz_t *       clt_state_moduli(const clt_state_t *s);
+size_t        clt_state_nslots(const clt_state_t *s);
+size_t        clt_state_nzs(const clt_state_t *s);
 
 clt_pp_t * clt_pp_new(const clt_state_t *mmap);
-void clt_pp_free(clt_pp_t *pp);
+void       clt_pp_free(clt_pp_t *pp);
 clt_pp_t * clt_pp_fread(FILE *fp);
-int clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
-
-// encodings
+int        clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
 
 /* Creates an encoding `rop` using CLT state `s` of integers `xs` of length `n`
- * and index set `ix` */
+ * and index set `ix`. `rho` specifies the number of bits of noise to add to the
+ * encoding; of `rho = 0` then use default noise amount as specified in `s` */
 int clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-               const int *ix);
-int clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-                const int *ix, size_t level);
-int clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp);
-
-// elements
+               const int *ix, size_t rho);
+int clt_is_zero(const clt_elem_t *a, const clt_pp_t *pp);
 
 clt_elem_t * clt_elem_new(void);
-void clt_elem_free(clt_elem_t *e);
-void clt_elem_set(clt_elem_t *a, const clt_elem_t *b);
-int clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
-int clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
-int clt_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
-int clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsigned int b);
-void clt_elem_print(const clt_elem_t *a);
-int clt_elem_fread(clt_elem_t *x, FILE *fp);
-int clt_elem_fwrite(clt_elem_t *x, FILE *fp);
-int clt_elem_mul_(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b);
-
+void         clt_elem_free(clt_elem_t *a);
+void         clt_elem_set(clt_elem_t *a, const clt_elem_t *b);
+int          clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+int          clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+int          clt_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+int          clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsigned int b);
+void         clt_elem_print(const clt_elem_t *a);
+int          clt_elem_fread(clt_elem_t *x, FILE *fp);
+int          clt_elem_fwrite(clt_elem_t *x, FILE *fp);
+int          clt_elem_mul_(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b);
 
 #ifdef __cplusplus
 }

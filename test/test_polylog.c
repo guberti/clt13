@@ -59,10 +59,10 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
 
-    clt_encode(x0, mmap, 1, &zero, top);
-    clt_encode(x1, mmap, 1, &one, top);
-    clt_encode(x2, mmap, 1, &one, top);
-    clt_encode(x3, mmap, 1, &one, top);
+    clt_encode(x0, mmap, 1, &zero, top, 0);
+    clt_encode(x1, mmap, 1, &one, top, 0);
+    clt_encode(x2, mmap, 1, &one, top, 0);
+    clt_encode(x3, mmap, 1, &one, top, 0);
     if (polylog) {
         clt_elem_mul_(x4, mmap, x0, x1);
         clt_elem_mul_(x5, mmap, x2, x3);
