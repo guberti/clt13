@@ -305,7 +305,7 @@ test_levels(size_t flags, size_t kappa, size_t lambda)
     pp = clt_pp_new(s);
 
     clt_encode(top_one, s, 1, &one, top_level, 0);
-    clt_encode(top_zero, s, 0, &zero, top_level, 0);
+    clt_encode(top_zero, s, 1, &zero, top_level, 0);
 
     for (size_t i = 0; i < kappa; ++i) {
         for (size_t j = 0; j < kappa; ++j) {
@@ -336,7 +336,7 @@ test_levels(size_t flags, size_t kappa, size_t lambda)
                 pows[j] = 1;
         }
         if (i == 0) {
-            clt_encode(value, s, 0, &one, pows, 0);
+            clt_encode(value, s, 1, &zero, pows, 0);
             clt_elem_set(result, value);
         } else {
             clt_encode(value, s, 1, &one, pows, 0);
