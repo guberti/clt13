@@ -150,11 +150,11 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
             mpz_clear(tmp);
         }
     }
-    {
+    rop->level = level;
+    if (ix) {
         mpz_t tmp, x0;
         mpz_init(tmp);
         mpz_init(x0);
-        rop->level = level;
         /* TODO: replace mpz_set with a reference */
         if (s->flags & CLT_FLAG_POLYLOG) {
             mpz_set(x0, s->polylog.x0s[rop->level]);
@@ -171,6 +171,7 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
             mpz_mul_mod(rop->elem, rop->elem, tmp, x0);
         }
         mpz_clear(tmp);
+        mpz_clear(x0);
     }
     return CLT_OK;
 }
