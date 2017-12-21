@@ -37,7 +37,12 @@ typedef struct {
     size_t nmoduli;
     /* number of multiplication layers */
     size_t nlayers;
-} clt_params_opt_t;
+} clt_opt_params_t;
+
+typedef struct {
+    size_t rho;
+    size_t *slotsizes;
+} clt_encode_opt_params_t;
 
 #define CLT_FLAG_NONE 0x00
 /* Be verbose */
@@ -61,7 +66,7 @@ typedef struct {
         )
 
 clt_state_t * clt_state_new(const clt_params_t *params,
-                            const clt_params_opt_t *opts, size_t ncores,
+                            const clt_opt_params_t *opts, size_t ncores,
                             size_t flags, aes_randstate_t rng);
 void          clt_state_free(clt_state_t *s);
 clt_state_t * clt_state_fread(FILE *fp);
@@ -80,7 +85,7 @@ int        clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
  * of bits of noise to add to the encoding; if `rho = 0` then use default noise
  * amount as specified in `s`. */
 int clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-               const int *ix, size_t rho);
+               const int *ix, clt_encode_opt_params_t *opt);
 int clt_is_zero(const clt_elem_t *a, const clt_pp_t *pp);
 
 clt_elem_t * clt_elem_new(void);

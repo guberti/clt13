@@ -42,7 +42,7 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
         .nzs = nzs,
         .pows = top,
     };
-    clt_params_opt_t opts = {
+    clt_opt_params_t opts = {
         .nlayers = 2,
     };
 

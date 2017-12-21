@@ -105,16 +105,17 @@ _slot(size_t i, size_t n, size_t maxslots)
 
 int
 clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-            const int *ix, size_t rho, size_t level)
+            const int *ix, clt_encode_opt_params_t *opt, size_t level)
 {
+    size_t rho;
+
     if (rop == NULL || s == NULL || n == 0 || xs == NULL)
         return CLT_ERR;
 
     if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE))
         omp_set_num_threads(1);
 
-    if (rho == 0)
-        rho = s->rho;
+    rho = opt && opt->rho > 0 ? opt->rho : s->rho;
 
     if (s->flags & CLT_FLAG_POLYLOG && level > s->polylog.nlayers)
         return CLT_ERR;
@@ -178,9 +179,9 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
 
 int
 clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-           const int *ix, size_t rho)
+           const int *ix, clt_encode_opt_params_t *opt)
 {
-    return clt_encode_(rop, s, n, xs, ix, rho, 0);
+    return clt_encode_(rop, s, n, xs, ix, opt, 0);
 }
 
 int
@@ -677,7 +678,7 @@ product(mpz_t rop, mpz_t *xs, size_t n, bool verbose)
 }
 
 clt_state_t *
-clt_state_new(const clt_params_t *params, const clt_params_opt_t *opts,
+clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
               size_t ncores, size_t flags, aes_randstate_t rng)
 {
     clt_state_t *s;
