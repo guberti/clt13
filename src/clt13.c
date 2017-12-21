@@ -94,13 +94,24 @@ mpz_prime(mpz_t rop, aes_randstate_t rng, size_t len)
     mpz_clear(p_unif);
 }
 
+static inline size_t
+_slot(size_t i, size_t n, size_t maxslots)
+{
+    if (i == maxslots - 1)
+        return n - 1;
+    else
+        return i / (maxslots / n);
+}
+
 int
 clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
             const int *ix, size_t rho, size_t level)
 {
-    if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE)) {
+    if (rop == NULL || s == NULL || n == 0 || xs == NULL)
+        return CLT_ERR;
+
+    if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE))
         omp_set_num_threads(1);
-    }
 
     if (rho == 0)
         rho = s->rho;
@@ -115,8 +126,7 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         for (size_t i = 0; i < s->n; i++) {
             mpz_random_(slots[i], s->rngs[i], rho);
             mpz_mul(slots[i], slots[i], s->gs[i]);
-            if (i < n)
-                mpz_add(slots[i], slots[i], xs[i]);
+            mpz_add(slots[i], slots[i], xs[_slot(i, n, s->n)]);
         }
         crt_tree_do_crt(rop->elem, s->crt, slots);
         mpz_vector_free(slots, s->n);
@@ -128,8 +138,7 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
             mpz_init(tmp);
             mpz_random_(tmp, s->rngs[i], rho);
             mpz_mul(tmp, tmp, s->gs[i]);
-            if (i < n)
-                mpz_add(tmp, tmp, xs[i]);
+            mpz_add(tmp, tmp, xs[_slot(i, n, s->n)]);
             if (s->flags & CLT_FLAG_POLYLOG)
                 mpz_mul(tmp, tmp, s->polylog.crt_coeffs[level][i]);
             else
@@ -442,9 +451,6 @@ clt_state_fwrite(clt_state_t *const s, FILE *const fp)
 cleanup:
     return ret;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// public parameters
 
 clt_pp_t *
 clt_pp_new(const clt_state_t *mmap)
