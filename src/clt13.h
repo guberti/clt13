@@ -40,7 +40,12 @@ typedef struct {
 } clt_opt_params_t;
 
 typedef struct {
+    /* the number of bits of noise to add to the encoding; if `rho = 0` then use
+     * default noise amount */
     size_t rho;
+    /* specify the exact number of actual slots each "virtual slot" should
+     * use */
+    /* XXX: not supported yet! */
     size_t *slotsizes;
 } clt_encode_opt_params_t;
 
@@ -81,9 +86,7 @@ clt_pp_t * clt_pp_fread(FILE *fp);
 int        clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
 
 /* Creates an encoding `rop` using CLT state `s` of integers `xs` of length `n`
- * and index set `ix` of length `clt_state_nzs(s)`. `rho` specifies the number
- * of bits of noise to add to the encoding; if `rho = 0` then use default noise
- * amount as specified in `s`. */
+ * and index set `ix` of length `clt_state_nzs(s)` */
 int clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
                const int *ix, clt_encode_opt_params_t *opt);
 int clt_is_zero(const clt_elem_t *a, const clt_pp_t *pp);
