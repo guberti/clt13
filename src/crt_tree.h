@@ -1,7 +1,10 @@
-#ifndef _CRT_TREE_H_
-#define _CRT_TREE_H_
+#pragma once
 
 #include "clt13.h"
+
+#ifndef LOCAL
+#define LOCAL __attribute__ ((visibility ("hidden")))
+#endif
 
 typedef struct crt_tree {
     size_t n;
@@ -12,12 +15,10 @@ typedef struct crt_tree {
     struct crt_tree *right;
 } crt_tree;
 
-crt_tree * crt_tree_new(mpz_t *const ps, size_t n);
-void crt_tree_free(crt_tree *crt);
+LOCAL crt_tree * crt_tree_new(mpz_t *const ps, size_t n);
+LOCAL void crt_tree_free(crt_tree *crt);
 
-void crt_tree_do_crt(mpz_t rop, const crt_tree *crt, mpz_t *cs);
-crt_tree * crt_tree_fread(FILE *const fp, size_t n);
-void crt_tree_write(const char *fname, const crt_tree *const crt, size_t n);
-int crt_tree_fwrite(FILE *const fp, const crt_tree *const crt, size_t n);
-
-#endif
+LOCAL void crt_tree_do_crt(mpz_t rop, const crt_tree *crt, mpz_t *cs);
+LOCAL crt_tree * crt_tree_fread(FILE *const fp, size_t n);
+LOCAL void crt_tree_write(const char *fname, const crt_tree *const crt, size_t n);
+LOCAL int crt_tree_fwrite(FILE *const fp, const crt_tree *const crt, size_t n);
