@@ -35,8 +35,8 @@ typedef struct {
     mpz_t *moduli;
     /* number of plaintext moduli given */
     size_t nmoduli;
-    /* number of multiplication layers */
-    size_t nlayers;
+    /* number of multiplication levels */
+    size_t nlevels;
 } clt_opt_params_t;
 
 typedef struct {
@@ -101,7 +101,6 @@ int          clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem
 void         clt_elem_print(const clt_elem_t *a);
 int          clt_elem_fread(clt_elem_t *x, FILE *fp);
 int          clt_elem_fwrite(clt_elem_t *x, FILE *fp);
-int          clt_elem_mul_(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b);
 
 #ifdef __cplusplus
 }

@@ -43,7 +43,7 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
         .pows = top,
     };
     clt_opt_params_t opts = {
-        .nlayers = 2,
+        .nlevels = 2,
     };
 
     mmap = clt_state_new(&params, &opts, 0, flags, rng);
@@ -64,9 +64,9 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     clt_encode(x2, mmap, 1, &one, top, 0);
     clt_encode(x3, mmap, 1, &one, top, 0);
     if (polylog) {
-        clt_elem_mul_(x4, mmap, x0, x1);
-        clt_elem_mul_(x5, mmap, x2, x3);
-        clt_elem_mul_(out, mmap, x4, x5);
+        /* clt_elem_mul_(x4, mmap, x0, x1); */
+        /* clt_elem_mul_(x5, mmap, x2, x3); */
+        /* clt_elem_mul_(out, mmap, x4, x5); */
     } else {
         clt_elem_mul(x4, pp, x0, x1);
         clt_elem_mul(x5, pp, x2, x3);

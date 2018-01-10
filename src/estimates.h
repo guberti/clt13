@@ -2,8 +2,8 @@
 
 #include "clt13.h"
 
-#ifndef LOCAL
-#define LOCAL __attribute__ ((visibility ("hidden")))
-#endif
+#pragma GCC visibility push(hidden)
 
-LOCAL ulong estimate_n(ulong lambda, ulong eta, ulong flags);
+size_t estimate_n(size_t lambda, size_t eta, size_t flags);
+
+#pragma GCC visibility pop

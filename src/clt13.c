@@ -1,5 +1,4 @@
-#include "clt13.h"
-#include "crt_tree.h"
+#include "_clt13.h"
 #include "estimates.h"
 #include "utils.h"
 
@@ -17,83 +16,6 @@
  * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
 #define ETAP_DEFAULT 420
 
-struct clt_elem_t {
-    mpz_t elem;
-    int *ix;
-    size_t level;
-};
-
-struct clt_state_t {
-    size_t n;                   /* number of slots */
-    size_t nzs;                 /* number of z's in the index set */
-    size_t rho;                 /* bitsize of randomness */
-    size_t nu;                  /* number of most-significant-bits to extract */
-    mpz_t *gs;                  /* plaintext moduli */
-    union {
-        mpz_t x0;
-        struct {
-            mpz_t *x0s;
-            mpz_t *p1s;
-            size_t nlayers;
-            mpz_t **crt_coeffs;
-        } polylog;
-    };
-    mpz_t pzt;                  /* zero testing parameter */
-    mpz_t *zinvs;               /* z inverses */
-    aes_randstate_t *rngs;      /* random number generators (one per slot) */
-    union {
-        crt_tree *crt;
-        mpz_t *crt_coeffs;
-    };
-    size_t flags;
-};
-
-struct clt_pp_t {
-    mpz_t x0;
-    mpz_t pzt;
-    size_t nu;
-    bool polylog;
-};
-
-static inline void
-mpz_mod_near(mpz_t rop, const mpz_t a, const mpz_t p)
-{
-    mpz_t p_;
-    mpz_init(p_);
-    mpz_mod(rop, a, p);
-    mpz_cdiv_q_ui(p_, p, 2);
-    if (mpz_cmp(rop, p_) > 0)
-        mpz_sub(rop, rop, p);
-    mpz_clear(p_);
-}
-
-static inline void
-mpz_mul_mod(mpz_t rop, mpz_t a, const mpz_t b, const mpz_t p)
-{
-    mpz_mul(rop, a, b);
-    mpz_mod_near(rop, rop, p);
-}
-
-static inline void
-mpz_random_(mpz_t rop, aes_randstate_t rng, size_t len)
-{
-    mpz_urandomb_aes(rop, rng, len);
-    mpz_setbit(rop, len-1);
-}
-
-static inline void
-mpz_prime(mpz_t rop, aes_randstate_t rng, size_t len)
-{
-    mpz_t p_unif;
-    mpz_init(p_unif);
-    do {
-        mpz_random_(p_unif, rng, len);
-        mpz_nextprime(rop, p_unif);
-    } while (mpz_tstbit(rop, len) == 1);
-    assert(mpz_tstbit(rop, len-1) == 1);
-    mpz_clear(p_unif);
-}
-
 static inline size_t
 _slot(size_t i, size_t n, size_t maxslots)
 {
@@ -104,8 +26,8 @@ _slot(size_t i, size_t n, size_t maxslots)
 }
 
 int
-clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-            const int *ix, clt_encode_opt_params_t *opt, size_t level)
+clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
+           const int *ix, clt_encode_opt_params_t *opt)
 {
     size_t rho;
 
@@ -115,13 +37,13 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
     if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE))
         omp_set_num_threads(1);
 
+    if (s->flags & CLT_FLAG_POLYLOG)
+        return polylog_encode(rop, s, xs, ix, 0);
+
     rho = opt && opt->rho > 0 ? opt->rho : s->rho;
 
-    if (s->flags & CLT_FLAG_POLYLOG && level > s->polylog.nlayers)
-        return CLT_ERR;
-
+    /* slots[i] = m[i] + r*g[i] */
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        /* slots[i] = m[i] + r*g[i] */
         mpz_t *slots = mpz_vector_new(s->n);
 #pragma omp parallel for
         for (size_t i = 0; i < s->n; i++) {
@@ -140,10 +62,7 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
             mpz_random_(tmp, s->rngs[i], rho);
             mpz_mul(tmp, tmp, s->gs[i]);
             mpz_add(tmp, tmp, xs[_slot(i, n, s->n)]);
-            if (s->flags & CLT_FLAG_POLYLOG)
-                mpz_mul(tmp, tmp, s->polylog.crt_coeffs[level][i]);
-            else
-                mpz_mul(tmp, tmp, s->crt_coeffs[i]);
+            mpz_mul(tmp, tmp, s->crt_coeffs[i]);
 #pragma omp critical
             {
                 mpz_add(rop->elem, rop->elem, tmp);
@@ -151,37 +70,22 @@ clt_encode_(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
             mpz_clear(tmp);
         }
     }
-    rop->level = level;
+    rop->level = 0;
     if (ix) {
-        mpz_t tmp, x0;
+        mpz_t tmp;
         mpz_init(tmp);
-        mpz_init(x0);
-        /* TODO: replace mpz_set with a reference */
-        if (s->flags & CLT_FLAG_POLYLOG) {
-            mpz_set(x0, s->polylog.x0s[rop->level]);
-        } else {
-            mpz_set(x0, s->x0);
-        }
         /* multiply by appropriate zinvs */
         rop->ix = calloc(s->nzs, sizeof rop->ix[0]);
         for (unsigned long i = 0; i < s->nzs; ++i) {
             if (ix[i] <= 0)
                 continue;
             rop->ix[i] = ix[i];
-            mpz_powm_ui(tmp, s->zinvs[i], ix[i], x0);
-            mpz_mul_mod(rop->elem, rop->elem, tmp, x0);
+            mpz_powm_ui(tmp, s->zinvs[i], ix[i], s->x0);
+            mpz_mul_mod(rop->elem, rop->elem, tmp, s->x0);
         }
         mpz_clear(tmp);
-        mpz_clear(x0);
     }
     return CLT_OK;
-}
-
-int
-clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-           const int *ix, clt_encode_opt_params_t *opt)
-{
-    return clt_encode_(rop, s, n, xs, ix, opt, 0);
 }
 
 int
@@ -198,141 +102,6 @@ clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp)
     ret = mpz_sizeinbase(tmp, 2) < mpz_sizeinbase(pp->x0, 2) - pp->nu;
     mpz_clears(tmp, x0_, NULL);
     return ret ? 1 : 0;
-}
-
-clt_elem_t *
-clt_elem_new(void)
-{
-    clt_elem_t *e = calloc(1, sizeof e[0]);
-    mpz_init(e->elem);
-    e->level = 0;
-    return e;
-}
-
-void
-clt_elem_free(clt_elem_t *e)
-{
-    mpz_clear(e->elem);
-    free(e);
-}
-
-void
-clt_elem_set(clt_elem_t *a, const clt_elem_t *b)
-{
-    mpz_set(a->elem, b->elem);
-    a->level = b->level;
-}
-
-int
-clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
-{
-    if (a->level != b->level) {
-        fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to add",
-                a->level, b->level);
-        return CLT_ERR;
-    }
-    mpz_add(rop->elem, a->elem, b->elem);
-    mpz_mod(rop->elem, rop->elem, pp->x0);
-    if (pp->polylog)
-        rop->level = a->level;
-    return CLT_OK;
-}
-
-int
-clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
-{
-    if (a->level != b->level) {
-        fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to subtract",
-                a->level, b->level);
-        return CLT_ERR;
-    }
-    mpz_sub(rop->elem, a->elem, b->elem);
-    mpz_mod(rop->elem, rop->elem, pp->x0);
-    if (pp->polylog)
-        rop->level = a->level;
-    return CLT_OK;
-}
-
-int
-clt_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
-{
-    if (a->level != b->level) {
-        fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to multiply",
-                a->level, b->level);
-        return CLT_ERR;
-    }
-    mpz_mul(rop->elem, a->elem, b->elem);
-    mpz_mod(rop->elem, rop->elem, pp->x0);
-    if (pp->polylog)
-        rop->level = a->level + 1;
-    return CLT_OK;
-}
-
-int
-clt_elem_mul_(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b)
-{
-    int *ix;
-    mpz_t a_, b_, rop_;
-    mpz_inits(a_, b_, rop_, NULL);
-    if (a->level != b->level) {
-        fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to multiply",
-                a->level, b->level);
-        return CLT_ERR;
-    }
-    mpz_mod(a_, a->elem, s->polylog.p1s[a->level]);
-    mpz_mod(a_, a_, s->gs[0]);
-    mpz_mod(b_, b->elem, s->polylog.p1s[b->level]);
-    mpz_mod(b_, b_, s->gs[0]);
-    gmp_printf("pt: %Zd, %Zd\n", a_, b_);
-    mpz_mul(rop_, a_, b_);
-    mpz_mod(rop_, rop_, s->gs[0]);
-    gmp_printf("rop: %Zd\n", rop_);
-    ix = calloc(s->nzs, sizeof ix[0]);
-    printf("ix: ");
-    for (size_t i = 0; i < s->nzs; ++i) {
-        ix[i] = a->ix[i] + b->ix[i];
-        printf("%d ", ix[i]);
-    }
-    printf("\n");
-    clt_encode_(rop, s, 1, &rop_, ix, 0, a->level + 1);
-    free(ix);
-    return CLT_OK;
-}
-
-int
-clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsigned int b)
-{
-    mpz_mul_ui(rop->elem, a->elem, b);
-    mpz_mod(rop->elem, rop->elem, pp->x0);
-    if (pp->polylog)
-        rop->level = a->level;
-    return CLT_OK;
-}
-
-void
-clt_elem_print(const clt_elem_t *a)
-{
-    gmp_printf("%Zd | %lu", a->elem, a->level);
-}
-
-int
-clt_elem_fread(clt_elem_t *x, FILE *fp)
-{
-    if (mpz_fread(x->elem, fp) == CLT_ERR)
-        return CLT_ERR;
-    if (size_t_fread(fp, &x->level) == CLT_ERR)
-        return CLT_ERR;
-    return CLT_OK;
-}
-
-int
-clt_elem_fwrite(clt_elem_t *x, FILE *fp)
-{
-    if (mpz_fwrite(x->elem, fp) == CLT_ERR)
-        return CLT_ERR;
-    if (size_t_fwrite(fp, x->level) == CLT_ERR)
-        return CLT_ERR;
-    return CLT_OK;
 }
 
 clt_state_t *
@@ -357,14 +126,14 @@ clt_state_fread(FILE *fp)
         goto cleanup;
 
     if (s->flags & CLT_FLAG_POLYLOG) {
-        if (size_t_fread(fp, &s->polylog.nlayers) == CLT_ERR)
-            goto cleanup;
-        s->polylog.x0s = calloc(s->polylog.nlayers + 1, sizeof s->polylog.x0s[0]);
-        for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) {
-            mpz_init(s->polylog.x0s[i]);
-            if (mpz_fread(s->polylog.x0s[i], fp) == CLT_ERR)
-                goto cleanup;
-        }
+        /* if (size_t_fread(fp, &s->polylog.nlayers) == CLT_ERR) */
+        /*     goto cleanup; */
+        /* s->polylog.x0s = calloc(s->polylog.nlayers + 1, sizeof s->polylog.x0s[0]); */
+        /* for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) { */
+        /*     mpz_init(s->polylog.x0s[i]); */
+        /*     if (mpz_fread(s->polylog.x0s[i], fp) == CLT_ERR) */
+        /*         goto cleanup; */
+        /* } */
     } else {
         mpz_init(s->x0);
         if (mpz_fread(s->x0, fp) == CLT_ERR)
@@ -421,12 +190,12 @@ clt_state_fwrite(clt_state_t *const s, FILE *const fp)
     if (size_t_fwrite(fp, s->nu) == CLT_ERR)
         goto cleanup;
     if (s->flags & CLT_FLAG_POLYLOG) {
-        if (size_t_fwrite(fp, s->polylog.nlayers) == CLT_ERR)
-            goto cleanup;
-        for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) {
-            if (mpz_fwrite(s->polylog.x0s[i], fp) == CLT_ERR)
-                goto cleanup;
-        }
+        /* if (size_t_fwrite(fp, s->polylog.nlayers) == CLT_ERR) */
+        /*     goto cleanup; */
+        /* for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) { */
+        /*     if (mpz_fwrite(s->polylog.x0s[i], fp) == CLT_ERR) */
+        /*         goto cleanup; */
+        /* } */
     } else {
         if (mpz_fwrite(s->x0, fp) == CLT_ERR)
             goto cleanup;
@@ -464,13 +233,13 @@ clt_pp_new(const clt_state_t *mmap)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
     if (mmap->flags & CLT_FLAG_POLYLOG) {
-        mpz_set(pp->x0, mmap->polylog.x0s[mmap->polylog.nlayers]);
+        /* mpz_set(pp->x0, mmap->polylog.x0s[mmap->polylog.nlayers]); */
     } else {
         mpz_set(pp->x0, mmap->x0);
     }
     mpz_set(pp->pzt, mmap->pzt);
     pp->nu = mmap->nu;
-    pp->polylog = mmap->flags & CLT_FLAG_POLYLOG;
+    pp->is_polylog = mmap->flags & CLT_FLAG_POLYLOG;
     return pp;
 }
 
@@ -497,7 +266,7 @@ clt_pp_fread(FILE *fp)
         goto cleanup;
     if (mpz_fread(pp->pzt, fp) == CLT_ERR)
         goto cleanup;
-    if (fread(&pp->polylog, sizeof pp->polylog, 1, fp) == 0)
+    if (fread(&pp->is_polylog, sizeof pp->is_polylog, 1, fp) == 0)
         goto cleanup;
     ret = CLT_OK;
 cleanup:
@@ -520,7 +289,7 @@ clt_pp_fwrite(clt_pp_t *pp, FILE *fp)
         goto cleanup;
     if (mpz_fwrite(pp->pzt, fp) == CLT_ERR)
         goto cleanup;
-    if (fwrite(&pp->polylog, sizeof pp->polylog, 1, fp) == 0)
+    if (fwrite(&pp->is_polylog, sizeof pp->is_polylog, 1, fp) == 0)
         goto cleanup;
     ret = CLT_OK;
 cleanup:
@@ -528,7 +297,8 @@ cleanup:
 }
 
 /* Returns the number of ones in `x` */
-static inline size_t nb_of_bits(size_t x)
+static inline size_t
+nb_of_bits(size_t x)
 {
     size_t nb = 0;
     while (x > 0) {
@@ -603,21 +373,6 @@ gen_primes_composite_ps(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t eta, b
     return CLT_OK;
 }
 
-static mpz_t **
-generate_ps_polylog(clt_state_t *s, size_t nlayers, size_t len, bool verbose)
-{
-    mpz_t **ps;
-    len += 50 * nlayers;
-
-    ps = calloc(nlayers + 1, sizeof ps[0]);
-    for (size_t i = 0; i < nlayers + 1; ++i) {
-        ps[i] = mpz_vector_new(s->n);
-        gen_primes(ps[i], s->rngs, s->n, len, verbose);
-        len -= 50;
-    }
-    return ps;
-}
-
 static void
 crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
 {
@@ -662,21 +417,6 @@ generate_zs(mpz_t *zs, mpz_t *zinvs, aes_randstate_t *rngs, size_t nzs, mpz_t x0
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
 }
 
-static void
-product(mpz_t rop, mpz_t *xs, size_t n, bool verbose)
-{
-    double start = current_time();
-    /* TODO: could parallelize this if desired */
-    mpz_set_ui(rop, 1);
-    for (size_t i = 0; i < n; i++) {
-        mpz_mul(rop, rop, xs[i]);
-        if (verbose)
-            print_progress(i, n-1);
-    }
-    if (verbose)
-        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
-}
-
 clt_state_t *
 clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
               size_t ncores, size_t flags, aes_randstate_t rng)
@@ -684,7 +424,6 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
     clt_state_t *s;
     size_t alpha, beta, eta, rho_f;
     mpz_t *ps = NULL, *zs;
-    mpz_t **pss = NULL;
     double start_time = 0.0;
     int count;
     const bool verbose = flags & CLT_FLAG_VERBOSE;
@@ -785,15 +524,13 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
         s->crt_coeffs = mpz_vector_new(s->n);
     }
     if (s->flags & CLT_FLAG_POLYLOG) {
-        s->polylog.nlayers = opts ? opts->nlayers : 0;
-        s->polylog.x0s = mpz_vector_new(s->polylog.nlayers + 1);
-        s->polylog.p1s = mpz_vector_new(s->polylog.nlayers + 1);
-        s->polylog.crt_coeffs = calloc(s->polylog.nlayers + 1, sizeof s->polylog.crt_coeffs[0]);
+        s->lparams = level_params_new(s->n, eta, 25, opts->nlevels, s->rngs, verbose);
     } else {
         mpz_init_set_ui(s->x0,  1);
     }
     mpz_init_set_ui(s->pzt, 0);
 
+    /* Generate "plaintext" moduli */
     if (verbose)
         fprintf(stderr, "  Generating g_i's:\n");
     if (opts && opts->moduli && opts->nmoduli) {
@@ -804,39 +541,23 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
         gen_primes(s->gs, s->rngs, s->n, alpha, verbose);
     }
 
-    /* Generate "ciphertext" moduli */
+    if (s->flags & CLT_FLAG_POLYLOG) /* XXX */
+        return s;
 
-    zs = mpz_vector_new(s->nzs);
+    /* Generate "ciphertext" moduli */
     if (verbose)
         fprintf(stderr, "  Generating p_i's:\n");
-    if (s->flags & CLT_FLAG_POLYLOG) {
-        pss = generate_ps_polylog(s, opts->nlayers, eta, verbose);
-    } else {
-        ps = mpz_vector_new(s->n);
+    ps = mpz_vector_new(s->n);
 generate_ps:
-        if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
-            gen_primes_composite_ps(ps, s->rngs, s->n, eta, verbose);
-        } else {
-            gen_primes(ps, s->rngs, s->n, eta, verbose);
-        }
+    if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
+        gen_primes_composite_ps(ps, s->rngs, s->n, eta, verbose);
+    } else {
+        gen_primes(ps, s->rngs, s->n, eta, verbose);
     }
 
     /* Compute product if "ciphertext" moduli */
-
-    if (s->flags & CLT_FLAG_POLYLOG) {
-        if (verbose)
-            fprintf(stderr, "  Computing x0's:\n");
-        for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) {
-            product(s->polylog.x0s[i], pss[i], s->n, verbose);
-        }
-        for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) {
-            mpz_set(s->polylog.p1s[i], pss[i][0]);
-        }
-        for (size_t i = 0; i < s->polylog.nlayers + 1; ++i) {
-            s->polylog.crt_coeffs[i] = mpz_vector_new(s->n);
-            crt_coeffs(s->polylog.crt_coeffs[i], pss[i], s->n, s->polylog.x0s[i], verbose);
-        }
-    } else if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        start_time = current_time();
         if (verbose)
             fprintf(stderr, "  Generating CRT tree: ");
         if ((s->crt = crt_tree_new(ps, s->n)) == NULL) {
@@ -855,11 +576,9 @@ generate_ps:
         crt_coeffs(s->crt_coeffs, ps, s->n, s->x0, verbose);
     }
 
-    if (s->flags & CLT_FLAG_POLYLOG) {
-        generate_zs(zs, s->zinvs, s->rngs, s->nzs, s->polylog.x0s[s->polylog.nlayers], verbose);
-    } else {
-        generate_zs(zs, s->zinvs, s->rngs, s->nzs, s->x0, verbose);
-    }
+    /* Compute index set values */
+    zs = mpz_vector_new(s->nzs);
+    generate_zs(zs, s->zinvs, s->rngs, s->nzs, s->x0, verbose);
 
     /* Compute pzt */
 
@@ -870,21 +589,14 @@ generate_ps:
     }
 
     {
-        mpz_t zk, x0;
+        mpz_t zk;
         mpz_init_set_ui(zk, 1);
-        mpz_init(x0);
-        if (s->flags & CLT_FLAG_POLYLOG) {
-            mpz_set(x0, s->polylog.x0s[s->polylog.nlayers]);
-            ps = pss[s->polylog.nlayers];
-        } else {
-            mpz_set(x0, s->x0);
-        }
         /* compute z_1^t_1 ... z_k^t_k mod x0 */
         for (size_t i = 0; i < s->nzs; ++i) {
             mpz_t tmp;
             mpz_init(tmp);
-            mpz_powm_ui(tmp, zs[i], params->pows[i], x0);
-            mpz_mul_mod(zk, zk, tmp, x0);
+            mpz_powm_ui(tmp, zs[i], params->pows[i], s->x0);
+            mpz_mul_mod(zk, zk, tmp, s->x0);
             mpz_clear(tmp);
             if (verbose) {
                 print_progress(++count, s->n + s->nzs);
@@ -894,15 +606,15 @@ generate_ps:
         for (size_t i = 0; i < s->n; ++i) {
             mpz_t tmp, qpi, rnd;
             mpz_inits(tmp, qpi, rnd, NULL);
-            /* compute ((g_i^{-1} mod p_i) * z * r_i * (x0 / p_i) */
+            /* compute ((g_i^{-1} mod p_i) · z · r_i · (x0 / p_i) */
             mpz_invert(tmp, s->gs[i], ps[i]);
             mpz_mul_mod(tmp, tmp, zk, ps[i]);
             do {
                 mpz_random_(rnd, s->rngs[i], beta);
             } while (mpz_cmp(rnd, s->gs[i]) == 0);
             mpz_mul(tmp, tmp, rnd);
-            mpz_div(qpi, x0, ps[i]);
-            mpz_mul_mod(tmp, tmp, qpi, x0);
+            mpz_div(qpi, s->x0, ps[i]);
+            mpz_mul_mod(tmp, tmp, qpi, s->x0);
 #pragma omp critical
             {
                 mpz_add(s->pzt, s->pzt, tmp);
@@ -913,18 +625,14 @@ generate_ps:
                 print_progress(++count, s->n + s->nzs);
             }
         }
-        mpz_mod_near(s->pzt, s->pzt, x0);
+        mpz_mod_near(s->pzt, s->pzt, s->x0);
         mpz_clear(zk);
     }
     if (verbose) {
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start_time);
     }
 
-    if (s->flags & CLT_FLAG_POLYLOG) {
-        /* TODO: what to clear here? */
-    } else {
-        mpz_vector_free(ps, s->n);
-    }
+    mpz_vector_free(ps, s->n);
     mpz_vector_free(zs, s->nzs);
 
     return s;
@@ -934,9 +642,6 @@ void
 clt_state_free(clt_state_t *s)
 {
     if (s->flags & CLT_FLAG_POLYLOG) {
-        for (size_t i = 0; i < s->polylog.nlayers + 1; ++i)
-            mpz_clear(s->polylog.x0s[i]);
-        free(s->polylog.x0s);
     } else {
         mpz_clear(s->x0);
     }

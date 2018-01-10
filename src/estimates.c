@@ -21,7 +21,7 @@ time_BKZ20(double m, double gamma)
 }
 
 static double
-m_min(ulong lambda, ulong eta, double gamma, double hermite_factor)
+m_min(size_t lambda, size_t eta, double gamma, double hermite_factor)
 {
     double lh, result;
     lh = log2(hermite_factor);
@@ -33,7 +33,7 @@ m_min(ulong lambda, ulong eta, double gamma, double hermite_factor)
 }
 
 static double
-gamma_from_orthogonal_attack(ulong lambda, ulong eta, bool conservative)
+gamma_from_orthogonal_attack(size_t lambda, size_t eta, bool conservative)
 {
     double gamma = ceil(lambda + eta * eta / 4 / log2(1.012));
     if (!conservative) {
@@ -52,7 +52,7 @@ gamma_from_orthogonal_attack(ulong lambda, ulong eta, bool conservative)
 }
 
 static double
-gamma_from_orthogonal_attack_2(ulong lambda, ulong eta, double hermite_factor,
+gamma_from_orthogonal_attack_2(size_t lambda, size_t eta, double hermite_factor,
                                bool conservative)
 {
     double gamma = ceil(lambda + eta * eta / 4 / log2(hermite_factor));
@@ -70,8 +70,8 @@ gamma_from_orthogonal_attack_2(ulong lambda, ulong eta, double hermite_factor,
     return gamma;
 }
 
-ulong
-estimate_n(ulong lambda, ulong eta, ulong flags)
+size_t
+estimate_n(size_t lambda, size_t eta, size_t flags)
 {
     bool conservative = flags & CLT_FLAG_SEC_CONSERVATIVE;
     double gamma;
@@ -80,5 +80,5 @@ estimate_n(ulong lambda, ulong eta, ulong flags)
     } else {
         gamma = gamma_from_orthogonal_attack(lambda, eta, conservative);
     }
-    return (ulong) ceil(gamma / eta);
+    return (size_t) ceil(gamma / eta);
 }
