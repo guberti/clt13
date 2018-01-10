@@ -9,11 +9,11 @@
 #pragma GCC visibility push(hidden)
 
 typedef struct {
-    mpz_t pi;
-    mpz_t pip;
-    size_t k;
+    size_t level;
+    size_t wordsize;
+    size_t k;                   /* = η_ℓ / log2(wordsize) */
     mpz_t *ys;                  /* [Θ] */
-    clt_elem_t **sigmas;        /* [Θ][k] */
+    clt_elem_t ***sigmas;       /* [Θ][ℓ] */
 } switch_params_t;
 
 typedef struct {

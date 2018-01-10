@@ -90,15 +90,15 @@ switch_params_new(clt_state_t *s, size_t wordsize, size_t level)
 
     if ((params = calloc(1, sizeof params[0])) == NULL)
         return NULL;
-    /* k = η_{ℓ+1} */
-    params->k = pparams->etas[level + 1];
-    mpz_init_set(params->pi, pparams->x0s[level]);
-    mpz_init_set(params->pip, pparams->x0s[level + 1]);
+    params->level = level;
+    params->wordsize = wordsize;
+    /* k = η_ℓ / log2(wordsize) */
+    params->k = (int) ceil(pparams->etas[level] / log2(wordsize));
 
     /* K = Π · (wordsize)ᵏ */
     mpz_init(K);
     mpz_ui_pow_ui(K, wordsize, params->k);
-    mpz_mul(K, K, params->pi);
+    mpz_mul(K, K, pparams->x0s[level]);
 
     params->ys = calloc(pparams->theta, sizeof params->ys[0]);
     /* Sample y_{n+1}, ..., y_Θ ∈ [0, K) */
@@ -194,5 +194,44 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, mpz_t *xs, const int *ix, 
         }
         mpz_clear(tmp);
     }
+    return CLT_OK;
+}
+
+int
+polylog_switch(clt_elem_t *rop, const clt_state_t *s, clt_elem_t *x, switch_params_t *sparams)
+{
+    const polylog_params_t *pparams = s->pparams;
+    mpz_t *pi, *pip, ct, twok;
+
+    if (rop == NULL)
+        return CLT_ERR;
+    if (sparams->level != x->level) {
+        fprintf(stderr, "error: using switch parameter with a mismatched level\n");
+        return CLT_ERR;
+    }
+
+    pi = &pparams->x0s[sparams->level];
+    pip = &pparams->x0s[sparams->level + 1];
+
+    mpz_inits(ct, twok, NULL);
+    mpz_ui_pow_ui(twok, 2, sparams->k);
+    mpz_set_ui(rop->elem, 0);
+    for (size_t t = 0; t < pparams->theta; ++t) {
+        mpz_t *cts;
+        /* Compute cₜ = (x · yₜ) / Π mod (wordsize)^ℓ */
+        mpz_mul(ct, x->elem, sparams->ys[t]);
+        mpz_div(ct, ct, *pi);
+        mpz_mod(ct, ct, twok);
+        cts = worddecomp(ct, sparams->wordsize, sparams->k);
+        for (size_t i = 0; i < sparams->k; ++i) {
+            mpz_t tmp;
+            mpz_init(tmp);
+            mpz_mul(tmp, cts[i], sparams->sigmas[t][i]->elem);
+            mpz_add(rop->elem, rop->elem, tmp);
+            mpz_mod(rop->elem, rop->elem, *pip);
+            mpz_clear(tmp);
+        }
+    }
+    rop->level = x->level + 1;
     return CLT_OK;
 }
