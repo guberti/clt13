@@ -19,7 +19,7 @@ struct clt_state_t {
     aes_randstate_t *rngs;      /* random number generators (one per slot) */
 
     mpz_t x0;
-    polylog_params_t *pparams;
+    polylog_state_t *pstate;
     mpz_t pzt;                  /* zero testing parameter */
     mpz_t *zinvs;               /* z inverses */
     union {
@@ -32,7 +32,7 @@ struct clt_state_t {
 struct clt_pp_t {
     union {
         mpz_t x0;
-        polylog_params_t *pparams;
+        polylog_state_t *pstate;
     };
     mpz_t pzt;                  /* zero testing parameter */
     size_t nu;                  /* number of most-significant-bits to extract */

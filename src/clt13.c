@@ -213,7 +213,7 @@ clt_pp_new(const clt_state_t *mmap)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
     if (mmap->flags & CLT_FLAG_POLYLOG) {
-        pp->pparams = mmap->pparams;
+        pp->pstate = mmap->pstate;
     } else {
         mpz_set(pp->x0, mmap->x0);
     }
@@ -480,7 +480,7 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
         s->crt_coeffs = mpz_vector_new(s->n);
     }
     if (s->flags & CLT_FLAG_POLYLOG) {
-        s->pparams = polylog_params_new(s->n, eta, 25, opts->nlevels, s->rngs, verbose);
+        s->pstate = polylog_state_new(s->n, eta, 25, opts->nlevels, s->rngs, verbose);
     } else {
         mpz_init_set_ui(s->x0,  1);
     }

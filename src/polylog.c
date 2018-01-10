@@ -8,66 +8,66 @@
 #include <stdlib.h>
 
 void
-polylog_params_free(polylog_params_t *params)
+polylog_state_free(polylog_state_t *state)
 {
-    if (params == NULL)
+    if (state == NULL)
         return;
-    if (params->etas)
-        free(params->etas);
-    for (size_t i = 0; i < params->nlevels; ++i) {
-        for (size_t j = 0; j < params->n; ++j) {
-            mpz_clear(params->ps[i][j]);
-            mpz_clear(params->phats[i][j]);
+    if (state->etas)
+        free(state->etas);
+    for (size_t i = 0; i < state->nlevels; ++i) {
+        for (size_t j = 0; j < state->n; ++j) {
+            mpz_clear(state->ps[i][j]);
+            mpz_clear(state->phats[i][j]);
         }
-        free(params->ps[i]);
-        free(params->phats[i]);
+        free(state->ps[i]);
+        free(state->phats[i]);
     }
-    free(params->ps);
-    free(params->phats);
-    free(params);
+    free(state->ps);
+    free(state->phats);
+    free(state);
 }
 
-polylog_params_t *
-polylog_params_new(size_t n, size_t eta, size_t b, size_t nlevels, aes_randstate_t *rngs, bool verbose)
+polylog_state_t *
+polylog_state_new(size_t n, size_t eta, size_t b, size_t nlevels, aes_randstate_t *rngs, bool verbose)
 {
-    polylog_params_t *params;
+    polylog_state_t *state;
     int count;
 
-    if ((params = calloc(1, sizeof params[0])) == NULL)
+    if ((state = calloc(1, sizeof state[0])) == NULL)
         return NULL;
-    params->n = n;
-    params->b = b;
-    params->nlevels = nlevels;
+    state->n = n;
+    state->b = b;
+    state->nlevels = nlevels;
     if (verbose) {
         fprintf(stderr, "polylog\n");
-        fprintf(stderr, "  n: %lu\n", params->n);
-        fprintf(stderr, "  b: %lu\n", params->b);
-        fprintf(stderr, "  nlevels: %lu\n", params->nlevels);
+        fprintf(stderr, "  n: %lu\n", state->n);
+        fprintf(stderr, "  b: %lu\n", state->b);
+        fprintf(stderr, "  nlevels: %lu\n", state->nlevels);
         fprintf(stderr, "  ηs:");
     }
-    params->etas = calloc(nlevels, sizeof params->etas[0]);
+    state->etas = calloc(nlevels, sizeof state->etas[0]);
     for (size_t i = 0; i < nlevels; ++i) {
         if (i * 2 * b > eta) {
             fprintf(stderr, "error: η - ℓ·2b < 0\n");
             goto error;
         }
-        params->etas[i] = eta - i * 2 * b;
+        state->etas[i] = eta - i * 2 * b;
         if (verbose)
-            fprintf(stderr, " %lu", params->etas[i]);
+            fprintf(stderr, " %lu", state->etas[i]);
     }
     if (verbose) {
         fprintf(stderr, "\n  Generating p_i's:\n");
     }
-    params->ps = calloc(nlevels, sizeof params->ps[0]);
+    state->ps = calloc(nlevels, sizeof state->ps[0]);
     for (size_t i = 0; i < nlevels; ++i) {
-        params->ps[i] = calloc(n, sizeof params->ps[i][0]);
+        state->ps[i] = calloc(n, sizeof state->ps[i][0]);
         if (verbose) {
             count = 0;
             print_progress(count, n);
         }
         for (size_t j = 0; j < n; ++j) {
-            mpz_init(params->ps[i][j]);
-            mpz_prime(params->ps[i][j], rngs[j], params->etas[i]);
+            mpz_init(state->ps[i][j]);
+            mpz_prime(state->ps[i][j], rngs[j], state->etas[i]);
             if (verbose)
                 print_progress(++count, n);
         }
@@ -77,85 +77,85 @@ polylog_params_new(size_t n, size_t eta, size_t b, size_t nlevels, aes_randstate
     if (verbose) {
         fprintf(stderr, "  Generating x0s:\n");
     }
-    params->x0s = calloc(nlevels, sizeof params->x0s[0]);
-    params->crt_coeffs = calloc(nlevels, sizeof params->crt_coeffs[0]);
+    state->x0s = calloc(nlevels, sizeof state->x0s[0]);
+    state->crt_coeffs = calloc(nlevels, sizeof state->crt_coeffs[0]);
     for (size_t i = 0; i < nlevels; ++i) {
-        mpz_init(params->x0s[i]);
-        product(params->x0s[i], params->ps[i], n, verbose);
-        params->crt_coeffs[i] = mpz_vector_new(n);
-        crt_coeffs(params->crt_coeffs[i], params->ps[i], n, params->x0s[i], verbose);
+        mpz_init(state->x0s[i]);
+        product(state->x0s[i], state->ps[i], n, verbose);
+        state->crt_coeffs[i] = mpz_vector_new(n);
+        crt_coeffs(state->crt_coeffs[i], state->ps[i], n, state->x0s[i], verbose);
     }
     if (verbose) {
         fprintf(stderr, "  Generating p hat's:\n");
         count = 0;
         print_progress(count, nlevels);
     }
-    params->phats = calloc(nlevels, sizeof params->phats[0]);
+    state->phats = calloc(nlevels, sizeof state->phats[0]);
     for (size_t i = 0; i < nlevels; ++i) {
-        params->phats[i] = calloc(n, sizeof params->phats[i][0]);
+        state->phats[i] = calloc(n, sizeof state->phats[i][0]);
         for (size_t j = 0; j < n; ++j) {
-            mpz_init(params->phats[i][j]);
-            mpz_div(params->phats[i][j], params->x0s[i], params->ps[i][j]);
+            mpz_init(state->phats[i][j]);
+            mpz_div(state->phats[i][j], state->x0s[i], state->ps[i][j]);
         }
         if (verbose)
             print_progress(++count, nlevels);
     }
     if (verbose)
         fprintf(stderr, "\n");
-    return params;
+    return state;
 error:
-    polylog_params_free(params);
+    polylog_state_free(state);
     return NULL;
 }
 
-switch_params_t *
-switch_params_new(clt_state_t *s, size_t wordsize, size_t level)
+switch_state_t *
+switch_state_new(clt_state_t *s, size_t wordsize, size_t level)
 {
-    polylog_params_t *pparams = s->pparams;
-    switch_params_t *params;
+    polylog_state_t *pstate = s->pstate;
+    switch_state_t *state;
     mpz_t K;
 
-    if (level > pparams->nlevels - 1) {
-        fprintf(stderr, "error: level too large (%lu > %lu)\n", level, pparams->nlevels - 1);
+    if (level > pstate->nlevels - 1) {
+        fprintf(stderr, "error: level too large (%lu > %lu)\n", level, pstate->nlevels - 1);
         return NULL;
     }
 
-    if ((params = calloc(1, sizeof params[0])) == NULL)
+    if ((state = calloc(1, sizeof state[0])) == NULL)
         return NULL;
-    params->level = level;
-    params->wordsize = wordsize;
+    state->level = level;
+    state->wordsize = wordsize;
     /* k = η_ℓ / log2(wordsize) */
-    params->k = (int) ceil(pparams->etas[level] / log2(wordsize));
+    state->k = (int) ceil(pstate->etas[level] / log2(wordsize));
 
     /* K = Π · (wordsize)ᵏ */
     mpz_init(K);
-    mpz_ui_pow_ui(K, wordsize, params->k);
-    mpz_mul(K, K, pparams->x0s[level]);
+    mpz_ui_pow_ui(K, wordsize, state->k);
+    mpz_mul(K, K, pstate->x0s[level]);
 
-    params->ys = calloc(pparams->theta, sizeof params->ys[0]);
+    state->ys = calloc(pstate->theta, sizeof state->ys[0]);
     /* Sample y_{n+1}, ..., y_Θ ∈ [0, K) */
-    for (size_t i = s->n; i < pparams->theta; ++i) {
-        mpz_init(params->ys[i]);
-        mpz_urandomm_aes(params->ys[i], s->rngs[0], K);
+    for (size_t i = s->n; i < pstate->theta; ++i) {
+        mpz_init(state->ys[i]);
+        mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
     }
     mpz_t *fs;
     fs = calloc(s->n, sizeof fs[0]);
     for (size_t i = 0; i < s->n; ++i) {
         mpz_init(fs[i]);
-        mpz_invert(fs[i], s->gs[i], pparams->ps[level][i]);
-        mpz_mul(fs[i], fs[i], pparams->ps[level + 1][i]);
-        mpz_fdiv_q(fs[i], fs[i], pparams->ps[level][i]);
+        mpz_invert(fs[i], s->gs[i], pstate->ps[level][i]);
+        mpz_mul(fs[i], fs[i], pstate->ps[level + 1][i]);
+        mpz_fdiv_q(fs[i], fs[i], pstate->ps[level][i]);
         mpz_mul(fs[i], fs[i], s->gs[i]);
-        mpz_mod_near(fs[i], fs[i], pparams->ps[level + 1][i]);
+        mpz_mod_near(fs[i], fs[i], pstate->ps[level + 1][i]);
         mpz_invert(fs[i], fs[i], s->gs[i]);
     }
     mpz_t **ss;
     ss = calloc(s->n, sizeof ss[0]);
     for (size_t i = 0; i < s->n; ++i) {
-        ss[i] = calloc(pparams->theta, sizeof ss[i][0]);
+        ss[i] = calloc(pstate->theta, sizeof ss[i][0]);
         for (size_t j = 0; j < s->n; ++j)
             mpz_init_set_ui(ss[i][j], 0);
-        for (size_t j = s->n; j < pparams->theta; ++j) {
+        for (size_t j = s->n; j < pstate->theta; ++j) {
             mpz_init(ss[i][j]);
             mpz_urandomb_aes(ss[i][j], s->rngs[0], wordsize);
         }
@@ -163,54 +163,54 @@ switch_params_new(clt_state_t *s, size_t wordsize, size_t level)
 
         mpz_t tmp;
         mpz_init(tmp);
-        mpz_init(params->ys[i]);
+        mpz_init(state->ys[i]);
         mpz_invert(tmp, fs[i], s->gs[i]);
-        mpz_invert(params->ys[i], s->gs[i], pparams->ps[level][i]);
-        mpz_mul(params->ys[i], params->ys[i], tmp);
-        mpz_mod_near(params->ys[i], params->ys[i], pparams->ps[level][i]);
-        mpz_mul(params->ys[i], params->ys[i], K);
-        mpz_div(params->ys[i], params->ys[i], pparams->ps[level][i]);
+        mpz_invert(state->ys[i], s->gs[i], pstate->ps[level][i]);
+        mpz_mul(state->ys[i], state->ys[i], tmp);
+        mpz_mod_near(state->ys[i], state->ys[i], pstate->ps[level][i]);
+        mpz_mul(state->ys[i], state->ys[i], K);
+        mpz_div(state->ys[i], state->ys[i], pstate->ps[level][i]);
 
         mpz_set_ui(tmp, 0);
-        for (size_t j = s->n; j < pparams->theta; ++j) {
+        for (size_t j = s->n; j < pstate->theta; ++j) {
             mpz_t m;
             mpz_init(m);
-            mpz_mul(m, params->ys[j], ss[i][j]);
+            mpz_mul(m, state->ys[j], ss[i][j]);
             mpz_add(tmp, tmp, m);
             mpz_clear(m);
         }
-        mpz_sub(params->ys[i], params->ys[i], tmp);
-        mpz_mod_near(params->ys[i], params->ys[i], K);
+        mpz_sub(state->ys[i], state->ys[i], tmp);
+        mpz_mod_near(state->ys[i], state->ys[i], K);
     }
 
-    params->sigmas = calloc(pparams->theta, sizeof params->sigmas[0]);
-    for (size_t t = 0; t < pparams->theta; ++t) {
-        params->sigmas[t] = calloc(params->k, sizeof params->sigmas[t][0]);
-        /* for (size_t j = 0; j < pparams->k, ++j) { */
+    state->sigmas = calloc(pstate->theta, sizeof state->sigmas[0]);
+    for (size_t t = 0; t < pstate->theta; ++t) {
+        state->sigmas[t] = calloc(state->k, sizeof state->sigmas[t][0]);
+        /* for (size_t j = 0; j < pstate->k, ++j) { */
         /*     mpz_t tmp; */
         /*     mpz_init(tmp); */
-        /*     mpz_invert(tmp, pows[j][k], pparams->ps[level+1][j]) */
+        /*     mpz_invert(tmp, pows[j][k], pstate->ps[level+1][j]) */
         /* } */
     }
 
-    return params;
+    return state;
 }
 
 int
 polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const int *ix, size_t level)
 {
-    polylog_params_t *pparams = s->pparams;
+    polylog_state_t *pstate = s->pstate;
     mpz_t b_mpz;
-    mpz_init_set_ui(b_mpz, pparams->b);
+    mpz_init_set_ui(b_mpz, pstate->b);
     mpz_set_ui(rop->elem, 0);
     for (size_t i = 0; i < n; ++i) {
         mpz_t tmp;
         mpz_init(tmp);
-        mpz_urandomb_aes(tmp, s->rngs[i], pparams->b);
+        mpz_urandomb_aes(tmp, s->rngs[i], pstate->b);
         mpz_mod_near(tmp, tmp, b_mpz);
         mpz_mul(tmp, tmp, s->gs[i]);
         mpz_add(tmp, tmp, xs[i]); /* XXX */
-        mpz_mul(tmp, tmp, pparams->crt_coeffs[level][i]);
+        mpz_mul(tmp, tmp, pstate->crt_coeffs[level][i]);
         mpz_add(rop->elem, rop->elem, tmp);
         mpz_clear(tmp);
     }
@@ -224,8 +224,8 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const
             if (ix[i] <= 0)
                 continue;
             rop->ix[i] = ix[i];
-            mpz_powm_ui(tmp, s->zinvs[i], ix[i], pparams->x0s[level]);
-            mpz_mul_mod(rop->elem, rop->elem, tmp, pparams->x0s[level]);
+            mpz_powm_ui(tmp, s->zinvs[i], ix[i], pstate->x0s[level]);
+            mpz_mul_mod(rop->elem, rop->elem, tmp, pstate->x0s[level]);
         }
         mpz_clear(tmp);
     }
@@ -241,7 +241,7 @@ polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const
         return CLT_ERR;
     }
     mpz_mul(rop->elem, a->elem, b->elem);
-    mpz_mod(rop->elem, rop->elem, pp->pparams->x0s[level]);
+    mpz_mod(rop->elem, rop->elem, pp->pstate->x0s[level]);
     rop->level = a->level + 1;
     return CLT_OK;
 }
@@ -272,35 +272,35 @@ worddecomp(mpz_t x, size_t wordsize_, size_t k)
 }
 
 int
-polylog_switch(clt_elem_t *rop, const clt_state_t *s, clt_elem_t *x, switch_params_t *sparams)
+polylog_switch(clt_elem_t *rop, const clt_state_t *s, clt_elem_t *x, switch_state_t *sstate)
 {
-    const polylog_params_t *pparams = s->pparams;
+    const polylog_state_t *pstate = s->pstate;
     mpz_t *pi, *pip, ct, twok;
 
     if (rop == NULL)
         return CLT_ERR;
-    if (sparams->level != x->level) {
+    if (sstate->level != x->level) {
         fprintf(stderr, "error: using switch parameter with a mismatched level\n");
         return CLT_ERR;
     }
 
-    pi = &pparams->x0s[sparams->level];
-    pip = &pparams->x0s[sparams->level + 1];
+    pi = &pstate->x0s[sstate->level];
+    pip = &pstate->x0s[sstate->level + 1];
 
     mpz_inits(ct, twok, NULL);
-    mpz_ui_pow_ui(twok, 2, sparams->k);
+    mpz_ui_pow_ui(twok, 2, sstate->k);
     mpz_set_ui(rop->elem, 0);
-    for (size_t t = 0; t < pparams->theta; ++t) {
+    for (size_t t = 0; t < pstate->theta; ++t) {
         mpz_t *cts;
         /* Compute cₜ = (x · yₜ) / Π mod (wordsize)^ℓ */
-        mpz_mul(ct, x->elem, sparams->ys[t]);
+        mpz_mul(ct, x->elem, sstate->ys[t]);
         mpz_div(ct, ct, *pi);
         mpz_mod(ct, ct, twok);
-        cts = worddecomp(ct, sparams->wordsize, sparams->k);
-        for (size_t i = 0; i < sparams->k; ++i) {
+        cts = worddecomp(ct, sstate->wordsize, sstate->k);
+        for (size_t i = 0; i < sstate->k; ++i) {
             mpz_t tmp;
             mpz_init(tmp);
-            mpz_mul(tmp, cts[i], sparams->sigmas[t][i]->elem);
+            mpz_mul(tmp, cts[i], sstate->sigmas[t][i]->elem);
             mpz_add(rop->elem, rop->elem, tmp);
             mpz_mod(rop->elem, rop->elem, *pip);
             mpz_clear(tmp);
