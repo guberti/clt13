@@ -19,7 +19,7 @@ struct clt_state_t {
     aes_randstate_t *rngs;      /* random number generators (one per slot) */
 
     mpz_t x0;
-    level_params_t *lparams;
+    polylog_params_t *pparams;
     mpz_t pzt;                  /* zero testing parameter */
     mpz_t *zinvs;               /* z inverses */
     union {

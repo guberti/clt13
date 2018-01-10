@@ -37,6 +37,8 @@ typedef struct {
     size_t nmoduli;
     /* number of multiplication levels */
     size_t nlevels;
+    /* number of multiplications */
+    size_t nmuls;
 } clt_opt_params_t;
 
 typedef struct {
