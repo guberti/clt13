@@ -17,11 +17,21 @@ mpz_mod_near(mpz_t rop, const mpz_t a, const mpz_t p)
     mpz_t p_;
     mpz_init(p_);
     mpz_mod(rop, a, p);
-    mpz_cdiv_q_ui(p_, p, 2);
+    mpz_tdiv_q_2exp(p_, p, 1);
     if (mpz_cmp(rop, p_) > 0)
         mpz_sub(rop, rop, p);
     mpz_clear(p_);
 }
+
+static inline void
+mpz_mod_near_ui(mpz_t rop, const mpz_t a, size_t p)
+{
+
+    mpz_mod_ui(rop, a, p);
+    if (mpz_cmp_ui(rop, p / 2) > 0)
+        mpz_sub_ui(rop, rop, p);
+}
+
 
 static inline void
 mpz_mul_mod(mpz_t rop, mpz_t a, const mpz_t b, const mpz_t p)
@@ -88,6 +98,15 @@ crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
     }
     if (verbose)
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
+}
+
+static inline size_t
+slot(size_t i, size_t n, size_t maxslots)
+{
+    if (i == maxslots - 1)
+        return n - 1;
+    else
+        return i / (maxslots / n);
 }
 
 int mpz_fread(mpz_t x, FILE *fp);

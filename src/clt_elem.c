@@ -117,15 +117,6 @@ clt_elem_fwrite(clt_elem_t *x, FILE *fp)
     return CLT_OK;
 }
 
-static inline size_t
-_slot(size_t i, size_t n, size_t maxslots)
-{
-    if (i == maxslots - 1)
-        return n - 1;
-    else
-        return i / (maxslots / n);
-}
-
 int
 clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
            const int *ix, clt_encode_opt_params_t *opt)
@@ -150,7 +141,7 @@ clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         for (size_t i = 0; i < s->n; i++) {
             mpz_random_(slots[i], s->rngs[i], rho);
             mpz_mul(slots[i], slots[i], s->gs[i]);
-            mpz_add(slots[i], slots[i], xs[_slot(i, n, s->n)]);
+            mpz_add(slots[i], slots[i], xs[slot(i, n, s->n)]);
         }
         crt_tree_do_crt(rop->elem, s->crt, slots);
         mpz_vector_free(slots, s->n);
@@ -162,7 +153,7 @@ clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
             mpz_init(tmp);
             mpz_random_(tmp, s->rngs[i], rho);
             mpz_mul(tmp, tmp, s->gs[i]);
-            mpz_add(tmp, tmp, xs[_slot(i, n, s->n)]);
+            mpz_add(tmp, tmp, xs[slot(i, n, s->n)]);
             mpz_mul(tmp, tmp, s->crt_coeffs[i]);
 #pragma omp critical
             {

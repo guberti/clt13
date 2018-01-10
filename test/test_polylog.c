@@ -44,7 +44,7 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     };
     size_t levels[] = {0, 0, 1};
     clt_opt_params_t opts = {
-        .slots = 0,
+        .slots = 1,
         .moduli = NULL,
         .nmoduli = 0,
         .nlevels = 2,
@@ -73,7 +73,8 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     polylog_elem_decrypt(x1, mmap, 0);
     polylog_elem_decrypt(x2, mmap, 0);
     polylog_elem_decrypt(x3, mmap, 0);
-    polylog_elem_mul(x4, mmap, x0, x1, 0);
+    polylog_elem_add(x4, mmap, x0, x1);
+    polylog_elem_mul(x4, mmap, x4, x1, 0);
     polylog_elem_decrypt(x4, mmap, 1);
     polylog_elem_mul(x5, mmap, x2, x3, 1);
     polylog_elem_decrypt(x5, mmap, 1);
@@ -81,6 +82,14 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     polylog_elem_decrypt(out, mmap, 2);
     /* ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_is_zero(out, pp)); */
 
+    mpz_clears(zero, one, NULL);
+    clt_elem_free(x0);
+    clt_elem_free(x1);
+    clt_elem_free(x2);
+    clt_elem_free(x3);
+    clt_elem_free(x4);
+    clt_elem_free(x5);
+    clt_elem_free(out);
     return !ok;
 }
 
