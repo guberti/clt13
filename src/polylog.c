@@ -31,12 +31,20 @@ polylog_params_t *
 polylog_params_new(size_t n, size_t eta, size_t b, size_t nlevels, aes_randstate_t *rngs, bool verbose)
 {
     polylog_params_t *params;
+    int count;
 
     if ((params = calloc(1, sizeof params[0])) == NULL)
         return NULL;
     params->n = n;
     params->b = b;
     params->nlevels = nlevels;
+    if (verbose) {
+        fprintf(stderr, "polylog\n");
+        fprintf(stderr, "  n: %lu\n", params->n);
+        fprintf(stderr, "  b: %lu\n", params->b);
+        fprintf(stderr, "  nlevels: %lu\n", params->nlevels);
+        fprintf(stderr, "  ηs:");
+    }
     params->etas = calloc(nlevels, sizeof params->etas[0]);
     for (size_t i = 0; i < nlevels; ++i) {
         if (i * 2 * b > eta) {
@@ -44,23 +52,43 @@ polylog_params_new(size_t n, size_t eta, size_t b, size_t nlevels, aes_randstate
             goto error;
         }
         params->etas[i] = eta - i * 2 * b;
+        if (verbose)
+            fprintf(stderr, " %lu", params->etas[i]);
+    }
+    if (verbose) {
+        fprintf(stderr, "\n  Generating p_i's:\n");
     }
     params->ps = calloc(nlevels, sizeof params->ps[0]);
     for (size_t i = 0; i < nlevels; ++i) {
-        int count = 0;
         params->ps[i] = calloc(n, sizeof params->ps[i][0]);
-        print_progress(count, n);
+        if (verbose) {
+            count = 0;
+            print_progress(count, n);
+        }
         for (size_t j = 0; j < n; ++j) {
             mpz_init(params->ps[i][j]);
             mpz_prime(params->ps[i][j], rngs[j], params->etas[i]);
             if (verbose)
                 print_progress(++count, n);
         }
+        if (verbose)
+            fprintf(stderr, "\n");
+    }
+    if (verbose) {
+        fprintf(stderr, "  Generating x0s:\n");
     }
     params->x0s = calloc(nlevels, sizeof params->x0s[0]);
+    params->crt_coeffs = calloc(nlevels, sizeof params->crt_coeffs[0]);
     for (size_t i = 0; i < nlevels; ++i) {
         mpz_init(params->x0s[i]);
         product(params->x0s[i], params->ps[i], n, verbose);
+        params->crt_coeffs[i] = mpz_vector_new(n);
+        crt_coeffs(params->crt_coeffs[i], params->ps[i], n, params->x0s[i], verbose);
+    }
+    if (verbose) {
+        fprintf(stderr, "  Generating p hat's:\n");
+        count = 0;
+        print_progress(count, nlevels);
     }
     params->phats = calloc(nlevels, sizeof params->phats[0]);
     for (size_t i = 0; i < nlevels; ++i) {
@@ -69,7 +97,11 @@ polylog_params_new(size_t n, size_t eta, size_t b, size_t nlevels, aes_randstate
             mpz_init(params->phats[i][j]);
             mpz_div(params->phats[i][j], params->x0s[i], params->ps[i][j]);
         }
+        if (verbose)
+            print_progress(++count, nlevels);
     }
+    if (verbose)
+        fprintf(stderr, "\n");
     return params;
 error:
     polylog_params_free(params);
@@ -165,14 +197,17 @@ switch_params_new(clt_state_t *s, size_t wordsize, size_t level)
 }
 
 int
-polylog_encode(clt_elem_t *rop, const clt_state_t *s, mpz_t *xs, const int *ix, size_t level)
+polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const int *ix, size_t level)
 {
     polylog_params_t *pparams = s->pparams;
+    mpz_t b_mpz;
+    mpz_init_set_ui(b_mpz, pparams->b);
     mpz_set_ui(rop->elem, 0);
-    for (size_t i = 0; i < s->n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
         mpz_t tmp;
         mpz_init(tmp);
-        mpz_random_(tmp, s->rngs[i], pparams->b); /* XXX center around 0 */
+        mpz_urandomb_aes(tmp, s->rngs[i], pparams->b);
+        mpz_mod_near(tmp, tmp, b_mpz);
         mpz_mul(tmp, tmp, s->gs[i]);
         mpz_add(tmp, tmp, xs[i]); /* XXX */
         mpz_mul(tmp, tmp, pparams->crt_coeffs[level][i]);
@@ -195,6 +230,45 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, mpz_t *xs, const int *ix, 
         mpz_clear(tmp);
     }
     return CLT_OK;
+}
+
+int
+polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b, size_t level)
+{
+    if (a->level != b->level) {
+        fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to multiply",
+                a->level, b->level);
+        return CLT_ERR;
+    }
+    mpz_mul(rop->elem, a->elem, b->elem);
+    mpz_mod(rop->elem, rop->elem, pp->pparams->x0s[level]);
+    rop->level = a->level + 1;
+    return CLT_OK;
+}
+
+static void
+quotient(mpz_t rop, mpz_t a, mpz_t b)
+{
+    mpz_mod_near(rop, a, b);
+    mpz_sub(rop, a, rop);
+    mpz_div(rop, rop, b);
+}
+
+static mpz_t *
+worddecomp(mpz_t x, size_t wordsize_, size_t k)
+{
+    mpz_t tmp, wordsize;
+    mpz_t *decomp;
+
+    mpz_init_set_ui(wordsize, wordsize_);
+    mpz_init_set(tmp, x);
+    decomp = calloc(k, sizeof decomp[0]);
+    for (size_t i = 0; i < k; ++i) {
+        mpz_init(decomp[i]);
+        mpz_mod_near(decomp[i], tmp, wordsize);
+        quotient(tmp, tmp, wordsize);
+    }
+    return decomp;
 }
 
 int

@@ -24,7 +24,7 @@ clt_elem_set(clt_elem_t *a, const clt_elem_t *b)
     a->level = b->level;
 }
 
-static int
+int
 clt_elem_add_level(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a,
                    const clt_elem_t *b, size_t level)
 {
@@ -41,7 +41,6 @@ clt_elem_add_level(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a,
     if (pp->is_polylog)
         rop->level = a->level;
     return CLT_OK;
-
 }
 
 int

@@ -36,6 +36,6 @@ void
 polylog_params_free(polylog_params_t *params);
 
 int
-polylog_encode(clt_elem_t *rop, const clt_state_t *s, mpz_t *xs, const int *ix, size_t level);
+polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const int *ix, size_t level);
 
 #pragma GCC visibility pop

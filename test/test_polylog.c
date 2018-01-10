@@ -63,15 +63,9 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     clt_encode(x1, mmap, 1, &one, top, 0);
     clt_encode(x2, mmap, 1, &one, top, 0);
     clt_encode(x3, mmap, 1, &one, top, 0);
-    if (polylog) {
-        /* clt_elem_mul_(x4, mmap, x0, x1); */
-        /* clt_elem_mul_(x5, mmap, x2, x3); */
-        /* clt_elem_mul_(out, mmap, x4, x5); */
-    } else {
-        clt_elem_mul(x4, pp, x0, x1);
-        clt_elem_mul(x5, pp, x2, x3);
-        clt_elem_mul(out, pp, x4, x5);
-    }
+    polylog_elem_mul(x4, pp, x0, x1, 0);
+    polylog_elem_mul(x5, pp, x2, x3, 0);
+    polylog_elem_mul(out, pp, x4, x5, 1);
     ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_is_zero(out, pp));
 
     return !ok;
@@ -86,8 +80,8 @@ main(int arg, char **argv)
     size_t kappa = 5;
     size_t nzs = 10;
 
-    if (test(lambda, kappa, nzs, false) == 1)
-        return 1;
+    /* if (test(lambda, kappa, nzs, false) == 1) */
+    /*     return 1; */
     if (test(lambda, kappa, nzs, true) == 1)
         return 1;
     return 0;

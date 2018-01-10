@@ -65,6 +65,31 @@ product(mpz_t rop, mpz_t *xs, size_t n, bool verbose)
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
 }
 
+
+static inline void
+crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
+{
+    const double start = current_time();
+    int count = 0;
+    if (verbose)
+        fprintf(stderr, "  Generating CRT coefficients:\n");
+#pragma omp parallel for
+    for (size_t i = 0; i < n; i++) {
+        mpz_t q;
+        mpz_init(q);
+        mpz_div(q, x0, ps[i]);
+        mpz_invert(coeffs[i], q, ps[i]);
+        mpz_mul_mod(coeffs[i], coeffs[i], q, x0);
+        mpz_clear(q);
+        if (verbose) {
+#pragma omp critical
+            print_progress(++count, n);
+        }
+    }
+    if (verbose)
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
+}
+
 int mpz_fread(mpz_t x, FILE *fp);
 int mpz_fwrite(mpz_t x, FILE *fp);
 mpz_t * mpz_vector_new(size_t n);

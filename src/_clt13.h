@@ -30,7 +30,10 @@ struct clt_state_t {
 };
 
 struct clt_pp_t {
-    mpz_t x0;
+    union {
+        mpz_t x0;
+        polylog_params_t *pparams;
+    };
     mpz_t pzt;                  /* zero testing parameter */
     size_t nu;                  /* number of most-significant-bits to extract */
     bool is_polylog;            /* are we using polylog CLT? */
