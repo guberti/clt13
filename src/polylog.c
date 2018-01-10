@@ -7,6 +7,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static inline void
+mpz_quotient(mpz_t rop, const mpz_t a, const mpz_t b)
+{
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpz_mod_near(tmp, a, b);
+    mpz_sub(rop, a, tmp);
+    mpz_tdiv_q(rop, rop, b);
+    mpz_clear(tmp);
+}
+
+static inline void
+mpz_quotient_2exp(mpz_t rop, const mpz_t a, const size_t b)
+{
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpz_mod_near_ui(tmp, a, 1 << b);
+    mpz_sub(rop, a, tmp);
+    mpz_tdiv_q_2exp(rop, rop, b);
+    mpz_clear(tmp);
+}
+
 static switch_state_t *
 switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
 {
@@ -55,7 +77,7 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
         mpz_invert(ginv, s->gs[i], pstate->ps[level][i]);
         /* Compute fᵢ */
         mpz_mul(f, ginv, pstate->ps[level + 1][i]);
-        mpz_fdiv_q(f, f, pstate->ps[level][i]);
+        mpz_quotient(f, f, pstate->ps[level][i]);
         mpz_mul(f, f, s->gs[i]);
         mpz_mod_near(f, f, pstate->ps[level + 1][i]);
         mpz_mod_near(f, f, s->gs[i]);
@@ -79,7 +101,7 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
         /* XXX multiply by z */
         mpz_mod_near(state->ys[i], f, pstate->ps[level][i]);
         mpz_mul(state->ys[i], state->ys[i], K);
-        mpz_tdiv_q(state->ys[i], state->ys[i], pstate->ps[level][i]);
+        mpz_quotient(state->ys[i], state->ys[i], pstate->ps[level][i]);
 
         for (size_t t = s->n; t < pstate->theta; ++t) {
             mpz_mul(tmp, state->ys[t], ss[i][t]);
@@ -100,7 +122,7 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
                 mpz_ui_pow_ui(xs[i], wordsize, j);
                 mpz_mul(xs[i], xs[i], ss[i][t]);
                 mpz_mul(xs[i], xs[i], pstate->ps[level + 1][i]);
-                mpz_tdiv_q(xs[i], xs[i], wk);
+                mpz_quotient(xs[i], xs[i], wk);
                 mpz_mul(xs[i], xs[i], s->gs[i]);
             }
             polylog_encode(state->sigmas[t][j], s, s->n, xs, NULL, level + 1);
@@ -296,15 +318,16 @@ polylog_elem_mul(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, con
     mpz_mul(rop->elem, a->elem, b->elem);
     mpz_mod(rop->elem, rop->elem, s->pstate->x0s[sstate->level]);
     rop->level = a->level;
-    if (polylog_switch(rop, s, rop, sstate) == CLT_ERR)
+    if (polylog_switch(rop, s, rop, sstate, s->flags & CLT_FLAG_VERBOSE) == CLT_ERR)
         return CLT_ERR;
     return CLT_OK;
 }
 
 int
-polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x_, const switch_state_t *sstate)
+polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x_, const switch_state_t *sstate, bool verbose)
 {
     const polylog_state_t *pstate = s->pstate;
+    const double start = current_time();
     mpz_t *pi, *pip, ct, wk;
     clt_elem_t *x;
     int ret = CLT_ERR;
@@ -329,14 +352,14 @@ polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x_, cons
     for (size_t t = 0; t < pstate->theta; ++t) {
         /* Compute cₜ = (x · yₜ) / Π^(ℓ) mod (wordsize)ᵏ */
         mpz_mul(ct, x->elem, sstate->ys[t]);
-        mpz_tdiv_q(ct, ct, *pi);
+        mpz_quotient(ct, ct, *pi);
         mpz_mod(ct, ct, wk);
         for (size_t i = 0; i < sstate->k; ++i) {
             mpz_t tmp, decomp;
             mpz_inits(tmp, decomp, NULL);
             /* Compute word decomposition c_{t,i} of cₜ */
             mpz_mod_near_ui(decomp, ct, sstate->wordsize);
-            mpz_tdiv_q_2exp(ct, ct, (int) log2(sstate->wordsize));
+            mpz_quotient_2exp(ct, ct, (int) log2(sstate->wordsize));
             /* σ_{t,i} · c_{t,i} */
             mpz_mul(tmp, decomp, sstate->sigmas[t][i]->elem);
             mpz_add(rop->elem, rop->elem, tmp);
@@ -345,6 +368,8 @@ polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x_, cons
         }
     }
     rop->level = x->level + 1;
+    if (verbose)
+        fprintf(stderr, "Switch time: %.2fs\n", current_time() - start);
     ret = CLT_OK;
 cleanup:
     mpz_clears(ct, wk, NULL);

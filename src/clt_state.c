@@ -404,7 +404,7 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
         s->crt_coeffs = mpz_vector_new(s->n);
     }
     if (s->flags & CLT_FLAG_POLYLOG) {
-        s->pstate = polylog_state_new(s, eta, 25, 2, opts->nlevels, opts->levels, opts->nops);
+        s->pstate = polylog_state_new(s, eta, 25, 16, opts->nlevels, opts->levels, opts->nops);
     } else {
         mpz_init_set_ui(s->x0,  1);
     }

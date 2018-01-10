@@ -36,7 +36,7 @@ void polylog_state_free(polylog_state_t *state);
 int polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const int *ix, size_t idx);
 
 int
-polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x, const switch_state_t *sstate);
+polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x, const switch_state_t *sstate, bool verbose);
 
 
 #pragma GCC visibility pop
