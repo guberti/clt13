@@ -1,9 +1,9 @@
 #ifndef __CLT13_H__
 #define __CLT13_H__
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+/* #ifdef __cplusplus */
+/* extern "C" { */
+/* #endif */
 
 #define CLT_OK 0
 #define CLT_ERR (-1)
@@ -37,8 +37,10 @@ typedef struct {
     size_t nmoduli;
     /* number of multiplication levels */
     size_t nlevels;
-    /* number of multiplications */
-    size_t nmuls;
+    /* levels of each operation */
+    size_t *levels;
+    /* number of operations */
+    size_t nops;
 } clt_opt_params_t;
 
 typedef struct {
@@ -104,11 +106,11 @@ void         clt_elem_print(const clt_elem_t *a);
 int          clt_elem_fread(clt_elem_t *x, FILE *fp);
 int          clt_elem_fwrite(clt_elem_t *x, FILE *fp);
 
-int
-polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b, size_t level);
+int polylog_elem_mul(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b, size_t level);
+int polylog_elem_decrypt(clt_elem_t *rop, const clt_state_t *s, size_t level);
 
-#ifdef __cplusplus
-}
-#endif
+/* #ifdef __cplusplus */
+/* } */
+/* #endif */
 
 #endif
