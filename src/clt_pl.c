@@ -197,7 +197,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     state->k = (int) ceil(eta / log2(wordsize));
 
     if (verbose)
-        fprintf(stderr, "  Generating switch state [%lu →  %lu]\n", level, level+1);
+        fprintf(stderr, "    Generating switch state [%lu →  %lu]:\n", level, level+1);
     start = current_time();
 
     mpz_inits(wk, K, z1, z2, NULL);
@@ -226,10 +226,10 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
     }
     if (verbose)
-        fprintf(stderr, "    Generating random y values: [%.2fs]\n", current_time() - _start);
+        fprintf(stderr, "      Generating random y values: [%.2fs]\n", current_time() - _start);
 
     if (verbose)
-        fprintf(stderr, "    Generating s and y values: ");
+        fprintf(stderr, "      Generating s and y values: ");
     _start = current_time();
     ss = calloc(s->n, sizeof ss[0]);
 /* #pragma omp parallel for */
@@ -279,7 +279,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         fprintf(stderr, "[%.2fs]\n", current_time() - _start);
 
     if (verbose)
-        fprintf(stderr, "    Generating σ values: ");
+        fprintf(stderr, "      Generating σ values: ");
     _start = current_time();
     state->sigmas = calloc(s->theta, sizeof state->sigmas[0]);
     for (size_t t = 0; t < s->theta; ++t) {
@@ -530,7 +530,7 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
     /* Generate "plaintext" moduli */
     s->gs = mpz_vector_new(s->n);
     if (verbose)
-        fprintf(stderr, "  Generating g_i's:\n");
+        fprintf(stderr, "  Generating gs:\n");
     if (opts && opts->moduli && opts->nmoduli) {
         for (size_t i = 0; i < opts->nmoduli; ++i)
             mpz_set(s->gs[i], opts->moduli[i]);
@@ -540,7 +540,7 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
     }
 
     if (verbose)
-        fprintf(stderr, "  Generating p_i's:\n");
+        fprintf(stderr, "  Generating %lu ps:\n", s->nlevels);
     s->ps = calloc(s->nlevels, sizeof s->ps[0]);
     for (size_t i = 0; i < s->nlevels; ++i) {
         double start = current_time();
@@ -559,27 +559,31 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
             fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
     }
     if (verbose)
-        fprintf(stderr, "  Generating x0s:\n");
+        fprintf(stderr, "  Generating %lu Πs:\n", s->nlevels);
     s->x0s = mpz_vector_new(s->nlevels);
     s->crt_coeffs = calloc(s->nlevels, sizeof s->crt_coeffs[0]);
     for (size_t i = 0; i < s->nlevels; ++i) {
-        if (verbose) {
-            fprintf(stderr, "  Computing product:\n");
+        if (verbose)
             fprintf(stderr, "%lu", i);
-        }
         product(s->x0s[i], s->ps[i], s->n, verbose);
         s->crt_coeffs[i] = mpz_vector_new(s->n);
+        if (verbose)
+            fprintf(stderr, "%lu", i);
         crt_coeffs(s->crt_coeffs[i], s->ps[i], s->n, s->x0s[i], verbose);
     }
     if (verbose)
-        fprintf(stderr, "  Generating z's:\n");
+        fprintf(stderr, "  Generating %lu zs:\n", s->nlevels);
     s->zs = calloc(s->nlevels, sizeof s->zs[0]);
     s->zinvs = calloc(s->nlevels, sizeof s->zinvs[0]);
     for (size_t i = 0; i < s->nlevels; ++i) {
         s->zs[i] = mpz_vector_new(s->nzs);
         s->zinvs[i] = mpz_vector_new(s->nzs);
+        if (verbose)
+            fprintf(stderr, "%lu", i);
         generate_zs(s->zs[i], s->zinvs[i], s->rngs, s->nzs, s->x0s[i], verbose);
     }
+    if (verbose)
+        fprintf(stderr, "  Generating %lu switches:\n", s->nmuls);
     s->switches = calloc(s->nmuls, sizeof s->switches[0]);
     for (size_t i = 0; i < s->nmuls; ++i) {
         size_t level = params->sparams[i].level;

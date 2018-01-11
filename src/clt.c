@@ -423,11 +423,15 @@ generate_ps:
         if (verbose)
             fprintf(stderr, "  Computing x0:\n");
         product(s->x0, ps, s->n, verbose);
+        if (verbose)
+            fprintf(stderr, "  Generating CRT coefficients:\n");
         crt_coeffs(s->crt_coeffs, ps, s->n, s->x0, verbose);
     }
 
     zs       = mpz_vector_new(s->nzs);
     s->zinvs = mpz_vector_new(s->nzs);
+    if (verbose)
+        fprintf(stderr, "  Generating z_i's:\n");
     generate_zs(zs, s->zinvs, s->rngs, s->nzs, s->x0, verbose);
 
     mpz_init(s->pzt);

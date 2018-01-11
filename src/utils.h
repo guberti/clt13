@@ -101,8 +101,6 @@ crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
 {
     const double start = current_time();
     int count = 0;
-    if (verbose)
-        fprintf(stderr, "  Generating CRT coefficients:\n");
 /* #pragma omp parallel for */
     for (size_t i = 0; i < n; i++) {
         mpz_t q;
@@ -125,8 +123,6 @@ generate_zs(mpz_t *zs, mpz_t *zinvs, aes_randstate_t *rngs, size_t nzs, const mp
 {
     const double start = current_time();
     int count = 0;
-    if (verbose)
-        fprintf(stderr, "  Generating z_i's:\n");
 /* #pragma omp parallel for */
     for (size_t i = 0; i < nzs; ++i) {
         do {
