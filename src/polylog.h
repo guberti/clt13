@@ -29,19 +29,25 @@ typedef struct {
 } polylog_state_t;
 
 typedef struct {
+    size_t theta;
     mpz_t *x0s;
     switch_state_t **switches;
     size_t nmuls;
+    bool local;
 } polylog_pp_t;
 
 polylog_state_t *
-polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
+polylog_state_new(clt_state_t *s, size_t eta, size_t theta, size_t b, size_t wordsize,
                   size_t nlevels, size_t *levels, size_t nops);
 void polylog_state_free(polylog_state_t *state);
+
+polylog_pp_t * polylog_pp_new(const polylog_state_t *s);
+void polylog_pp_free(polylog_pp_t *pp);
+
 int polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const int *ix, size_t idx);
 
-int
-polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x, const switch_state_t *sstate, bool verbose);
+int polylog_switch(clt_elem_t *rop, const clt_pp_t *s, const clt_elem_t *x,
+                   const switch_state_t *sstate, bool verbose);
 
 
 #pragma GCC visibility pop

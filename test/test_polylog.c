@@ -25,7 +25,7 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     if (polylog)
         flags |= CLT_FLAG_POLYLOG;
     clt_state_t *mmap;
-    /* clt_pp_t *pp; */
+    clt_pp_t *pp;
     aes_randstate_t rng;
     int top[nzs];
     int ok = 1;
@@ -53,7 +53,7 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     };
 
     mmap = clt_state_new(&params, &opts, 0, flags, rng);
-    /* pp = clt_pp_new(mmap); */
+    pp = clt_pp_new(mmap);
 
     x0 = clt_elem_new();
     x1 = clt_elem_new();
@@ -73,12 +73,12 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     polylog_elem_decrypt(x1, mmap, 0);
     polylog_elem_decrypt(x2, mmap, 0);
     polylog_elem_decrypt(x3, mmap, 0);
-    polylog_elem_add(x4, mmap, x0, x1);
-    polylog_elem_mul(x4, mmap, x4, x1, 0);
+    polylog_elem_add(x4, pp, x0, x1);
+    polylog_elem_mul(x4, pp, x4, x1, 0, true);
     polylog_elem_decrypt(x4, mmap, 1);
-    polylog_elem_mul(x5, mmap, x2, x3, 1);
+    polylog_elem_mul(x5, pp, x2, x3, 1, true);
     polylog_elem_decrypt(x5, mmap, 1);
-    polylog_elem_mul(out, mmap, x4, x5, 2);
+    polylog_elem_mul(out, pp, x4, x5, 2, true);
     polylog_elem_decrypt(out, mmap, 2);
     /* ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_is_zero(out, pp)); */
 

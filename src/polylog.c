@@ -7,6 +7,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+polylog_pp_t *
+polylog_pp_new(const polylog_state_t *s)
+{
+    polylog_pp_t *pp;
+
+    if ((pp = calloc(1, sizeof pp[0])) == NULL)
+        return NULL;
+    pp->theta = s->theta;
+    pp->x0s = s->x0s;
+    pp->nmuls = s->nmuls;
+    pp->switches = s->switches;
+    pp->local = false;
+    return pp;
+}
+
+void
+polylog_pp_free(polylog_pp_t *pp)
+{
+    if (pp && pp->local) {
+        /* XXX free stuff */
+    }
+}
+
 static inline void
 mpz_quotient(mpz_t rop, const mpz_t a, const mpz_t b)
 {
@@ -178,7 +201,7 @@ polylog_state_free(polylog_state_t *state)
 }
 
 polylog_state_t *
-polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
+polylog_state_new(clt_state_t *s, size_t eta, size_t theta, size_t b, size_t wordsize,
                   size_t nlevels, size_t *levels, size_t nswitches)
 {
     const bool verbose = s->flags & CLT_FLAG_VERBOSE;
@@ -195,10 +218,13 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
         return NULL;
     s->pstate = state;
     state->n = s->n;
-    state->b = b;               /* XXX probably should generate within this function rather than take as arg */
     state->nlevels = nlevels + 1;
-    state->theta = 200;         /* XXX */
-    assert(state->theta > state->n);
+    state->theta = theta;
+    state->b = b;
+    if (state->theta <= state->n) {
+        fprintf(stderr, "error: θ ≤ n\n");
+        goto error;
+    }
     /* Compute ηs */
     etas = calloc(state->nlevels, sizeof etas[0]);
     for (size_t i = 0; i < state->nlevels; ++i) {
@@ -212,6 +238,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
         fprintf(stderr, "Polylog CLT initialization:\n");
         fprintf(stderr, "  n: ..... %lu\n", state->n);
         fprintf(stderr, "  b: ..... %lu\n", state->b);
+        fprintf(stderr, "  θ: ..... %lu\n", state->theta);
         fprintf(stderr, "  nlevels: [0, %lu]\n", state->nlevels - 1);
         fprintf(stderr, "  ηs: .... ");
         for (size_t i = 0; i < state->nlevels; ++i)
@@ -311,7 +338,7 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const
 }
 
 int
-polylog_elem_add(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b)
+polylog_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
 {
     if (a->level != b->level) {
         fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to add\n",
@@ -319,13 +346,14 @@ polylog_elem_add(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, con
         return CLT_ERR;
     }
     mpz_add(rop->elem, a->elem, b->elem);
-    mpz_mod(rop->elem, rop->elem, s->pstate->x0s[a->level]);
+    mpz_mod(rop->elem, rop->elem, pp->pstate->x0s[a->level]);
     rop->level = a->level;
     return CLT_OK;
 }
 
 int
-polylog_elem_mul(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b, size_t idx)
+polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a,
+                 const clt_elem_t *b, size_t idx, int verbose)
 {
     switch_state_t *sstate;
     if (a->level != b->level) {
@@ -333,7 +361,7 @@ polylog_elem_mul(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, con
                 a->level, b->level);
         return CLT_ERR;
     }
-    sstate = s->pstate->switches[idx];
+    sstate = pp->pstate->switches[idx];
     if (sstate->level != a->level) {
         fprintf(stderr, "error: switch and element levels unequal (%lu ≠ %lu)\n",
                 sstate->level, a->level);
@@ -341,18 +369,18 @@ polylog_elem_mul(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, con
     }
     /* a · b mod Π^(ℓ) */
     mpz_mul(rop->elem, a->elem, b->elem);
-    mpz_mod(rop->elem, rop->elem, s->pstate->x0s[sstate->level]);
+    mpz_mod(rop->elem, rop->elem, pp->pstate->x0s[sstate->level]);
     rop->level = a->level;
-    if (polylog_switch(rop, s, rop, sstate, s->flags & CLT_FLAG_VERBOSE) == CLT_ERR)
+    if (polylog_switch(rop, pp, rop, sstate, verbose) == CLT_ERR)
         return CLT_ERR;
     return CLT_OK;
 }
 
 int
-polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x_,
+polylog_switch(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *x_,
                const switch_state_t *sstate, bool verbose)
 {
-    const polylog_state_t *pstate = s->pstate;
+    const polylog_pp_t *pstate = pp->pstate;
     const double start = current_time();
     mpz_t *pi, *pip, ct, wk;
     clt_elem_t *x;

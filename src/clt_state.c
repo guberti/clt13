@@ -125,7 +125,7 @@ clt_pp_new(const clt_state_t *mmap)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
     if (mmap->flags & CLT_FLAG_POLYLOG) {
-        pp->pstate = mmap->pstate;
+        pp->pstate = polylog_pp_new(mmap->pstate);
     } else {
         mpz_set(pp->x0, mmap->x0);
     }
@@ -285,6 +285,12 @@ generate_zs(mpz_t *zs, mpz_t *zinvs, aes_randstate_t *rngs, size_t nzs, mpz_t x0
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
 }
 
+static inline size_t
+max3(size_t a, size_t b, size_t c)
+{
+    return a >= b && a >= c ? a : b >= a && b >= c ? b : c;
+}
+
 clt_state_t *
 clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
               size_t ncores, size_t flags, aes_randstate_t rng)
@@ -404,7 +410,10 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
         s->crt_coeffs = mpz_vector_new(s->n);
     }
     if (s->flags & CLT_FLAG_POLYLOG) {
-        s->pstate = polylog_state_new(s, eta, 25, 256, opts->nlevels, opts->levels, opts->nops);
+        size_t theta, b;
+        theta = 200;
+        b = max3(s->rho + 2, log2(theta) + log2(eta) + 2, 2 * alpha);
+        s->pstate = polylog_state_new(s, eta, theta, b, 256, opts->nlevels, opts->levels, opts->nops);
     } else {
         mpz_init_set_ui(s->x0,  1);
     }

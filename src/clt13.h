@@ -106,8 +106,9 @@ void         clt_elem_print(const clt_elem_t *a);
 int          clt_elem_fread(clt_elem_t *x, FILE *fp);
 int          clt_elem_fwrite(clt_elem_t *x, FILE *fp);
 
-int polylog_elem_add(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b);
-int polylog_elem_mul(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, const clt_elem_t *b, size_t level);
+int polylog_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
+int polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *s, const clt_elem_t *a, const clt_elem_t *b,
+                     size_t level, int verbose);
 int polylog_elem_decrypt(clt_elem_t *rop, const clt_state_t *s, size_t level);
 
 /* #ifdef __cplusplus */

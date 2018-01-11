@@ -32,7 +32,7 @@ struct clt_state_t {
 struct clt_pp_t {
     union {
         mpz_t x0;
-        polylog_state_t *pstate;
+        polylog_pp_t *pstate;
     };
     mpz_t pzt;                  /* zero testing parameter */
     size_t nu;                  /* number of most-significant-bits to extract */
