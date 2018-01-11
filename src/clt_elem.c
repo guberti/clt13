@@ -168,7 +168,7 @@ clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         mpz_init(tmp);
         /* multiply by appropriate zinvs */
         rop->ix = calloc(s->nzs, sizeof rop->ix[0]);
-        for (unsigned long i = 0; i < s->nzs; ++i) {
+        for (size_t i = 0; i < s->nzs; ++i) {
             if (ix[i] <= 0)
                 continue;
             rop->ix[i] = ix[i];
