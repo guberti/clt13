@@ -7,6 +7,7 @@
 struct clt_elem_t {
     mpz_t elem;
     int *ix;
+    size_t nzs;
     size_t level;
 };
 

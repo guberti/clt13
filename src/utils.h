@@ -32,9 +32,8 @@ mpz_mod_near_ui(mpz_t rop, const mpz_t a, size_t p)
         mpz_sub_ui(rop, rop, p);
 }
 
-
 static inline void
-mpz_mul_mod(mpz_t rop, mpz_t a, const mpz_t b, const mpz_t p)
+mpz_mul_mod_near(mpz_t rop, mpz_t a, const mpz_t b, const mpz_t p)
 {
     mpz_mul(rop, a, b);
     mpz_mod_near(rop, rop, p);
@@ -89,12 +88,32 @@ crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
         mpz_init(q);
         mpz_div(q, x0, ps[i]);
         mpz_invert(coeffs[i], q, ps[i]);
-        mpz_mul_mod(coeffs[i], coeffs[i], q, x0);
+        mpz_mul_mod_near(coeffs[i], coeffs[i], q, x0);
         mpz_clear(q);
         if (verbose) {
 #pragma omp critical
             print_progress(++count, n);
         }
+    }
+    if (verbose)
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
+}
+
+static inline void
+generate_zs(mpz_t *zs, mpz_t *zinvs, aes_randstate_t *rngs, size_t nzs, const mpz_t x0, bool verbose)
+{
+    const double start = current_time();
+    int count = 0;
+    if (verbose)
+        fprintf(stderr, "  Generating z_i's:\n");
+#pragma omp parallel for
+    for (size_t i = 0; i < nzs; ++i) {
+        do {
+            mpz_urandomm_aes(zs[i], rngs[i], x0);
+        } while (mpz_invert(zinvs[i], zs[i], x0) == 0);
+        if (verbose)
+#pragma omp critical
+            print_progress(++count, nzs);
     }
     if (verbose)
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);

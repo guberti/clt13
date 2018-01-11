@@ -265,26 +265,6 @@ gen_primes_composite_ps(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t eta, b
     return CLT_OK;
 }
 
-static void
-generate_zs(mpz_t *zs, mpz_t *zinvs, aes_randstate_t *rngs, size_t nzs, mpz_t x0, bool verbose)
-{
-    const double start = current_time();
-    int count = 0;
-    if (verbose)
-        fprintf(stderr, "  Generating z_i's:\n");
-#pragma omp parallel for
-    for (size_t i = 0; i < nzs; ++i) {
-        do {
-            mpz_urandomm_aes(zs[i], rngs[i], x0);
-        } while (mpz_invert(zinvs[i], zs[i], x0) == 0);
-        if (verbose)
-#pragma omp critical
-            print_progress(++count, nzs);
-    }
-    if (verbose)
-        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
-}
-
 static inline size_t
 max3(size_t a, size_t b, size_t c)
 {
@@ -408,7 +388,7 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
         size_t theta, b;
         theta = 200;
         b = max3(s->rho + 2, log2(theta) + log2(eta) + 2, 2 * alpha);
-        s->pstate = polylog_state_new(s, eta, theta, b, 256, opts->nlevels, opts->levels, opts->nops);
+        s->pstate = polylog_state_new(s, eta, theta, b, 256, opts->nlevels, opts->sparams, opts->nmuls);
     } else {
         mpz_init_set_ui(s->x0,  1);
     }
@@ -474,7 +454,7 @@ generate_ps:
             mpz_t tmp;
             mpz_init(tmp);
             mpz_powm_ui(tmp, zs[i], params->pows[i], s->x0);
-            mpz_mul_mod(zk, zk, tmp, s->x0);
+            mpz_mul_mod_near(zk, zk, tmp, s->x0);
             mpz_clear(tmp);
             if (verbose) {
                 print_progress(++count, s->n + s->nzs);
@@ -486,13 +466,13 @@ generate_ps:
             mpz_inits(tmp, qpi, rnd, NULL);
             /* compute ((g_i^{-1} mod p_i) · z · r_i · (x0 / p_i) */
             mpz_invert(tmp, s->gs[i], ps[i]);
-            mpz_mul_mod(tmp, tmp, zk, ps[i]);
+            mpz_mul_mod_near(tmp, tmp, zk, ps[i]);
             do {
                 mpz_random_(rnd, s->rngs[i], beta);
             } while (mpz_cmp(rnd, s->gs[i]) == 0);
             mpz_mul(tmp, tmp, rnd);
             mpz_div(qpi, s->x0, ps[i]);
-            mpz_mul_mod(tmp, tmp, qpi, s->x0);
+            mpz_mul_mod_near(tmp, tmp, qpi, s->x0);
 #pragma omp critical
             {
                 mpz_add(s->pzt, s->pzt, tmp);

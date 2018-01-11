@@ -169,11 +169,10 @@ clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         /* multiply by appropriate zinvs */
         rop->ix = calloc(s->nzs, sizeof rop->ix[0]);
         for (size_t i = 0; i < s->nzs; ++i) {
-            if (ix[i] <= 0)
-                continue;
+            if (ix[i] <= 0) continue;
             rop->ix[i] = ix[i];
             mpz_powm_ui(tmp, s->zinvs[i], ix[i], s->x0);
-            mpz_mul_mod(rop->elem, rop->elem, tmp, s->x0);
+            mpz_mul_mod_near(rop->elem, rop->elem, tmp, s->x0);
         }
         mpz_clear(tmp);
     }

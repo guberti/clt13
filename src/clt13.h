@@ -27,6 +27,11 @@ typedef struct {
     int *pows;
 } clt_params_t;
 
+typedef struct {
+    size_t level;
+    int *ix;
+} switch_params_t;
+
 /* Optional parameters to clt_state_new */
 typedef struct {
     /* number of slots needed */
@@ -37,10 +42,10 @@ typedef struct {
     size_t nmoduli;
     /* number of multiplication levels */
     size_t nlevels;
-    /* levels of each operation */
-    size_t *levels;
-    /* number of operations */
-    size_t nops;
+    /* number of multiplications */
+    size_t nmuls;
+    /* switch parameters of each multiplication */
+    switch_params_t *sparams;
 } clt_opt_params_t;
 
 typedef struct {

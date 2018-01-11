@@ -16,41 +16,50 @@
 /* } */
 
 static int
-test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
+test(size_t lambda, size_t kappa, bool polylog)
 {
     srand(time(NULL));
     /* srand(0); */
 
+    const size_t nzs = 4;
     size_t flags = CLT_FLAG_VERBOSE;
     if (polylog)
         flags |= CLT_FLAG_POLYLOG;
     clt_state_t *mmap;
     clt_pp_t *pp;
     aes_randstate_t rng;
-    int top[nzs];
+    int top[] = {1, 1, 1, 1};
     int ok = 1;
     clt_elem_t *x0, *x1, *x2, *x3, *x4, *x5, *out;
     mpz_t zero, one;
-
-    for (size_t i = 0; i < nzs; i++)
-        top[i] = 0;
-    aes_randinit(rng);
 
     clt_params_t params = {
         .lambda = lambda,
         .kappa = kappa,
         .nzs = nzs,
-        .pows = top,
+        .pows = NULL,
     };
-    size_t levels[] = {0, 0, 1};
+    int ix0[] = {1, 0, 0, 0};
+    int ix1[] = {0, 1, 0, 0};
+    int ix2[] = {0, 0, 1, 0};
+    int ix3[] = {0, 0, 0, 1};
+    int ix1100[] = {1, 1, 0, 0};
+    int ix0011[] = {0, 0, 1, 1};
+    switch_params_t ss[] = {
+        { .level = 0, .ix = ix1100 },
+        { .level = 0, .ix = ix0011 },
+        { .level = 1, .ix = top },
+    };
     clt_opt_params_t opts = {
         .slots = 1,
         .moduli = NULL,
         .nmoduli = 0,
         .nlevels = 2,
-        .levels = levels,
-        .nops = 3,
+        .sparams = ss,
+        .nmuls = 3,
     };
+
+    aes_randinit(rng);
 
     mmap = clt_state_new(&params, &opts, 0, flags, rng);
     pp = clt_pp_new(mmap);
@@ -65,16 +74,16 @@ test(size_t lambda, size_t kappa, size_t nzs, bool polylog)
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
 
-    clt_encode(x0, mmap, 1, &one, top, 0);
-    clt_encode(x1, mmap, 1, &one, top, 0);
-    clt_encode(x2, mmap, 1, &one, top, 0);
-    clt_encode(x3, mmap, 1, &one, top, 0);
+    clt_encode(x0, mmap, 1, &one, ix0, 0);
+    clt_encode(x1, mmap, 1, &one, ix1, 0);
+    clt_encode(x2, mmap, 1, &one, ix2, 0);
+    clt_encode(x3, mmap, 1, &one, ix3, 0);
     polylog_elem_decrypt(x0, mmap, 0);
     polylog_elem_decrypt(x1, mmap, 0);
     polylog_elem_decrypt(x2, mmap, 0);
     polylog_elem_decrypt(x3, mmap, 0);
-    polylog_elem_add(x4, pp, x0, x1);
-    polylog_elem_mul(x4, pp, x4, x1, 0, true);
+    /* polylog_elem_add(x4, pp, x0, x0); */
+    polylog_elem_mul(x4, pp, x0, x1, 0, true);
     polylog_elem_decrypt(x4, mmap, 1);
     polylog_elem_mul(x5, pp, x2, x3, 1, true);
     polylog_elem_decrypt(x5, mmap, 1);
@@ -98,13 +107,12 @@ main(int arg, char **argv)
 {
     (void) arg; (void) argv;
 
-    size_t lambda = 40;
+    size_t lambda = 20;
     size_t kappa = 5;
-    size_t nzs = 10;
 
     /* if (test(lambda, kappa, nzs, false) == 1) */
     /*     return 1; */
-    if (test(lambda, kappa, nzs, true) == 1)
+    if (test(lambda, kappa, true) == 1)
         return 1;
     return 0;
 }
