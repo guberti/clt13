@@ -52,9 +52,16 @@ clt_pl_state_t * clt_pl_state_new(const clt_pl_params_t *params,
                                   size_t nthreads, size_t flags,
                                   aes_randstate_t rng);
 void             clt_pl_state_free(clt_pl_state_t *s);
+clt_pl_state_t * clt_pl_state_fread(FILE *fp);
+int              clt_pl_state_fwrite(clt_pl_state_t *s, FILE *fp);
+mpz_t *          clt_pl_state_moduli(const clt_pl_state_t *s);
+size_t           clt_pl_state_nslots(const clt_pl_state_t *s);
+size_t           clt_pl_state_nzs(const clt_pl_state_t *s);
 
 clt_pl_pp_t * clt_pl_pp_new(const clt_pl_state_t *s);
 void          clt_pl_pp_free(clt_pl_pp_t *pp);
+clt_pl_pp_t * clt_pl_pp_fread(FILE *fp);
+int           clt_pl_pp_fwrite(clt_pl_pp_t *pp, FILE *fp);
 
 int clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t *xs, const int *ix);
 int clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
