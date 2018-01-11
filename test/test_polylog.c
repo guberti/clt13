@@ -80,11 +80,11 @@ test(size_t lambda)
     clt_pl_elem_decrypt(x1, mmap, nzs, ix1, 0);
     clt_pl_elem_decrypt(x2, mmap, nzs, ix2, 0);
     clt_pl_elem_decrypt(x3, mmap, nzs, ix3, 0);
-    clt_pl_elem_mul(x4, pp, x0, x1, 0, true);
+    clt_pl_elem_mul(x4, pp, x0, x1, 0);
     clt_pl_elem_decrypt(x4, mmap, nzs, ix1100, 1);
-    clt_pl_elem_mul(x5, pp, x2, x3, 1, true);
+    clt_pl_elem_mul(x5, pp, x2, x3, 1);
     clt_pl_elem_decrypt(x5, mmap, nzs, ix0011, 1);
-    clt_pl_elem_mul(out, pp, x4, x5, 2, true);
+    clt_pl_elem_mul(out, pp, x4, x5, 2);
     clt_pl_elem_decrypt(out, mmap, nzs, top, 2);
     ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_pl_is_zero(out, pp));
 

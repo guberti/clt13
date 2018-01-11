@@ -44,6 +44,7 @@ struct clt_pl_pp_t {
     mpz_t pzt;
     switch_state_t **switches;
     size_t nmuls;
+    bool verbose;
     bool local;
 };
 
@@ -58,13 +59,13 @@ clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
 
 int
 clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
-                const clt_elem_t *b, size_t idx, bool verbose)
+                const clt_elem_t *b, size_t idx)
 {
     switch_state_t *sstate;
     sstate = pp->switches[idx];
     mpz_mul(rop->elem, a->elem, b->elem);
     mpz_mod(rop->elem, rop->elem, pp->x0s[sstate->level]);
-    if (clt_pl_elem_switch(rop, pp, rop, sstate, verbose) == CLT_ERR)
+    if (clt_pl_elem_switch(rop, pp, rop, sstate) == CLT_ERR)
         return CLT_ERR;
     return CLT_OK;
 }
@@ -116,8 +117,9 @@ clt_pl_is_zero(const clt_elem_t *c, const clt_pl_pp_t *pp)
 
 int
 clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x_,
-                   const switch_state_t *sstate, bool verbose)
+                   const switch_state_t *sstate)
 {
+    const bool verbose = pp->verbose;
     const double start = current_time();
     mpz_t *pi, *pip, ct, wk;
     clt_elem_t *x;
@@ -350,6 +352,7 @@ clt_pl_pp_new(const clt_pl_state_t *s)
     pp->x0s = s->x0s;
     pp->nmuls = s->nmuls;
     pp->switches = s->switches;
+    pp->verbose = s->flags & CLT_PL_FLAG_VERBOSE;
     pp->local = false;
     return pp;
 }

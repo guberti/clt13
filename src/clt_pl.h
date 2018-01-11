@@ -67,9 +67,9 @@ int clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t *xs,
 int clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
                      const clt_elem_t *b, size_t level);
 int clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *s, const clt_elem_t *a,
-                     const clt_elem_t *b, size_t idx, bool verbose);
+                     const clt_elem_t *b, size_t idx);
 int clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x_,
-                       const switch_state_t *sstate, bool verbose);
+                       const switch_state_t *sstate);
 int clt_pl_elem_decrypt(clt_elem_t *rop, const clt_pl_state_t *s, size_t nzs, const int ix[nzs],
                          size_t level);
 
