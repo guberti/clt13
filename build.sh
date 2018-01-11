@@ -20,7 +20,7 @@ build () {
     url=$2
     branch=$3
     if [ ! -d $path ]; then
-        git clone $url $path;
+        git clone $url $path -b $branch;
     else
         pushd $path; git pull origin $branch; popd
     fi
