@@ -404,11 +404,6 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
         gen_primes(s->gs, s->rngs, s->n, alpha, verbose);
     }
 
-    s->zinvs = mpz_vector_new(s->nzs);
-
-    if (!(s->flags & CLT_FLAG_OPT_CRT_TREE)) {
-        s->crt_coeffs = mpz_vector_new(s->n);
-    }
     if (s->flags & CLT_FLAG_POLYLOG) {
         size_t theta, b;
         theta = 200;
@@ -421,6 +416,10 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
 
     if (s->flags & CLT_FLAG_POLYLOG) /* XXX */
         return s;
+
+    if (!(s->flags & CLT_FLAG_OPT_CRT_TREE)) {
+        s->crt_coeffs = mpz_vector_new(s->n);
+    }
 
     /* Generate "ciphertext" moduli */
     if (verbose)
@@ -456,6 +455,7 @@ generate_ps:
 
     /* Compute index set values */
     zs = mpz_vector_new(s->nzs);
+    s->zinvs = mpz_vector_new(s->nzs);
     generate_zs(zs, s->zinvs, s->rngs, s->nzs, s->x0, verbose);
 
     /* Compute pzt */
