@@ -98,7 +98,7 @@ main(int arg, char **argv)
 {
     (void) arg; (void) argv;
 
-    size_t lambda = 16;
+    size_t lambda = 40;
     size_t kappa = 5;
     size_t nzs = 10;
 

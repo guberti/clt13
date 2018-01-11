@@ -30,12 +30,13 @@ mpz_quotient_2exp(mpz_t rop, const mpz_t a, const size_t b)
 }
 
 static switch_state_t *
-switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
+switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool verbose)
 {
     polylog_state_t *pstate = s->pstate;
     switch_state_t *state;
     mpz_t wk, K, wordsize_mpz;
     mpz_t **ss;
+    double start, _start;
 
     if (level >= pstate->nlevels - 1) {
         fprintf(stderr, "error: level too large (%lu ≥ %lu)\n", level, pstate->nlevels - 1);
@@ -47,10 +48,11 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
     state->level = level;
     state->wordsize = wordsize;
     /* k = η_ℓ / log2(wordsize) */
-    state->k = (int) ceil(pstate->etas[level] / log2(wordsize));
+    state->k = (int) ceil(eta / log2(wordsize));
 
     if (verbose)
         fprintf(stderr, "  Generating switch state [%lu->%lu]\n", level, level+1);
+    start = current_time();
 
     mpz_init_set_ui(wordsize_mpz, wordsize);
 
@@ -68,7 +70,12 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
     for (size_t i = s->n; i < pstate->theta; ++i) {
         mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
     }
+
+    if (verbose)
+        fprintf(stderr, "    Generating s and y values: ");
+    _start = current_time();
     ss = calloc(s->n, sizeof ss[0]);
+#pragma omp parallel for
     for (size_t i = 0; i < s->n; ++i) {
         mpz_t tmp, ginv, f;
 
@@ -93,10 +100,6 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
             mpz_mod_near(ss[i][j], ss[i][j], wordsize_mpz);
         }
         mpz_set_ui(ss[i][i], 1);
-        for (size_t j = 0; j < pstate->theta; ++j) {
-            gmp_printf("%Zd ", ss[i][j]);
-        }
-        printf("\n");
 
         /* XXX multiply by z */
         mpz_mod_near(state->ys[i], f, pstate->ps[level][i]);
@@ -105,15 +108,27 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
 
         for (size_t t = s->n; t < pstate->theta; ++t) {
             mpz_mul(tmp, state->ys[t], ss[i][t]);
-            mpz_sub(state->ys[i], state->ys[i], tmp);
+#pragma omp critical
+            {
+                mpz_sub(state->ys[i], state->ys[i], tmp);
+            }
         }
-        mpz_mod_near(state->ys[i], state->ys[i], K);
+#pragma omp critical
+        {
+            mpz_mod_near(state->ys[i], state->ys[i], K);
+        }
         mpz_clears(tmp, ginv, f, NULL);
     }
+    if (verbose)
+        fprintf(stderr, "[%.2fs]\n", current_time() - _start);
 
+    if (verbose)
+        fprintf(stderr, "    Generating σ values: ");
+    _start = current_time();
     state->sigmas = calloc(pstate->theta, sizeof state->sigmas[0]);
     for (size_t t = 0; t < pstate->theta; ++t) {
         state->sigmas[t] = calloc(state->k, sizeof state->sigmas[t][0]);
+#pragma omp parallel for
         for (size_t j = 0; j < state->k; ++j) {
             mpz_t *xs = calloc(s->n, sizeof xs[0]);
             state->sigmas[t][j] = clt_elem_new();
@@ -132,6 +147,8 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
             free(xs);
         }
     }
+    if (verbose)
+        fprintf(stderr, "[%.2fs]\n", current_time() - _start);
     for (size_t i = 0; i < s->n; ++i) {
         for (size_t t = 0; t < pstate->theta; ++t) {
             mpz_clear(ss[i][t]);
@@ -140,6 +157,8 @@ switch_state_new(clt_state_t *s, size_t wordsize, size_t level, bool verbose)
     }
     free(ss);
     mpz_clears(wk, K, wordsize_mpz, NULL);
+    if (verbose)
+        fprintf(stderr, "    Total: [%.2fs]\n", current_time() - start);
     return state;
 }
 
@@ -148,8 +167,6 @@ polylog_state_free(polylog_state_t *state)
 {
     if (state == NULL)
         return;
-    if (state->etas)
-        free(state->etas);
     for (size_t i = 0; i < state->nlevels; ++i) {
         for (size_t j = 0; j < state->n; ++j) {
             mpz_clear(state->ps[i][j]);
@@ -166,6 +183,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
 {
     const bool verbose = s->flags & CLT_FLAG_VERBOSE;
     polylog_state_t *state;
+    size_t *etas;
     int count;
 
     if (log2(wordsize) != floor(log2(wordsize))) {
@@ -179,7 +197,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
     state->n = s->n;
     state->b = b;               /* XXX probably should generate within this function rather than take as arg */
     state->nlevels = nlevels + 1;
-    state->theta = 10;          /* XXX */
+    state->theta = 200;         /* XXX */
     assert(state->theta > state->n);
     if (verbose) {
         fprintf(stderr, "Polylog CLT initialization:\n");
@@ -188,15 +206,15 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
         fprintf(stderr, "  nlevels: [0, %lu]\n", state->nlevels - 1);
         fprintf(stderr, "  ηs: .... ");
     }
-    state->etas = calloc(state->nlevels, sizeof state->etas[0]);
+    etas = calloc(state->nlevels, sizeof etas[0]);
     for (size_t i = 0; i < state->nlevels; ++i) {
         if (i * 2 * b > eta) {
             fprintf(stderr, "error: η - ℓ·2B < 0\n");
             goto error;
         }
-        state->etas[i] = eta - i * 2 * b;
+        etas[i] = eta - i * 2 * b;
         if (verbose)
-            fprintf(stderr, " %lu", state->etas[i]);
+            fprintf(stderr, " %lu", etas[i]);
     }
     if (verbose) {
         fprintf(stderr, "\n  Generating p_i's:\n");
@@ -210,7 +228,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
         }
         for (size_t j = 0; j < state->n; ++j) {
             mpz_init(state->ps[i][j]);
-            mpz_prime(state->ps[i][j], s->rngs[j], state->etas[i]);
+            mpz_prime(state->ps[i][j], s->rngs[j], etas[i]);
             if (verbose)
                 print_progress(++count, state->n);
         }
@@ -232,9 +250,10 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
     }
     state->switches = calloc(nswitches, sizeof state->switches[0]);
     for (size_t i = 0; i < nswitches; ++i) {
-        if ((state->switches[i] = switch_state_new(s, wordsize, levels[i], verbose)) == NULL)
+        if ((state->switches[i] = switch_state_new(s, etas[levels[i]], wordsize, levels[i], verbose)) == NULL)
             goto error;
     }
+    free(etas);
     if (verbose)
         fprintf(stderr, "Polylog CLT initialization complete!\n");
     return state;
@@ -251,6 +270,7 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const
     mpz_t b_mpz;
     mpz_init_set_ui(b_mpz, pstate->b);
     mpz_set_ui(rop->elem, 0);
+#pragma omp parallel for
     for (size_t i = 0; i < s->n; ++i) {
         mpz_t tmp;
         mpz_init(tmp);
@@ -262,7 +282,10 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const
         /* mᵢ + gᵢ·rᵢ */
         mpz_add(tmp, tmp, xs[slot(i,n, s->n)]);
         mpz_mul(tmp, tmp, pstate->crt_coeffs[level][i]);
-        mpz_add(rop->elem, rop->elem, tmp);
+#pragma omp critical
+        {
+            mpz_add(rop->elem, rop->elem, tmp);
+        }
         mpz_clear(tmp);
     }
     rop->level = level;
@@ -324,7 +347,8 @@ polylog_elem_mul(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *a, con
 }
 
 int
-polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x_, const switch_state_t *sstate, bool verbose)
+polylog_switch(clt_elem_t *rop, const clt_state_t *s, const clt_elem_t *x_,
+               const switch_state_t *sstate, bool verbose)
 {
     const polylog_state_t *pstate = s->pstate;
     const double start = current_time();

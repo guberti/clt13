@@ -21,13 +21,18 @@ typedef struct {
     size_t b;
     size_t nlevels;
     size_t theta;
-    size_t *etas;               /* [nlevels] */
     mpz_t **ps;                 /* [nlevels][n] */
     mpz_t **crt_coeffs;         /* [nlevels][n] */
     mpz_t *x0s;                 /* [nlevels] */
     switch_state_t **switches;  /* [nmuls] */
     size_t nmuls;
 } polylog_state_t;
+
+typedef struct {
+    mpz_t *x0s;
+    switch_state_t **switches;
+    size_t nmuls;
+} polylog_pp_t;
 
 polylog_state_t *
 polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
