@@ -53,11 +53,13 @@ mpz_quotient_2exp(mpz_t rop, const mpz_t a, const size_t b)
 }
 
 static switch_state_t *
-switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool verbose)
+switch_state_new(clt_state_t *s, const int *ix, size_t eta, size_t wordsize,
+                 size_t level, bool verbose)
 {
+    (void) ix;
     polylog_state_t *pstate = s->pstate;
     switch_state_t *state;
-    mpz_t wk, K, wordsize_mpz;
+    mpz_t wk, K, z1, z2;
     mpz_t **ss;
     double start, _start;
 
@@ -77,15 +79,28 @@ switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool
         fprintf(stderr, "  Generating switch state [%lu->%lu]\n", level, level+1);
     start = current_time();
 
-    mpz_init_set_ui(wordsize_mpz, wordsize);
-
+    mpz_inits(wk, K, z1, z2, NULL);
     /* wk = (wordsize)ᵏ */
-    mpz_init(wk);
     mpz_ui_pow_ui(wk, wordsize, state->k);
     /* K = Π^(ℓ) · wk */
-    mpz_init(K);
-    mpz_mul(K, wk, pstate->x0s[level]);
+    mpz_mul(K, pstate->x0s[level], wk);
+    /* compute zs */
+    mpz_set_ui(z1, 1);
+    mpz_set_ui(z2, 1);
+    if (ix) {
+        mpz_t tmp;
+        mpz_init(tmp);
+        for (size_t i = 0; i < s->nzs; ++i) {
+            if (ix[i] <= 0) continue;
+            /* XXX shouldn't be zinvs */
+            mpz_powm_ui(tmp, s->zinvs[i], ix[i], pstate->x0s[level]);
+            mpz_mul_mod(z1, z1, tmp, pstate->x0s[level]);
+            mpz_powm_ui(tmp, s->zinvs[i], ix[i], pstate->x0s[level + 1]);
+            mpz_mul_mod(z2, z2, tmp, pstate->x0s[level + 1]);
+        }
+    }
 
+    _start = current_time();
     state->ys = calloc(pstate->theta, sizeof state->ys[0]);
     for (size_t i = 0; i < pstate->theta; ++i)
         mpz_init(state->ys[i]);
@@ -93,6 +108,8 @@ switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool
     for (size_t i = s->n; i < pstate->theta; ++i) {
         mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
     }
+    if (verbose)
+        fprintf(stderr, "    Generating random y values: [%.2fs]\n", current_time() - _start);
 
     if (verbose)
         fprintf(stderr, "    Generating s and y values: ");
@@ -120,12 +137,12 @@ switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool
         for (size_t j = s->n; j < pstate->theta; ++j) {
             mpz_init(ss[i][j]);
             mpz_urandomb_aes(ss[i][j], s->rngs[0], (int) log2(wordsize));
-            mpz_mod_near(ss[i][j], ss[i][j], wordsize_mpz);
+            mpz_mod_near_ui(ss[i][j], ss[i][j], wordsize);
         }
         mpz_set_ui(ss[i][i], 1);
 
-        /* XXX multiply by z */
-        mpz_mod_near(state->ys[i], f, pstate->ps[level][i]);
+        mpz_mul(state->ys[i], f, z1);
+        mpz_mod_near(state->ys[i], state->ys[i], pstate->ps[level][i]);
         mpz_mul(state->ys[i], state->ys[i], K);
         mpz_quotient(state->ys[i], state->ys[i], pstate->ps[level][i]);
 
@@ -150,21 +167,32 @@ switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool
     _start = current_time();
     state->sigmas = calloc(pstate->theta, sizeof state->sigmas[0]);
     for (size_t t = 0; t < pstate->theta; ++t) {
+        mpz_t **rs;
         state->sigmas[t] = calloc(state->k, sizeof state->sigmas[t][0]);
+        rs = calloc(state->k * s->n, sizeof rs[0]);
+        for (size_t j = 0; j < state->k; ++j) {
+            rs[j] = calloc(s->n, sizeof rs[j][0]);
+            for (size_t i = 0; i < s->n; ++i) {
+                mpz_init(rs[j][i]);
+                mpz_urandomb_aes(rs[j][i], s->rngs[i], 2 * s->rho);
+                mpz_mod_near_ui(rs[j][i], rs[j][i], s->rho);
+            }
+        }
 #pragma omp parallel for
         for (size_t j = 0; j < state->k; ++j) {
+            mpz_t wkj;
+            mpz_init(wkj);
+            mpz_ui_pow_ui(wkj, wordsize, state->k - j);
             state->sigmas[t][j] = clt_elem_new();
             for (size_t i = 0; i < s->n; ++i) {
                 mpz_t x, tmp;
                 mpz_inits(tmp, x, NULL);
-                mpz_ui_pow_ui(x, wordsize, j);
-                mpz_mul(x, x, ss[i][t]);
-                mpz_mul(x, x, pstate->ps[level + 1][i]);
-                mpz_quotient(x, x, wk);
-                mpz_urandomb_aes(tmp, s->rngs[i], 2 * s->rho);
-                mpz_mod_near_ui(tmp, tmp, s->rho);
-                mpz_add(x, x, tmp);
-                mpz_mul(x, x, s->gs[i]);
+                mpz_set_ui(tmp, 0);
+                mpz_mul(x, ss[i][t], pstate->ps[level + 1][i]);
+                mpz_quotient(x, x, wkj);
+                mpz_add(x, x, rs[j][i]);
+                mpz_mul_mod(x, x, s->gs[i], pstate->ps[level + 1][i]);
+                /* XXX handle index set */
                 mpz_mul(x, x, pstate->crt_coeffs[level + 1][i]);
 #pragma omp critical
                 {
@@ -173,7 +201,14 @@ switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool
                 mpz_clears(tmp, x, NULL);
             }
             state->sigmas[t][j]->level = level + 1;
+            mpz_clear(wkj);
         }
+        for (size_t j = 0; j < state->k; ++j) {
+            for (size_t i = 0; i < s->n; ++i)
+                mpz_clear(rs[j][i]);
+            free(rs[j]);
+        }
+        free(rs);
     }
     if (verbose)
         fprintf(stderr, "[%.2fs]\n", current_time() - _start);
@@ -184,7 +219,7 @@ switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool
         free(ss[i]);
     }
     free(ss);
-    mpz_clears(wk, K, wordsize_mpz, NULL);
+    mpz_clears(wk, K, NULL);
     if (verbose)
         fprintf(stderr, "    Total: [%.2fs]\n", current_time() - start);
     return state;
@@ -254,6 +289,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t theta, size_t b, size_t wor
         fprintf(stderr, "  Generating p_i's:\n");
     state->ps = calloc(state->nlevels, sizeof state->ps[0]);
     for (size_t i = 0; i < state->nlevels; ++i) {
+        double start = current_time();
         state->ps[i] = calloc(state->n, sizeof state->ps[i][0]);
         if (verbose) {
             count = 0;
@@ -267,7 +303,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t theta, size_t b, size_t wor
                 print_progress(++count, state->n);
         }
         if (verbose)
-            fprintf(stderr, "\n");
+            fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
     }
     if (verbose) {
         fprintf(stderr, "  Generating x0s:\n");
@@ -284,7 +320,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t theta, size_t b, size_t wor
     }
     state->switches = calloc(nswitches, sizeof state->switches[0]);
     for (size_t i = 0; i < nswitches; ++i) {
-        if ((state->switches[i] = switch_state_new(s, etas[levels[i]], wordsize, levels[i], verbose)) == NULL)
+        if ((state->switches[i] = switch_state_new(s, NULL, etas[levels[i]], wordsize, levels[i], verbose)) == NULL)
             goto error;
     }
     free(etas);
