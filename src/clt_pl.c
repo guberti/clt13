@@ -12,7 +12,7 @@ struct switch_state_t {
     size_t wordsize;            /* must be a power of two */
     size_t k;                   /* = η_ℓ / log2(wordsize) */
     mpz_t *ys;                  /* [Θ] */
-    clt_elem_t ***sigmas;       /* [Θ][ℓ] */
+    clt_elem_t ***sigmas;       /* [Θ][k] */
 };
 
 struct clt_pl_state_t {
@@ -23,16 +23,16 @@ struct clt_pl_state_t {
     size_t b;
     size_t nlevels;
     size_t theta;
-    mpz_t *gs;                  /* plaintext moduli */
-    aes_randstate_t *rngs;      /* random number generators (one per slot) */
+    size_t nmuls;
     mpz_t pzt;
-    mpz_t **zs;                 /* [nlevels][n] */
-    mpz_t **zinvs;              /* [nlevels][n] */
+    mpz_t *gs;                  /* [n] */
+    mpz_t **zs;                 /* [nlevels][nzs] */
+    mpz_t **zinvs;              /* [nlevels][nzs] */
     mpz_t **ps;                 /* [nlevels][n] */
     mpz_t **crt_coeffs;         /* [nlevels][n] */
     mpz_t *x0s;                 /* [nlevels] */
     switch_state_t **switches;  /* [nmuls] */
-    size_t nmuls;
+    aes_randstate_t *rngs;      /* [max{n,nzs}] */
     size_t flags;
 };
 
@@ -124,7 +124,7 @@ clt_pl_is_zero(const clt_elem_t *c, const clt_pl_pp_t *pp)
     int ret;
 
     mpz_t tmp, *x0;
-    mpz_inits(tmp);
+    mpz_init(tmp);
     x0 = &pp->x0s[pp->nlevels - 1];
 
     mpz_mul(tmp, c->elem, pp->pzt);
@@ -173,7 +173,6 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x_,
             mpz_clears(tmp, decomp, NULL);
         }
     }
-    /* rop->level = x->level + 1; */
     if (verbose)
         fprintf(stderr, "Switch time: %.2fs\n", current_time() - start);
     ret = CLT_OK;
@@ -183,35 +182,25 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x_,
     return ret;
 }
 
-clt_pl_pp_t *
-clt_pl_pp_new(const clt_pl_state_t *s)
+static void
+switch_state_free(switch_state_t *s, size_t theta)
 {
-    clt_pl_pp_t *pp;
-
-    if ((pp = calloc(1, sizeof pp[0])) == NULL)
-        return NULL;
-    pp->theta = s->theta;
-    pp->nlevels = s->nlevels;
-    pp->x0s = s->x0s;
-    pp->nmuls = s->nmuls;
-    pp->switches = s->switches;
-    pp->local = false;
-    return pp;
-}
-
-void
-clt_pl_pp_free(clt_pl_pp_t *pp)
-{
-    if (pp && pp->local) {
-        /* XXX free stuff */
+    if (s == NULL)
+        return;
+    mpz_vector_free(s->ys, theta);
+    for (size_t t = 0; t < theta; ++t) {
+        for (size_t j = 0; j < s->k; ++j)
+            clt_elem_free(s->sigmas[t][j]);
+        free(s->sigmas[t]);
     }
+    free(s->sigmas);
+    free(s);
 }
 
 static switch_state_t *
 switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wordsize,
                  size_t level, bool verbose)
 {
-    (void) ix;
     switch_state_t *state;
     mpz_t wk, K, z1, z2;
     mpz_t **ss;
@@ -266,7 +255,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         fprintf(stderr, "    Generating s and y values: ");
     _start = current_time();
     ss = calloc(s->n, sizeof ss[0]);
-#pragma omp parallel for
+/* #pragma omp parallel for */
     for (size_t i = 0; i < s->n; ++i) {
         mpz_t tmp, ginv, f;
 
@@ -298,12 +287,12 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
 
         for (size_t t = s->n; t < s->theta; ++t) {
             mpz_mul(tmp, state->ys[t], ss[i][t]);
-#pragma omp critical
+/* #pragma omp critical */
             {
                 mpz_sub(state->ys[i], state->ys[i], tmp);
             }
         }
-#pragma omp critical
+/* #pragma omp critical */
         {
             mpz_mod_near(state->ys[i], state->ys[i], K);
         }
@@ -327,7 +316,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
                 mpz_mod_near_ui(rs[j][i], rs[j][i], s->rho);
             }
         }
-#pragma omp parallel for
+/* #pragma omp parallel for */
         for (size_t j = 0; j < state->k; ++j) {
             mpz_t wkj;
             mpz_init(wkj);
@@ -341,14 +330,13 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
                 mpz_add(x, x, rs[j][i]);
                 mpz_mul_mod_near(x, x, s->gs[i], s->ps[level + 1][i]);
                 mpz_mul(x, x, s->crt_coeffs[level + 1][i]);
-#pragma omp critical
+/* #pragma omp critical */
                 {
                     mpz_add(state->sigmas[t][j]->elem, state->sigmas[t][j]->elem, x);
                 }
                 mpz_clear(x);
             }
             mpz_mul_mod_near(state->sigmas[t][j]->elem, state->sigmas[t][j]->elem, z2, s->x0s[level + 1]);
-            /* state->sigmas[t][j]->level = level + 1; */
             mpz_clear(wkj);
         }
         for (size_t j = 0; j < state->k; ++j) {
@@ -367,16 +355,92 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         free(ss[i]);
     }
     free(ss);
-    mpz_clears(wk, K, NULL);
+    mpz_clears(wk, K, z1, z2, NULL);
     if (verbose)
         fprintf(stderr, "    Total: [%.2fs]\n", current_time() - start);
     return state;
+}
+
+clt_pl_pp_t *
+clt_pl_pp_new(const clt_pl_state_t *s)
+{
+    clt_pl_pp_t *pp;
+
+    if ((pp = calloc(1, sizeof pp[0])) == NULL)
+        return NULL;
+    pp->theta = s->theta;
+    pp->nlevels = s->nlevels;
+    pp->x0s = s->x0s;
+    pp->nmuls = s->nmuls;
+    pp->switches = s->switches;
+    pp->local = false;
+    return pp;
+}
+
+void
+clt_pl_pp_free(clt_pl_pp_t *pp)
+{
+    if (pp == NULL)
+        return;
+    if (pp->local) {
+        for (size_t i = 0; i < pp->nlevels; ++i)
+            mpz_clear(pp->x0s[i]);
+        free(pp->x0s);
+        for (size_t i = 0; i < pp->nmuls; ++i)
+            switch_state_free(pp->switches[i], pp->theta);
+        free(pp->switches);
+    }
+    free(pp);
 }
 
 static inline size_t
 max3(size_t a, size_t b, size_t c)
 {
     return a >= b && a >= c ? a : b >= a && b >= c ? b : c;
+}
+
+void
+clt_pl_state_free(clt_pl_state_t *s)
+{
+    if (s == NULL)
+        return;
+    if (s->pzt)
+        mpz_clear(s->pzt);
+    if (s->gs)
+        mpz_vector_free(s->gs, s->n);
+    if (s->zs) {
+        for (size_t i = 0; i < s->nlevels; ++i)
+            mpz_vector_free(s->zs[i], s->nzs);
+        free(s->zs);
+    }
+    if (s->zinvs) {
+        for (size_t i = 0; i < s->nlevels; ++i)
+            mpz_vector_free(s->zinvs[i], s->nzs);
+        free(s->zinvs);
+    }
+    if (s->ps) {
+        for (size_t i = 0; i < s->nlevels; ++i)
+            mpz_vector_free(s->ps[i], s->n);
+        free(s->ps);
+    }
+    if (s->crt_coeffs) {
+        for (size_t i = 0; i < s->nlevels; ++i)
+            mpz_vector_free(s->crt_coeffs[i], s->n);
+        free(s->crt_coeffs);
+    }
+    if (s->x0s)
+        mpz_vector_free(s->x0s, s->nlevels);
+    if (s->switches) {
+        for (size_t i = 0; i < s->nmuls; ++i)
+            switch_state_free(s->switches[i], s->theta);
+        free(s->switches);
+    }
+    if (s->rngs) {
+        for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
+            aes_randclear(s->rngs[i]);
+        free(s->rngs);
+    }
+    free(s);
 }
 
 clt_pl_state_t *
@@ -407,6 +471,7 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
     s->n   = MAX(estimate_n(params->lambda, eta, flags), slots); /* number of primes */
     eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
     s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
+    s->nmuls = params->nmuls;
     s->flags = flags;
 
     /* Loop until a fixed point reached for choosing eta, n, and nu */
@@ -538,8 +603,8 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
         s->zinvs[i] = mpz_vector_new(s->nzs);
         generate_zs(s->zs[i], s->zinvs[i], s->rngs, s->nzs, s->x0s[i], verbose);
     }
-    s->switches = calloc(params->nmuls, sizeof s->switches[0]);
-    for (size_t i = 0; i < params->nmuls; ++i) {
+    s->switches = calloc(s->nmuls, sizeof s->switches[0]);
+    for (size_t i = 0; i < s->nmuls; ++i) {
         size_t level = params->sparams[i].level;
         int *ix = params->sparams[i].ix;
         if ((s->switches[i] = switch_state_new(s, ix, etas[level], wordsize, level, verbose)) == NULL)
@@ -560,7 +625,7 @@ clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n], c
 {
     const size_t level = 0;
     mpz_set_ui(rop->elem, 0);
-#pragma omp parallel for
+/* #pragma omp parallel for */
     for (size_t i = 0; i < s->n; ++i) {
         mpz_t tmp;
         mpz_init(tmp);
@@ -569,7 +634,7 @@ clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n], c
         mpz_mul(tmp, tmp, s->gs[i]);
         mpz_add(tmp, tmp, xs[slot(i, n, s->n)]);
         mpz_mul(tmp, tmp, s->crt_coeffs[level][i]);
-#pragma omp critical
+/* #pragma omp critical */
         {
             mpz_add(rop->elem, rop->elem, tmp);
         }

@@ -54,7 +54,7 @@ test(size_t lambda)
         .slots = 1,
         .moduli = NULL,
         .nmoduli = 0,
-        .wordsize = 0,
+        .wordsize = 64,
     };
 
     aes_randinit(rng);
@@ -96,6 +96,9 @@ test(size_t lambda)
     clt_elem_free(x4);
     clt_elem_free(x5);
     clt_elem_free(out);
+
+    clt_pl_pp_free(pp);
+    clt_pl_state_free(mmap);
     return !ok;
 }
 
