@@ -94,7 +94,7 @@ clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
 int
 clt_pl_elem_decrypt(clt_elem_t *x, const clt_pl_state_t *s, size_t nzs, const int ix[nzs], size_t level)
 {
-    size_t nbits;
+    size_t nbits = 0;
     mpz_t rop, tmp, z;
     mpz_inits(rop, tmp, z, NULL);
     mpz_set_ui(z, 1);
