@@ -40,6 +40,28 @@ mpz_mul_mod_near(mpz_t rop, const mpz_t a, const mpz_t b, const mpz_t p)
 }
 
 static inline void
+mpz_quotient(mpz_t rop, const mpz_t a, const mpz_t b)
+{
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpz_mod_near(tmp, a, b);
+    mpz_sub(rop, a, tmp);
+    mpz_tdiv_q(rop, rop, b);
+    mpz_clear(tmp);
+}
+
+static inline void
+mpz_quotient_2exp(mpz_t rop, const mpz_t a, const size_t b)
+{
+    mpz_t tmp;
+    mpz_init(tmp);
+    mpz_mod_near_ui(tmp, a, 1 << b);
+    mpz_sub(rop, a, tmp);
+    mpz_tdiv_q_2exp(rop, rop, b);
+    mpz_clear(tmp);
+}
+
+static inline void
 mpz_random_(mpz_t rop, aes_randstate_t rng, size_t len)
 {
     mpz_urandomb_aes(rop, rng, len);

@@ -47,28 +47,6 @@ struct clt_pl_pp_t {
     bool local;
 };
 
-static inline void
-mpz_quotient(mpz_t rop, const mpz_t a, const mpz_t b)
-{
-    mpz_t tmp;
-    mpz_init(tmp);
-    mpz_mod_near(tmp, a, b);
-    mpz_sub(rop, a, tmp);
-    mpz_tdiv_q(rop, rop, b);
-    mpz_clear(tmp);
-}
-
-static inline void
-mpz_quotient_2exp(mpz_t rop, const mpz_t a, const size_t b)
-{
-    mpz_t tmp;
-    mpz_init(tmp);
-    mpz_mod_near_ui(tmp, a, 1 << b);
-    mpz_sub(rop, a, tmp);
-    mpz_tdiv_q_2exp(rop, rop, b);
-    mpz_clear(tmp);
-}
-
 int
 clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
                 const clt_elem_t *b, size_t level)
@@ -91,6 +69,7 @@ clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
     return CLT_OK;
 }
 
+/* XXX REMOVE ONCE WE'VE GOT EVERYTHING WORKING */
 int
 clt_pl_elem_decrypt(clt_elem_t *x, const clt_pl_state_t *s, size_t nzs, const int ix[nzs], size_t level)
 {
@@ -142,11 +121,11 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x_,
     const double start = current_time();
     mpz_t *pi, *pip, ct, wk;
     clt_elem_t *x;
-    int ret = CLT_ERR;
 
     if (rop == NULL)
         return CLT_ERR;
     mpz_inits(ct, wk, NULL);
+    /* Copy so we don't overwrite `x_` if `rop == x_` */
     x = clt_elem_new();
     clt_elem_set(x, x_);
 
@@ -175,11 +154,9 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x_,
     }
     if (verbose)
         fprintf(stderr, "Switch time: %.2fs\n", current_time() - start);
-    ret = CLT_OK;
-/* cleanup: */
     mpz_clears(ct, wk, NULL);
     clt_elem_free(x);
-    return ret;
+    return CLT_OK;
 }
 
 static void
@@ -207,7 +184,8 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     double start, _start;
 
     if (level >= s->nlevels - 1) {
-        fprintf(stderr, "error: %s: level too large (%lu ≥ %lu)\n", __func__, level, s->nlevels - 1);
+        fprintf(stderr, "error: %s: level too large (%lu ≥ %lu)\n", __func__,
+                level, s->nlevels - 1);
         return NULL;
     }
 
@@ -244,7 +222,6 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     }
     _start = current_time();
     state->ys = mpz_vector_new(s->theta);
-    /* Sample y_{n+1}, ..., y_Θ ∈ [0, K) */
     for (size_t i = s->n; i < s->theta; ++i) {
         mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
     }
