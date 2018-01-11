@@ -1,4 +1,6 @@
-#include "_clt13.h"
+#include "clt13.h"
+#include "clt_elem.h"
+#include "crt_tree.h"
 #include "estimates.h"
 #include "utils.h"
 
@@ -15,6 +17,61 @@
  * optimization.  We default this to 420, as is done in
  * https://github.com/tlepoint/new-multilinear-maps/blob/master/generate_pp.cpp */
 #define ETAP_DEFAULT 420
+
+struct clt_state_t {
+    size_t n;                   /* number of slots */
+    size_t nzs;                 /* number of z's in the index set */
+    size_t rho;                 /* bitsize of randomness */
+    size_t nu;                  /* number of most-significant-bits to extract */
+    mpz_t *gs;                  /* plaintext moduli */
+    aes_randstate_t *rngs;      /* random number generators (one per slot) */
+    mpz_t x0;
+    mpz_t pzt;                  /* zero testing parameter */
+    mpz_t *zinvs;               /* z inverses */
+    union {
+        crt_tree *crt;
+        mpz_t *crt_coeffs;
+    };
+    size_t flags;
+};
+
+struct clt_pp_t {
+    mpz_t x0;
+    mpz_t pzt;                  /* zero testing parameter */
+    size_t nu;                  /* number of most-significant-bits to extract */
+};
+
+int
+clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
+{
+    mpz_add(rop->elem, a->elem, b->elem);
+    mpz_mod(rop->elem, rop->elem, pp->x0);
+    return CLT_OK;
+}
+
+int
+clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
+{
+    mpz_sub(rop->elem, a->elem, b->elem);
+    mpz_mod(rop->elem, rop->elem, pp->x0);
+    return CLT_OK;
+}
+
+int
+clt_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
+{
+    mpz_mul(rop->elem, a->elem, b->elem);
+    mpz_mod(rop->elem, rop->elem, pp->x0);
+    return CLT_OK;
+}
+
+int
+clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, unsigned int b)
+{
+    mpz_mul_ui(rop->elem, a->elem, b);
+    mpz_mod(rop->elem, rop->elem, pp->x0);
+    return CLT_OK;
+}
 
 clt_state_t *
 clt_state_fread(FILE *fp)
@@ -124,11 +181,7 @@ clt_pp_new(const clt_state_t *mmap)
     if (pp == NULL)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
-    if (mmap->flags & CLT_FLAG_POLYLOG) {
-        pp->pstate = polylog_pp_new(mmap->pstate);
-    } else {
-        mpz_set(pp->x0, mmap->x0);
-    }
+    mpz_set(pp->x0, mmap->x0);
     mpz_set(pp->pzt, mmap->pzt);
     pp->nu = mmap->nu;
     return pp;
@@ -183,41 +236,8 @@ cleanup:
     return ret;
 }
 
-/* Returns the number of ones in `x` */
-static inline size_t
-nb_of_bits(size_t x)
-{
-    size_t nb = 0;
-    while (x > 0) {
-        x >>= 1;
-        nb++;
-    }
-    return nb;
-}
-
-/* Generates `n` primes each of bitlength `len` */
 static int
-gen_primes(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t len, bool verbose)
-{
-    const double start = current_time();
-    int count = 0;
-    fprintf(stderr, "%lu", len);
-    print_progress(count, n);
-#pragma omp parallel for
-    for (size_t i = 0; i < n; ++i) {
-        mpz_prime(v[i], rngs[i], len);
-        if (verbose) {
-#pragma omp critical
-            print_progress(++count, n);
-        }
-    }
-    if (verbose)
-        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
-    return CLT_OK;
-}
-
-static int
-gen_primes_composite_ps(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t eta, bool verbose)
+generate_primes_composite_ps(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t eta, bool verbose)
 {
     int count = 0;
     double start = current_time();
@@ -277,15 +297,7 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
     const bool verbose = flags & CLT_FLAG_VERBOSE;
     const size_t slots = opts ? opts->slots : 0;
 
-    if (flags & CLT_FLAG_POLYLOG &&
-        (flags & CLT_FLAG_OPT_CRT_TREE || flags & CLT_FLAG_OPT_PARALLEL_ENCODE
-         || flags & CLT_FLAG_OPT_COMPOSITE_PS)) {
-        fprintf(stderr, "error: polylog not (yet) compatible with CLT optimizations\n");
-        return NULL;
-    }
-
-    s = calloc(1, sizeof s[0]);
-    if (s == NULL)
+    if ((s = calloc(1, sizeof s[0])) == NULL)
         return NULL;
 
     if (ncores == 0)
@@ -351,8 +363,6 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
             fprintf(stderr, "    IMPROVED BKZ\n");
         if (s->flags & CLT_FLAG_SEC_CONSERVATIVE)
             fprintf(stderr, "    CONSERVATIVE\n");
-        if (s->flags & CLT_FLAG_POLYLOG)
-            fprintf(stderr, "    POLYLOG\n");
     }
 
     /* Generate randomness for each core */
@@ -373,26 +383,12 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
     if (opts && opts->moduli && opts->nmoduli) {
         for (size_t i = 0; i < opts->nmoduli; ++i)
             mpz_set(s->gs[i], opts->moduli[i]);
-        gen_primes(s->gs + opts->nmoduli, s->rngs, s->n - opts->nmoduli, alpha, verbose);
+        generate_primes(s->gs + opts->nmoduli, s->rngs, s->n - opts->nmoduli, alpha, verbose);
     } else {
-        gen_primes(s->gs, s->rngs, s->n, alpha, verbose);
+        generate_primes(s->gs, s->rngs, s->n, alpha, verbose);
     }
 
-    if (s->flags & CLT_FLAG_POLYLOG) {
-        size_t theta, b;
-        theta = s->n + 100;
-        b = max3(s->rho + 2, log2(theta) + log2(eta) + 2, 2 * alpha);
-        s->pstate = polylog_state_new(s, eta, theta, b, 256, opts->nlevels, opts->sparams, opts->nmuls);
-        mpz_init(s->pzt);
-        generate_pzt(s->pzt, beta, s->n, s->pstate->ps[s->pstate->nlevels - 1],
-                     s->gs, s->nzs, s->pstate->zs[s->pstate->nlevels - 1], params->pows,
-                     s->pstate->x0s[s->pstate->nlevels - 1], s->rngs, verbose);
-    } else {
-        mpz_init_set_ui(s->x0,  1);
-    }
-
-    if (s->flags & CLT_FLAG_POLYLOG) /* XXX */
-        return s;
+    mpz_init_set_ui(s->x0,  1);
 
     if (!(s->flags & CLT_FLAG_OPT_CRT_TREE)) {
         s->crt_coeffs = mpz_vector_new(s->n);
@@ -404,9 +400,9 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
     ps = mpz_vector_new(s->n);
 generate_ps:
     if (s->flags & CLT_FLAG_OPT_COMPOSITE_PS) {
-        gen_primes_composite_ps(ps, s->rngs, s->n, eta, verbose);
+        generate_primes_composite_ps(ps, s->rngs, s->n, eta, verbose);
     } else {
-        gen_primes(ps, s->rngs, s->n, eta, verbose);
+        generate_primes(ps, s->rngs, s->n, eta, verbose);
     }
 
     /* Compute product if "ciphertext" moduli */
@@ -447,10 +443,7 @@ generate_ps:
 void
 clt_state_free(clt_state_t *s)
 {
-    if (s->flags & CLT_FLAG_POLYLOG) {
-    } else {
-        mpz_clear(s->x0);
-    }
+    mpz_clear(s->x0);
     mpz_clear(s->pzt);
     mpz_vector_free(s->gs, s->n);
     mpz_vector_free(s->zinvs, s->nzs);
@@ -485,3 +478,72 @@ clt_state_nzs(const clt_state_t *s)
 {
     return s->nzs;
 }
+
+int
+clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
+           const int *ix)
+{
+    if (rop == NULL || s == NULL || n == 0 || xs == NULL)
+        return CLT_ERR;
+
+    if (!(s->flags & CLT_FLAG_OPT_PARALLEL_ENCODE))
+        omp_set_num_threads(1);
+
+    /* slots[i] = m[i] + r·g[i] */
+    if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
+        mpz_t *slots = mpz_vector_new(s->n);
+#pragma omp parallel for
+        for (size_t i = 0; i < s->n; i++) {
+            mpz_random_(slots[i], s->rngs[i], s->rho);
+            mpz_mul(slots[i], slots[i], s->gs[i]);
+            mpz_add(slots[i], slots[i], xs[slot(i, n, s->n)]);
+        }
+        crt_tree_do_crt(rop->elem, s->crt, slots);
+        mpz_vector_free(slots, s->n);
+    } else {
+        mpz_set_ui(rop->elem, 0);
+#pragma omp parallel for
+        for (size_t i = 0; i < s->n; ++i) {
+            mpz_t tmp;
+            mpz_init(tmp);
+            mpz_random_(tmp, s->rngs[i], s->rho);
+            mpz_mul(tmp, tmp, s->gs[i]);
+            mpz_add(tmp, tmp, xs[slot(i, n, s->n)]);
+            mpz_mul(tmp, tmp, s->crt_coeffs[i]);
+#pragma omp critical
+            {
+                mpz_add(rop->elem, rop->elem, tmp);
+            }
+            mpz_clear(tmp);
+        }
+    }
+    if (ix) {
+        mpz_t tmp;
+        mpz_init(tmp);
+        /* multiply by appropriate zinvs */
+        for (size_t i = 0; i < s->nzs; ++i) {
+            if (ix[i] <= 0) continue;
+            mpz_powm_ui(tmp, s->zinvs[i], ix[i], s->x0);
+            mpz_mul_mod_near(rop->elem, rop->elem, tmp, s->x0);
+        }
+        mpz_clear(tmp);
+    }
+    return CLT_OK;
+}
+
+int
+clt_is_zero(const clt_elem_t *c, const clt_pp_t *pp)
+{
+    int ret;
+
+    mpz_t tmp;
+    mpz_init(tmp);
+
+    mpz_mul(tmp, c->elem, pp->pzt);
+    mpz_mod_near(tmp, tmp, pp->x0);
+
+    ret = mpz_sizeinbase(tmp, 2) < mpz_sizeinbase(pp->x0, 2) - pp->nu;
+    mpz_clear(tmp);
+    return ret ? 1 : 0;
+}
+

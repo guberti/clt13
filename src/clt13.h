@@ -28,11 +28,6 @@ typedef struct {
     int *pows;
 } clt_params_t;
 
-typedef struct {
-    size_t level;
-    int *ix;
-} switch_params_t;
-
 /* Optional parameters to clt_state_new */
 typedef struct {
     /* number of slots needed */
@@ -41,12 +36,6 @@ typedef struct {
     mpz_t *moduli;
     /* number of plaintext moduli given */
     size_t nmoduli;
-    /* number of multiplication levels */
-    size_t nlevels;
-    /* switch parameters of each multiplication */
-    switch_params_t *sparams;
-    /* number of multiplications */
-    size_t nmuls;
 } clt_opt_params_t;
 
 #define CLT_FLAG_NONE 0x00
@@ -62,8 +51,6 @@ typedef struct {
 #define CLT_FLAG_SEC_IMPROVED_BKZ 0x10
 /* Be conservative when generating attack estimates */
 #define CLT_FLAG_SEC_CONSERVATIVE 0x20
-/* Use polylog CLT */
-# define CLT_FLAG_POLYLOG 0x40
 
 #define CLT_FLAG_DEFAULT                        \
     ( CLT_FLAG_OPT_CRT_TREE                     \
@@ -101,14 +88,6 @@ int          clt_elem_mul_ui(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem
 void         clt_elem_print(const clt_elem_t *a);
 int          clt_elem_fread(clt_elem_t *x, FILE *fp);
 int          clt_elem_fwrite(clt_elem_t *x, FILE *fp);
-
-int polylog_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a,
-                     const clt_elem_t *b, size_t level);
-int polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *s, const clt_elem_t *a,
-                     const clt_elem_t *b, size_t idx, bool verbose);
-int polylog_elem_decrypt(clt_elem_t *rop, const clt_state_t *s, const int *ix,
-                         size_t nzs, size_t level);
-int polylog_is_zero(const clt_elem_t *c, const clt_pp_t *pp);
 
 /* #ifdef __cplusplus */
 /* } */

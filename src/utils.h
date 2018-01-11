@@ -172,6 +172,40 @@ generate_pzt(mpz_t pzt, size_t rho, size_t n, mpz_t *ps, mpz_t *gs,
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
 }
 
+
+/* Generates `n` primes each of bitlength `len` */
+static inline int
+generate_primes(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t len, bool verbose)
+{
+    const double start = current_time();
+    int count = 0;
+    fprintf(stderr, "%lu", len);
+    print_progress(count, n);
+#pragma omp parallel for
+    for (size_t i = 0; i < n; ++i) {
+        mpz_prime(v[i], rngs[i], len);
+        if (verbose) {
+#pragma omp critical
+            print_progress(++count, n);
+        }
+    }
+    if (verbose)
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
+    return 0;                   /* XXX */
+}
+
+/* Returns the number of ones in `x` */
+static inline size_t
+nb_of_bits(size_t x)
+{
+    size_t nb = 0;
+    while (x > 0) {
+        x >>= 1;
+        nb++;
+    }
+    return nb;
+}
+
 static inline size_t
 slot(size_t i, size_t n, size_t maxslots)
 {

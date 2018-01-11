@@ -9,11 +9,11 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 include(GNUInstallDirs)
 
 set(clt13_SOURCES
-  src/clt_state.c
+  src/clt.c
+  src/clt_pl.c
   src/clt_elem.c
   src/crt_tree.c
   src/estimates.c
-  src/polylog.c
   src/utils.c
   )
 
