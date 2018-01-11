@@ -27,7 +27,7 @@ set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
 target_link_libraries(clt13 INTERFACE "${OpenMP_C_FLAGS}")
 
 install(TARGETS clt13 LIBRARY DESTINATION lib)
-install(FILES src/clt13.h DESTINATION include)
+install(FILES src/clt13.h src/clt_pl.h DESTINATION include)
 
 # Test files
 
