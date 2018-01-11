@@ -199,13 +199,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
     state->nlevels = nlevels + 1;
     state->theta = 200;         /* XXX */
     assert(state->theta > state->n);
-    if (verbose) {
-        fprintf(stderr, "Polylog CLT initialization:\n");
-        fprintf(stderr, "  n: ..... %lu\n", state->n);
-        fprintf(stderr, "  b: ..... %lu\n", state->b);
-        fprintf(stderr, "  nlevels: [0, %lu]\n", state->nlevels - 1);
-        fprintf(stderr, "  ηs: .... ");
-    }
+    /* Compute ηs */
     etas = calloc(state->nlevels, sizeof etas[0]);
     for (size_t i = 0; i < state->nlevels; ++i) {
         if (i * 2 * b > eta) {
@@ -213,12 +207,20 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t b, size_t wordsize,
             goto error;
         }
         etas[i] = eta - i * 2 * b;
-        if (verbose)
-            fprintf(stderr, " %lu", etas[i]);
     }
     if (verbose) {
-        fprintf(stderr, "\n  Generating p_i's:\n");
+        fprintf(stderr, "Polylog CLT initialization:\n");
+        fprintf(stderr, "  n: ..... %lu\n", state->n);
+        fprintf(stderr, "  b: ..... %lu\n", state->b);
+        fprintf(stderr, "  nlevels: [0, %lu]\n", state->nlevels - 1);
+        fprintf(stderr, "  ηs: .... ");
+        for (size_t i = 0; i < state->nlevels; ++i)
+            fprintf(stderr, "%lu ", etas[i]);
+        fprintf(stderr, "\n");
     }
+
+    if (verbose)
+        fprintf(stderr, "  Generating p_i's:\n");
     state->ps = calloc(state->nlevels, sizeof state->ps[0]);
     for (size_t i = 0; i < state->nlevels; ++i) {
         state->ps[i] = calloc(state->n, sizeof state->ps[i][0]);
