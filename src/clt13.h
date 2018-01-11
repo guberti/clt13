@@ -10,6 +10,7 @@
 
 #include <aesrand/aesrand.h>
 #include <gmp.h>
+#include <stdbool.h>
 
 typedef struct clt_elem_t clt_elem_t;
 typedef struct clt_state_t clt_state_t;
@@ -42,21 +43,11 @@ typedef struct {
     size_t nmoduli;
     /* number of multiplication levels */
     size_t nlevels;
-    /* number of multiplications */
-    size_t nmuls;
     /* switch parameters of each multiplication */
     switch_params_t *sparams;
+    /* number of multiplications */
+    size_t nmuls;
 } clt_opt_params_t;
-
-typedef struct {
-    /* the number of bits of noise to add to the encoding; if `rho = 0` then use
-     * default noise amount */
-    size_t rho;
-    /* specify the exact number of actual slots each "virtual slot" should
-     * use */
-    /* XXX: not supported yet! */
-    size_t *slotsizes;
-} clt_encode_opt_params_t;
 
 #define CLT_FLAG_NONE 0x00
 /* Be verbose */
@@ -97,7 +88,7 @@ int        clt_pp_fwrite(clt_pp_t *pp, FILE *fp);
 /* Creates an encoding `rop` using CLT state `s` of integers `xs` of length `n`
  * and index set `ix` of length `clt_state_nzs(s)` */
 int clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
-               const int *ix, clt_encode_opt_params_t *opt);
+               const int *ix);
 int clt_is_zero(const clt_elem_t *a, const clt_pp_t *pp);
 
 clt_elem_t * clt_elem_new(void);
@@ -111,10 +102,13 @@ void         clt_elem_print(const clt_elem_t *a);
 int          clt_elem_fread(clt_elem_t *x, FILE *fp);
 int          clt_elem_fwrite(clt_elem_t *x, FILE *fp);
 
-int polylog_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
-int polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *s, const clt_elem_t *a, const clt_elem_t *b,
-                     size_t level, int verbose);
-int polylog_elem_decrypt(clt_elem_t *rop, const clt_state_t *s, size_t level);
+int polylog_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a,
+                     const clt_elem_t *b, size_t level);
+int polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *s, const clt_elem_t *a,
+                     const clt_elem_t *b, size_t idx, bool verbose);
+int polylog_elem_decrypt(clt_elem_t *rop, const clt_state_t *s, const int *ix,
+                         size_t nzs, size_t level);
+int polylog_is_zero(const clt_elem_t *c, const clt_pp_t *pp);
 
 /* #ifdef __cplusplus */
 /* } */

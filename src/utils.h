@@ -33,7 +33,7 @@ mpz_mod_near_ui(mpz_t rop, const mpz_t a, size_t p)
 }
 
 static inline void
-mpz_mul_mod_near(mpz_t rop, mpz_t a, const mpz_t b, const mpz_t p)
+mpz_mul_mod_near(mpz_t rop, const mpz_t a, const mpz_t b, const mpz_t p)
 {
     mpz_mul(rop, a, b);
     mpz_mod_near(rop, rop, p);
@@ -73,7 +73,6 @@ product(mpz_t rop, mpz_t *xs, size_t n, bool verbose)
     if (verbose)
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
 }
-
 
 static inline void
 crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
@@ -115,6 +114,60 @@ generate_zs(mpz_t *zs, mpz_t *zinvs, aes_randstate_t *rngs, size_t nzs, const mp
 #pragma omp critical
             print_progress(++count, nzs);
     }
+    if (verbose)
+        fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
+}
+
+static inline void
+generate_pzt(mpz_t pzt, size_t rho, size_t n, mpz_t *ps, mpz_t *gs,
+             size_t nzs, mpz_t *zs, const int *ix, const mpz_t x0,
+             aes_randstate_t *rngs, bool verbose)
+{
+    mpz_t zk;
+    int count = 0;
+    double start = current_time();
+    mpz_set_ui(pzt, 0);
+    if (verbose)
+        fprintf(stderr, "  Generating pzt:\n");
+    mpz_init_set_ui(zk, 1);
+    /* compute z_1^t_1 ... z_k^t_k mod x0 */
+    if (ix) {
+        for (size_t i = 0; i < nzs; ++i) {
+            mpz_t tmp;
+            mpz_init(tmp);
+            mpz_powm_ui(tmp, zs[i], ix[i], x0);
+            mpz_mul_mod_near(zk, zk, tmp, x0);
+            mpz_clear(tmp);
+            if (verbose)
+                print_progress(++count, n + nzs);
+        }
+    }
+#pragma omp parallel for
+    for (size_t i = 0; i < n; ++i) {
+        mpz_t tmp, qpi, rnd;
+        mpz_inits(tmp, qpi, rnd, NULL);
+        /* compute ((g_i^{-1} mod p_i) · z · r_i · (x0 / p_i) */
+        mpz_invert(tmp, gs[i], ps[i]);
+        mpz_mul_mod_near(tmp, tmp, zk, ps[i]);
+        do {
+            mpz_random_(rnd, rngs[i], rho);
+        } while (mpz_cmp(rnd, gs[i]) == 0);
+        mpz_mul(tmp, tmp, rnd);
+        mpz_divexact(qpi, x0, ps[i]);
+        mpz_mul_mod_near(tmp, tmp, qpi, x0);
+#pragma omp critical
+        {
+            mpz_add(pzt, pzt, tmp);
+        }
+        mpz_clears(tmp, qpi, rnd, NULL);
+        if (verbose)
+#pragma omp critical
+        {
+            print_progress(++count, n + nzs);
+        }
+    }
+    mpz_mod_near(pzt, pzt, x0);
+    mpz_clear(zk);
     if (verbose)
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
 }

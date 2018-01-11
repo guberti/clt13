@@ -1,19 +1,19 @@
 #include <clt13.h>
 #include <stdbool.h>
 
-/* static int */
-/* expect(char *desc, int expected, int recieved) */
-/* { */
-/*     if (expected != recieved) { */
-/*         printf("\033[1;41m"); */
-/*     } */
-/*     printf("%s = %d", desc, recieved); */
-/*     if (expected != recieved) { */
-/*         printf("\033[0m"); */
-/*     } */
-/*     puts(""); */
-/*     return expected == recieved; */
-/* } */
+static int
+expect(char *desc, int expected, int recieved)
+{
+    if (expected != recieved) {
+        printf("\033[1;41m");
+    }
+    printf("%s = %d", desc, recieved);
+    if (expected != recieved) {
+        printf("\033[0m");
+    }
+    puts("");
+    return expected == recieved;
+}
 
 static int
 test(size_t lambda, size_t kappa, bool polylog)
@@ -37,7 +37,7 @@ test(size_t lambda, size_t kappa, bool polylog)
         .lambda = lambda,
         .kappa = kappa,
         .nzs = nzs,
-        .pows = NULL,
+        .pows = top,
     };
     int ix0[] = {1, 0, 0, 0};
     int ix1[] = {0, 1, 0, 0};
@@ -74,22 +74,22 @@ test(size_t lambda, size_t kappa, bool polylog)
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
 
-    clt_encode(x0, mmap, 1, &one, ix0, 0);
-    clt_encode(x1, mmap, 1, &one, ix1, 0);
-    clt_encode(x2, mmap, 1, &one, ix2, 0);
-    clt_encode(x3, mmap, 1, &one, ix3, 0);
-    polylog_elem_decrypt(x0, mmap, 0);
-    polylog_elem_decrypt(x1, mmap, 0);
-    polylog_elem_decrypt(x2, mmap, 0);
-    polylog_elem_decrypt(x3, mmap, 0);
+    clt_encode(x0, mmap, 1, &zero, ix0);
+    clt_encode(x1, mmap, 1, &one, ix1);
+    clt_encode(x2, mmap, 1, &one, ix2);
+    clt_encode(x3, mmap, 1, &one, ix3);
+    polylog_elem_decrypt(x0, mmap, ix0, nzs, 0);
+    polylog_elem_decrypt(x1, mmap, ix1, nzs, 0);
+    polylog_elem_decrypt(x2, mmap, ix2, nzs, 0);
+    polylog_elem_decrypt(x3, mmap, ix3, nzs, 0);
     /* polylog_elem_add(x4, pp, x0, x0); */
     polylog_elem_mul(x4, pp, x0, x1, 0, true);
-    polylog_elem_decrypt(x4, mmap, 1);
+    polylog_elem_decrypt(x4, mmap, ix1100, nzs, 1);
     polylog_elem_mul(x5, pp, x2, x3, 1, true);
-    polylog_elem_decrypt(x5, mmap, 1);
+    polylog_elem_decrypt(x5, mmap, ix0011, nzs, 1);
     polylog_elem_mul(out, pp, x4, x5, 2, true);
-    polylog_elem_decrypt(out, mmap, 2);
-    /* ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_is_zero(out, pp)); */
+    polylog_elem_decrypt(out, mmap, top, nzs, 2);
+    ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, polylog_is_zero(out, pp));
 
     mpz_clears(zero, one, NULL);
     clt_elem_free(x0);
@@ -108,7 +108,7 @@ main(int arg, char **argv)
     (void) arg; (void) argv;
 
     size_t lambda = 20;
-    size_t kappa = 5;
+    size_t kappa = 4;
 
     /* if (test(lambda, kappa, nzs, false) == 1) */
     /*     return 1; */

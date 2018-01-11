@@ -6,9 +6,9 @@
 
 struct clt_elem_t {
     mpz_t elem;
-    int *ix;
-    size_t nzs;
-    size_t level;
+    /* int *ix; */
+    /* size_t nzs; */
+    /* size_t level; */
 };
 
 struct clt_state_t {
@@ -31,11 +31,8 @@ struct clt_state_t {
 };
 
 struct clt_pp_t {
-    union {
-        mpz_t x0;
-        polylog_pp_t *pstate;
-    };
+    mpz_t x0;
+    polylog_pp_t *pstate;
     mpz_t pzt;                  /* zero testing parameter */
     size_t nu;                  /* number of most-significant-bits to extract */
-    bool is_polylog;            /* are we using polylog CLT? */
 };

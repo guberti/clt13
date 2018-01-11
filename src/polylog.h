@@ -32,6 +32,7 @@ typedef struct {
 
 typedef struct {
     size_t theta;
+    size_t nlevels;
     mpz_t *x0s;
     switch_state_t **switches;
     size_t nmuls;

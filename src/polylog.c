@@ -15,6 +15,7 @@ polylog_pp_new(const polylog_state_t *s)
     if ((pp = calloc(1, sizeof pp[0])) == NULL)
         return NULL;
     pp->theta = s->theta;
+    pp->nlevels = s->nlevels;
     pp->x0s = s->x0s;
     pp->nmuls = s->nmuls;
     pp->switches = s->switches;
@@ -76,7 +77,7 @@ switch_state_new(clt_state_t *s, const int *ix, size_t eta, size_t wordsize,
     state->k = (int) ceil(eta / log2(wordsize));
 
     if (verbose)
-        fprintf(stderr, "  Generating switch state [%lu->%lu]\n", level, level+1);
+        fprintf(stderr, "  Generating switch state [%lu →  %lu]\n", level, level+1);
     start = current_time();
 
     mpz_inits(wk, K, z1, z2, NULL);
@@ -194,7 +195,7 @@ switch_state_new(clt_state_t *s, const int *ix, size_t eta, size_t wordsize,
                 mpz_clear(x);
             }
             mpz_mul_mod_near(state->sigmas[t][j]->elem, state->sigmas[t][j]->elem, z2, pstate->x0s[level + 1]);
-            state->sigmas[t][j]->level = level + 1;
+            /* state->sigmas[t][j]->level = level + 1; */
             mpz_clear(wkj);
         }
         for (size_t j = 0; j < state->k; ++j) {
@@ -354,90 +355,91 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const
         }
         mpz_clear(tmp);
     }
-    rop->level = level;
+    /* rop->level = level; */
     if (ix) {
         mpz_t tmp;
         mpz_init(tmp);
         /* multiply by appropriate zinvs */
-        rop->ix = calloc(s->nzs, sizeof rop->ix[0]);
+        /* rop->ix = calloc(s->nzs, sizeof rop->ix[0]); */
         for (size_t i = 0; i < s->nzs; ++i) {
             if (ix[i] <= 0) continue;
-            rop->ix[i] = ix[i];
-            mpz_powm_ui(tmp, pstate->zinvs[level][i], rop->ix[i], pstate->x0s[level]);
+            /* rop->ix[i] = ix[i]; */
+            mpz_powm_ui(tmp, pstate->zinvs[level][i], ix[i], pstate->x0s[level]);
             mpz_mul_mod_near(rop->elem, rop->elem, tmp, pstate->x0s[level]);
         }
-        rop->nzs = s->nzs;
+        /* rop->nzs = s->nzs; */
         mpz_clear(tmp);
     }
     return CLT_OK;
 }
 
 int
-polylog_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
+polylog_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a,
+                 const clt_elem_t *b, size_t level)
 {
-    if (a->level != b->level) {
-        fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to add\n",
-                a->level, b->level);
-        return CLT_ERR;
-    }
-    if (a->nzs != b->nzs) {
-        fprintf(stderr, "error: encoding index sets of different length (%lu ≠ %lu)\n",
-                a->nzs, b->nzs);
-        return CLT_ERR;
-    }
-    rop->nzs = a->nzs;
-    rop->ix = calloc(rop->nzs, sizeof rop->ix[0]);
-    {
-        bool valid = true;
-        for (size_t i = 0; i < a->nzs; ++i) {
-            if (a->ix[i] != b->ix[i]) {
-                valid = false;
-                break;
-            }
-            rop->ix[i] = a->ix[i];
-        }
-        if (!valid) {
-            fprintf(stderr, "error: index sets not equal\n");
-            free(rop->ix);
-            return CLT_ERR;
-        }
-    }
+    /* if (a->level != b->level) { */
+    /*     fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to add\n", */
+    /*             a->level, b->level); */
+    /*     return CLT_ERR; */
+    /* } */
+    /* if (a->nzs != b->nzs) { */
+    /*     fprintf(stderr, "error: encoding index sets of different length (%lu ≠ %lu)\n", */
+    /*             a->nzs, b->nzs); */
+    /*     return CLT_ERR; */
+    /* } */
+    /* rop->nzs = a->nzs; */
+    /* rop->ix = calloc(rop->nzs, sizeof rop->ix[0]); */
+    /* { */
+    /*     bool valid = true; */
+    /*     for (size_t i = 0; i < a->nzs; ++i) { */
+    /*         if (a->ix[i] != b->ix[i]) { */
+    /*             valid = false; */
+    /*             break; */
+    /*         } */
+    /*         rop->ix[i] = a->ix[i]; */
+    /*     } */
+    /*     if (!valid) { */
+    /*         fprintf(stderr, "error: index sets not equal\n"); */
+    /*         free(rop->ix); */
+    /*         return CLT_ERR; */
+    /*     } */
+    /* } */
     mpz_add(rop->elem, a->elem, b->elem);
-    mpz_mod(rop->elem, rop->elem, pp->pstate->x0s[a->level]);
-    rop->level = a->level;
+    mpz_mod(rop->elem, rop->elem, pp->pstate->x0s[level]);
+    /* rop->level = a->level; */
     return CLT_OK;
 }
 
 int
 polylog_elem_mul(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a,
-                 const clt_elem_t *b, size_t idx, int verbose)
+                 const clt_elem_t *b, size_t idx, bool verbose)
 {
     switch_state_t *sstate;
-    if (a->level != b->level) {
-        fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to multiply\n",
-                a->level, b->level);
-        return CLT_ERR;
-    }
-    if (a->nzs != b->nzs) {
-        fprintf(stderr, "error: encoding index sets of different length (%lu ≠ %lu)\n",
-                a->nzs, b->nzs);
-        return CLT_ERR;
-    }
-    rop->nzs = a->nzs;
-    rop->ix = calloc(rop->nzs, sizeof rop->ix[0]);
-    for (size_t i = 0; i < rop->nzs; ++i) {
-        rop->ix[i] = a->ix[i] + b->ix[i];
-    }
+    /* if (a->level != b->level) { */
+    /*     fprintf(stderr, "error: levels unequal (%lu ≠ %lu), unable to multiply\n", */
+    /*             a->level, b->level); */
+    /*     return CLT_ERR; */
+    /* } */
+    /* if (a->nzs != b->nzs) { */
+    /*     fprintf(stderr, "error: encoding index sets of different length (%lu ≠ %lu)\n", */
+    /*             a->nzs, b->nzs); */
+    /*     return CLT_ERR; */
+    /* } */
+    /* rop->nzs = a->nzs; */
+    /* rop->ix = calloc(rop->nzs, sizeof rop->ix[0]); */
+    /* for (size_t i = 0; i < rop->nzs; ++i) { */
+    /*     rop->ix[i] = a->ix[i] + b->ix[i]; */
+    /* } */
     sstate = pp->pstate->switches[idx];
-    if (sstate->level != a->level) {
-        fprintf(stderr, "error: switch and element levels unequal (%lu ≠ %lu)\n",
-                sstate->level, a->level);
-        return CLT_ERR;
-    }
+    /* if (sstate->level != a->level) { */
+    /*     fprintf(stderr, "error: switch and element levels unequal (%lu ≠ %lu)\n", */
+    /*             sstate->level, a->level); */
+    /*     return CLT_ERR; */
+    /* } */
     /* a · b mod Π^(ℓ) */
     mpz_mul(rop->elem, a->elem, b->elem);
     mpz_mod(rop->elem, rop->elem, pp->pstate->x0s[sstate->level]);
-    rop->level = a->level;
+    /* rop->level = a->level; */
     if (polylog_switch(rop, pp, rop, sstate, verbose) == CLT_ERR)
         return CLT_ERR;
     return CLT_OK;
@@ -458,11 +460,11 @@ polylog_switch(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *x_,
     mpz_inits(ct, wk, NULL);
     x = clt_elem_new();
     clt_elem_set(x, x_);
-    if (sstate->level != x->level) {
-        fprintf(stderr, "error: switch and element levels unequal (%lu ≠ %lu)\n",
-                sstate->level, x->level);
-        goto cleanup;
-    }
+    /* if (sstate->level != x->level) { */
+    /*     fprintf(stderr, "error: switch and element levels unequal (%lu ≠ %lu)\n", */
+    /*             sstate->level, x->level); */
+    /*     goto cleanup; */
+    /* } */
 
     pi = &pstate->x0s[sstate->level];
     pip = &pstate->x0s[sstate->level + 1];
@@ -487,28 +489,28 @@ polylog_switch(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *x_,
             mpz_clears(tmp, decomp, NULL);
         }
     }
-    rop->level = x->level + 1;
+    /* rop->level = x->level + 1; */
     if (verbose)
         fprintf(stderr, "Switch time: %.2fs\n", current_time() - start);
     ret = CLT_OK;
-cleanup:
+/* cleanup: */
     mpz_clears(ct, wk, NULL);
     clt_elem_free(x);
     return ret;
 }
 
 int
-polylog_elem_decrypt(clt_elem_t *x, const clt_state_t *s, size_t level)
+polylog_elem_decrypt(clt_elem_t *x, const clt_state_t *s, const int *ix, size_t nzs, size_t level)
 {
     size_t nbits;
     mpz_t rop, tmp, z;
     mpz_inits(rop, tmp, z, NULL);
     mpz_set_ui(z, 1);
     printf("DECRYPTION @ LEVEL %lu :: ", level);
-    for (size_t i = 0; i < x->nzs; ++i) {
-        printf("%d ", x->ix[i]);
-        if (x->ix[i] <= 0) continue;
-        mpz_powm_ui(tmp, s->pstate->zs[level][i], x->ix[i], s->pstate->x0s[level]);
+    for (size_t i = 0; i < nzs; ++i) {
+        printf("%d ", ix[i]);
+        if (ix[i] <= 0) continue;
+        mpz_powm_ui(tmp, s->pstate->zs[level][i], ix[i], s->pstate->x0s[level]);
         mpz_mul_mod_near(z, z, tmp, s->pstate->x0s[level]);
     }
     mpz_mul(z, z, x->elem);
@@ -522,4 +524,23 @@ polylog_elem_decrypt(clt_elem_t *x, const clt_state_t *s, size_t level)
     mpz_clears(rop, tmp, z, NULL);
     printf(": %lu\n", nbits);
     return CLT_OK;
+}
+
+int
+polylog_is_zero(const clt_elem_t *c, const clt_pp_t *pp)
+{
+    const polylog_pp_t *pstate = pp->pstate;
+    int ret;
+
+    mpz_t tmp, *x0;
+    mpz_inits(tmp);
+    x0 = &pstate->x0s[pstate->nlevels - 1];
+
+    mpz_mul(tmp, c->elem, pp->pzt);
+    mpz_mod_near(tmp, tmp, *x0);
+
+    ret = mpz_sizeinbase(tmp, 2) < mpz_sizeinbase(*x0, 2) - pp->nu;
+    mpz_clear(tmp);
+    return ret ? 1 : 0;
+
 }
