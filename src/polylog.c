@@ -153,21 +153,26 @@ switch_state_new(clt_state_t *s, size_t eta, size_t wordsize, size_t level, bool
         state->sigmas[t] = calloc(state->k, sizeof state->sigmas[t][0]);
 #pragma omp parallel for
         for (size_t j = 0; j < state->k; ++j) {
-            mpz_t *xs = calloc(s->n, sizeof xs[0]);
             state->sigmas[t][j] = clt_elem_new();
             for (size_t i = 0; i < s->n; ++i) {
-                mpz_init(xs[i]);
-                mpz_ui_pow_ui(xs[i], wordsize, j);
-                mpz_mul(xs[i], xs[i], ss[i][t]);
-                mpz_mul(xs[i], xs[i], pstate->ps[level + 1][i]);
-                mpz_quotient(xs[i], xs[i], wk);
-                mpz_mul(xs[i], xs[i], s->gs[i]);
+                mpz_t x, tmp;
+                mpz_inits(tmp, x, NULL);
+                mpz_ui_pow_ui(x, wordsize, j);
+                mpz_mul(x, x, ss[i][t]);
+                mpz_mul(x, x, pstate->ps[level + 1][i]);
+                mpz_quotient(x, x, wk);
+                mpz_urandomb_aes(tmp, s->rngs[i], 2 * s->rho);
+                mpz_mod_near_ui(tmp, tmp, s->rho);
+                mpz_add(x, x, tmp);
+                mpz_mul(x, x, s->gs[i]);
+                mpz_mul(x, x, pstate->crt_coeffs[level + 1][i]);
+#pragma omp critical
+                {
+                    mpz_add(state->sigmas[t][j]->elem, state->sigmas[t][j]->elem, x);
+                }
+                mpz_clears(tmp, x, NULL);
             }
-            polylog_encode(state->sigmas[t][j], s, s->n, xs, NULL, level + 1);
-            for (size_t i = 0; i < s->n; ++i) {
-                mpz_clear(xs[i]);
-            }
-            free(xs);
+            state->sigmas[t][j]->level = level + 1;
         }
     }
     if (verbose)
@@ -236,10 +241,9 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t theta, size_t b, size_t wor
     }
     if (verbose) {
         fprintf(stderr, "Polylog CLT initialization:\n");
-        fprintf(stderr, "  n: ..... %lu\n", state->n);
-        fprintf(stderr, "  b: ..... %lu\n", state->b);
         fprintf(stderr, "  θ: ..... %lu\n", state->theta);
-        fprintf(stderr, "  nlevels: [0, %lu]\n", state->nlevels - 1);
+        fprintf(stderr, "  b: ..... %lu\n", state->b);
+        fprintf(stderr, "  nlevels: 0 →  %lu\n", state->nlevels - 1);
         fprintf(stderr, "  ηs: .... ");
         for (size_t i = 0; i < state->nlevels; ++i)
             fprintf(stderr, "%lu ", etas[i]);
@@ -253,6 +257,7 @@ polylog_state_new(clt_state_t *s, size_t eta, size_t theta, size_t b, size_t wor
         state->ps[i] = calloc(state->n, sizeof state->ps[i][0]);
         if (verbose) {
             count = 0;
+            fprintf(stderr, "%lu", etas[i]);
             print_progress(count, state->n);
         }
         for (size_t j = 0; j < state->n; ++j) {
@@ -294,22 +299,17 @@ error:
 int
 polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const int *ix, size_t level)
 {
-    (void) ix;                  /* XXX */
+    (void) ix;
     polylog_state_t *pstate = s->pstate;
-    mpz_t b_mpz;
-    mpz_init_set_ui(b_mpz, pstate->b);
     mpz_set_ui(rop->elem, 0);
 #pragma omp parallel for
     for (size_t i = 0; i < s->n; ++i) {
         mpz_t tmp;
         mpz_init(tmp);
-        /* rᵢ ∈ [-2ᴮ, 2ᴮ ] */
         mpz_urandomb_aes(tmp, s->rngs[i], 2 * pstate->b);
-        mpz_mod_near(tmp, tmp, b_mpz);
-        /* gᵢ · rᵢ */
+        mpz_mod_near_ui(tmp, tmp, pstate->b);
         mpz_mul(tmp, tmp, s->gs[i]);
-        /* mᵢ + gᵢ·rᵢ */
-        mpz_add(tmp, tmp, xs[slot(i,n, s->n)]);
+        mpz_add(tmp, tmp, xs[slot(i, n, s->n)]);
         mpz_mul(tmp, tmp, pstate->crt_coeffs[level][i]);
 #pragma omp critical
         {
@@ -318,7 +318,6 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const
         mpz_clear(tmp);
     }
     rop->level = level;
-    /* XXX ignore index set for now */
     /* if (ix) { */
     /*     mpz_t tmp; */
     /*     mpz_init(tmp); */
@@ -333,7 +332,6 @@ polylog_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs, const
     /*     } */
     /*     mpz_clear(tmp); */
     /* } */
-    mpz_clear(b_mpz);
     return CLT_OK;
 }
 
@@ -392,9 +390,8 @@ polylog_switch(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *x_,
     x = clt_elem_new();
     clt_elem_set(x, x_);
     if (sstate->level != x->level) {
-        fprintf(stderr, "error: using switch parameter with a mismatched level\n");
-        fprintf(stderr, "       element level: %lu\n", x->level);
-        fprintf(stderr, "       switch level:  %lu\n", sstate->level);
+        fprintf(stderr, "error: switch and element levels unequal (%lu ≠ %lu)\n",
+                sstate->level, x->level);
         goto cleanup;
     }
 
