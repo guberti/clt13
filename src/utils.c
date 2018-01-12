@@ -100,3 +100,13 @@ size_t_fwrite(FILE *fp, size_t x)
     return CLT_OK;
 }
 
+int
+bool_fread(FILE *fp, bool *x)
+{
+    return (fread(x, sizeof x[0], 1, fp) == 1) ? CLT_OK : CLT_ERR;
+}
+int
+bool_fwrite(FILE *fp, bool x)
+{
+    return (fwrite(&x, sizeof x, 1, fp) == 1) ? CLT_OK : CLT_ERR;
+}

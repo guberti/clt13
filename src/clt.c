@@ -135,41 +135,25 @@ cleanup:
 int
 clt_state_fwrite(clt_state_t *const s, FILE *const fp)
 {
-    int ret = CLT_ERR;
-
-    if (size_t_fwrite(fp, s->flags) == CLT_ERR)
-        goto cleanup;
-    if (size_t_fwrite(fp, s->n) == CLT_ERR)
-        goto cleanup;
-    if (size_t_fwrite(fp, s->nzs) == CLT_ERR)
-        goto cleanup;
-    if (size_t_fwrite(fp, s->rho) == CLT_ERR)
-        goto cleanup;
-    if (size_t_fwrite(fp, s->nu) == CLT_ERR)
-        goto cleanup;
-    if (mpz_fwrite(s->x0, fp) == CLT_ERR)
-        goto cleanup;
-    if (mpz_fwrite(s->pzt, fp) == CLT_ERR)
-        goto cleanup;
-    if (mpz_vector_fwrite(s->gs, s->n, fp) == CLT_ERR)
-        goto cleanup;
-    if (mpz_vector_fwrite(s->zinvs, s->nzs, fp) == CLT_ERR)
-        goto cleanup;
+    if (size_t_fwrite(fp, s->flags) == CLT_ERR) goto cleanup;
+    if (size_t_fwrite(fp, s->n) == CLT_ERR) goto cleanup;
+    if (size_t_fwrite(fp, s->nzs) == CLT_ERR) goto cleanup;
+    if (size_t_fwrite(fp, s->rho) == CLT_ERR) goto cleanup;
+    if (size_t_fwrite(fp, s->nu) == CLT_ERR) goto cleanup;
+    if (mpz_fwrite(s->x0, fp) == CLT_ERR) goto cleanup;
+    if (mpz_fwrite(s->pzt, fp) == CLT_ERR) goto cleanup;
+    if (mpz_vector_fwrite(s->gs, s->n, fp) == CLT_ERR) goto cleanup;
+    if (mpz_vector_fwrite(s->zinvs, s->nzs, fp) == CLT_ERR) goto cleanup;
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        if (crt_tree_fwrite(fp, s->crt, s->n) != 0)
-            goto cleanup;
+        if (crt_tree_fwrite(fp, s->crt, s->n) != 0) goto cleanup;
     } else {
-        if (mpz_vector_fwrite(s->crt_coeffs, s->n, fp) != 0)
-            goto cleanup;
+        if (mpz_vector_fwrite(s->crt_coeffs, s->n, fp) != 0) goto cleanup;
     }
-
-    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
+    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
         aes_randstate_fwrite(s->rngs[i], fp);
-    }
-
-    ret = CLT_OK;
+    return CLT_OK;
 cleanup:
-    return ret;
+    return CLT_ERR;
 }
 
 clt_pp_t *
@@ -198,42 +182,28 @@ clt_pp_t *
 clt_pp_fread(FILE *fp)
 {
     clt_pp_t *pp;
-    int ret = CLT_ERR;
 
     if ((pp = calloc(1, sizeof pp[0])) == NULL)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
-
-    if (size_t_fread(fp, &pp->nu) == CLT_ERR)
-        goto cleanup;
-    if (mpz_fread(pp->x0, fp) == CLT_ERR)
-        goto cleanup;
-    if (mpz_fread(pp->pzt, fp) == CLT_ERR)
-        goto cleanup;
-    ret = CLT_OK;
+    if (size_t_fread(fp, &pp->nu) == CLT_ERR) goto cleanup;
+    if (mpz_fread(pp->x0, fp) == CLT_ERR) goto cleanup;
+    if (mpz_fread(pp->pzt, fp) == CLT_ERR) goto cleanup;
+    return pp;
 cleanup:
-    if (ret == CLT_OK) {
-        return pp;
-    } else {
-        clt_pp_free(pp);
-        return NULL;
-    }
+    clt_pp_free(pp);
+    return NULL;
 }
 
 int
 clt_pp_fwrite(clt_pp_t *pp, FILE *fp)
 {
-    int ret = CLT_ERR;
-
-    if (size_t_fwrite(fp, pp->nu) == CLT_ERR)
-        goto cleanup;
-    if (mpz_fwrite(pp->x0, fp) == CLT_ERR)
-        goto cleanup;
-    if (mpz_fwrite(pp->pzt, fp) == CLT_ERR)
-        goto cleanup;
-    ret = CLT_OK;
+    if (size_t_fwrite(fp, pp->nu) == CLT_ERR) goto cleanup;
+    if (mpz_fwrite(pp->x0, fp) == CLT_ERR) goto cleanup;
+    if (mpz_fwrite(pp->pzt, fp) == CLT_ERR) goto cleanup;
+    return CLT_OK;
 cleanup:
-    return ret;
+    return CLT_ERR;
 }
 
 static int

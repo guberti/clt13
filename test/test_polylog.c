@@ -4,14 +4,12 @@
 static int
 expect(char *desc, int expected, int recieved)
 {
-    if (expected != recieved) {
+    if (expected != recieved)
         printf("\033[1;41m");
-    }
     printf("%s = %d", desc, recieved);
-    if (expected != recieved) {
+    if (expected != recieved)
         printf("\033[0m");
-    }
-    puts("");
+    printf("\n");
     return expected == recieved;
 }
 
@@ -19,7 +17,6 @@ static int
 test(size_t lambda)
 {
     srand(time(NULL));
-    /* srand(0); */
 
     const size_t nzs = 4;
     size_t flags = CLT_PL_FLAG_VERBOSE;
@@ -61,6 +58,40 @@ test(size_t lambda)
 
     mmap = clt_pl_state_new(&params, &opts, 0, flags, rng);
     pp = clt_pl_pp_new(mmap);
+
+    {
+        FILE *fp;
+
+        fp = tmpfile();
+        if (clt_pl_pp_fwrite(pp, fp) == CLT_ERR) {
+            fprintf(stderr, "clt_pl_pp_fwrite failed!\n");
+            return 1;
+        }
+        clt_pl_pp_free(pp);
+        rewind(fp);
+        if ((pp = clt_pl_pp_fread(fp)) == NULL) {
+            fprintf(stderr, "clt_pl_pp_fread failed!\n");
+            return 1;
+        }
+        fclose(fp);
+    }
+
+    {
+        FILE *fp;
+
+        fp = tmpfile();
+        if (clt_pl_state_fwrite(mmap, fp) == CLT_ERR) {
+            fprintf(stderr, "clt_pl_state_fwrite failed!\n");
+            return 1;
+        }
+        clt_pl_state_free(mmap);
+        rewind(fp);
+        if ((mmap = clt_pl_state_fread(fp)) == NULL) {
+            fprintf(stderr, "clt_pl_state_fread failed!\n");
+            return 1;
+        }
+        fclose(fp);
+    }
 
     x0 = clt_elem_new();
     x1 = clt_elem_new();

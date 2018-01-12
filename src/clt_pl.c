@@ -85,6 +85,7 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x,
             mpz_clears(tmp, decomp, NULL);
         }
     }
+    rop->level++;
     if (verbose)
         fprintf(stderr, "Switch time: %.2fs\n", current_time() - start);
     mpz_clears(ct, wk, NULL);
@@ -117,8 +118,7 @@ int
 clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
                 const clt_elem_t *b, size_t idx)
 {
-    switch_state_t *sstate;
-    sstate = pp->switches[idx];
+    const switch_state_t *sstate = pp->switches[idx];
     mpz_mul(rop->elem, a->elem, b->elem);
     mpz_mod(rop->elem, rop->elem, pp->x0s[sstate->level]);
     if (clt_pl_elem_switch(rop, pp, rop, sstate) == CLT_ERR)
@@ -181,6 +181,41 @@ switch_state_free(switch_state_t *s, size_t theta)
         mpz_vector_free(s->sigmas[t], s->k);
     free(s->sigmas);
     free(s);
+}
+
+static switch_state_t *
+switch_state_fread(FILE *fp, size_t theta)
+{
+    switch_state_t *s;
+
+    if ((s = calloc(1, sizeof s[0])) == NULL)
+        return NULL;
+    if (size_t_fread(fp, &s->level) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->wordsize) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->k) == CLT_ERR) goto error;
+    s->ys = mpz_vector_new(theta);
+    if (mpz_vector_fread(s->ys, theta, fp) == CLT_ERR) goto error;
+    s->sigmas = calloc(theta, sizeof s->sigmas[0]);
+    for (size_t i = 0; i < theta; ++i) {
+        s->sigmas[i] = mpz_vector_new(s->k);
+        if (mpz_vector_fread(s->sigmas[i], s->k, fp) == CLT_ERR) goto error;
+    }
+    return s;
+error:
+    switch_state_free(s, theta);
+    return NULL;
+}
+
+static int
+switch_state_fwrite(FILE *fp, switch_state_t *s, size_t theta)
+{
+    if (size_t_fwrite(fp, s->level) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->wordsize) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->k) == CLT_ERR) return CLT_ERR;
+    if (mpz_vector_fwrite(s->ys, theta, fp) == CLT_ERR) return CLT_ERR;
+    for (size_t i = 0; i < theta; ++i)
+        if (mpz_vector_fwrite(s->sigmas[i], s->k, fp) == CLT_ERR) return CLT_ERR;
+    return CLT_OK;
 }
 
 static switch_state_t *
@@ -382,17 +417,47 @@ clt_pl_pp_free(clt_pl_pp_t *pp)
 clt_pl_pp_t *
 clt_pl_pp_fread(FILE *fp)
 {
-    (void) fp;
+    clt_pl_pp_t *pp;
+
+    if ((pp = calloc(1, sizeof pp[0])) == NULL)
+        return NULL;
+    mpz_init(pp->pzt);
+    pp->x0s = mpz_vector_new(pp->nlevels);
+    pp->switches = calloc(pp->nmuls, sizeof pp->switches[0]);
+    if (size_t_fread(fp, &pp->nu) == CLT_ERR) goto cleanup;
+    if (size_t_fread(fp, &pp->theta) == CLT_ERR) goto cleanup;
+    if (size_t_fread(fp, &pp->nlevels) == CLT_ERR) goto cleanup;
+    if (size_t_fread(fp, &pp->nmuls) == CLT_ERR) goto cleanup;
+    if (mpz_fread(pp->pzt, fp) == CLT_ERR) goto cleanup;
+    pp->x0s = mpz_vector_new(pp->nlevels);
+    if (mpz_vector_fread(pp->x0s, pp->nlevels, fp) == CLT_ERR) goto cleanup;
+    pp->switches = calloc(pp->nmuls, sizeof pp->switches[0]);
+    for (size_t i = 0; i < pp->nmuls; ++i)
+        if ((pp->switches[i] = switch_state_fread(fp, pp->theta)) == NULL) goto cleanup;
+    if (bool_fread(fp, &pp->verbose) == CLT_ERR) goto cleanup;
+    pp->local = true;
+    return pp;
+cleanup:
+    clt_pl_pp_free(pp);
     return NULL;
 }
 
 int
 clt_pl_pp_fwrite(clt_pl_pp_t *pp, FILE *fp)
 {
-    (void) pp; (void) fp;
+    if (size_t_fwrite(fp, pp->nu) == CLT_ERR) goto cleanup;
+    if (size_t_fwrite(fp, pp->theta) == CLT_ERR) goto cleanup;
+    if (size_t_fwrite(fp, pp->nlevels) == CLT_ERR) goto cleanup;
+    if (size_t_fwrite(fp, pp->nmuls) == CLT_ERR) goto cleanup;
+    if (mpz_fwrite(pp->pzt, fp) == CLT_ERR) goto cleanup;
+    if (mpz_vector_fwrite(pp->x0s, pp->nlevels, fp) == CLT_ERR) goto cleanup;
+    for (size_t i = 0; i < pp->nmuls; ++i)
+        if (switch_state_fwrite(fp, pp->switches[i], pp->theta) == CLT_ERR) goto cleanup;
+    if (bool_fwrite(fp, pp->verbose) == CLT_ERR) goto cleanup;
+    return CLT_OK;
+cleanup:
     return CLT_ERR;
 }
-
 
 static inline size_t
 max3(size_t a, size_t b, size_t c)
@@ -627,15 +692,83 @@ error:
 clt_pl_state_t *
 clt_pl_state_fread(FILE *fp)
 {
-    (void) fp;
+    clt_pl_state_t *s;
+
+    if ((s = calloc(1, sizeof s[0])) == NULL)
+        return NULL;
+    if (size_t_fread(fp, &s->n) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->nzs) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->rho) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->nu) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->b) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->nlevels) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->theta) == CLT_ERR) goto error;
+    if (size_t_fread(fp, &s->nmuls) == CLT_ERR) goto error;
+    mpz_init(s->pzt);
+    if (mpz_fread(s->pzt, fp) == CLT_ERR) goto error;
+    s->gs = mpz_vector_new(s->n);
+    if (mpz_vector_fread(s->gs, s->n, fp) == CLT_ERR) goto error;
+    s->zs = calloc(s->nlevels, sizeof s->zs[0]);
+    for (size_t i = 0; i < s->nlevels; ++i) {
+        s->zs[i] = mpz_vector_new(s->nzs);
+        if (mpz_vector_fread(s->zs[i], s->nzs, fp) == CLT_ERR) goto error;
+    }
+    s->zinvs = calloc(s->nlevels, sizeof s->zinvs[0]);
+    for (size_t i = 0; i < s->nlevels; ++i) {
+        s->zinvs[i] = mpz_vector_new(s->nzs);
+        if (mpz_vector_fread(s->zinvs[i], s->nzs, fp) == CLT_ERR) goto error;
+    }
+    s->ps = calloc(s->nlevels, sizeof s->ps[0]);
+    for (size_t i = 0; i < s->nlevels; ++i) {
+        s->ps[i] = mpz_vector_new(s->n);
+        if (mpz_vector_fread(s->ps[i], s->n, fp) == CLT_ERR) goto error;
+    }
+    s->crt_coeffs = calloc(s->nlevels, sizeof s->crt_coeffs[0]);
+    for (size_t i = 0; i < s->nlevels; ++i) {
+        s->crt_coeffs[i] = mpz_vector_new(s->n);
+        if (mpz_vector_fread(s->crt_coeffs[i], s->n, fp) == CLT_ERR) goto error;
+    }
+    s->x0s = mpz_vector_new(s->nlevels);
+    if (mpz_vector_fread(s->x0s, s->nlevels, fp) == CLT_ERR) goto error;
+    s->switches = calloc(s->nmuls, sizeof s->switches[0]);
+    for (size_t i = 0; i < s->nmuls; ++i)
+        if ((s->switches[i] = switch_state_fread(fp, s->theta)) == NULL) goto error;
+    s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
+    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
+        aes_randstate_fread(s->rngs[i], fp);
+    return s;
+error:
+    clt_pl_state_free(s);
     return NULL;
 }
 
 int
 clt_pl_state_fwrite(clt_pl_state_t *s, FILE *fp)
 {
-    (void) s; (void) fp;
-    return CLT_ERR;
+    if (size_t_fwrite(fp, s->n) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->nzs) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->rho) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->nu) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->b) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->nlevels) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->theta) == CLT_ERR) return CLT_ERR;
+    if (size_t_fwrite(fp, s->nmuls) == CLT_ERR) return CLT_ERR;
+    if (mpz_fwrite(s->pzt, fp) == CLT_ERR) return CLT_ERR;
+    if (mpz_vector_fwrite(s->gs, s->n, fp) == CLT_ERR) return CLT_ERR;
+    for (size_t i = 0; i < s->nlevels; ++i)
+        if (mpz_vector_fwrite(s->zs[i], s->nzs, fp) == CLT_ERR) return CLT_ERR;
+    for (size_t i = 0; i < s->nlevels; ++i)
+        if (mpz_vector_fwrite(s->zinvs[i], s->nzs, fp) == CLT_ERR) return CLT_ERR;
+    for (size_t i = 0; i < s->nlevels; ++i)
+        if (mpz_vector_fwrite(s->ps[i], s->n, fp) == CLT_ERR) return CLT_ERR;
+    for (size_t i = 0; i < s->nlevels; ++i)
+        if (mpz_vector_fwrite(s->crt_coeffs[i], s->n, fp) == CLT_ERR) return CLT_ERR;
+    if (mpz_vector_fwrite(s->x0s, s->nlevels, fp) == CLT_ERR) return CLT_ERR;
+    for (size_t i = 0; i < s->nmuls; ++i)
+        if (switch_state_fwrite(fp, s->switches[i], s->theta) == CLT_ERR) return CLT_ERR;
+    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
+        aes_randstate_fwrite(s->rngs[i], fp);
+    return CLT_OK;
 }
 
 mpz_t *

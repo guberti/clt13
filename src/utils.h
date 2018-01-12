@@ -242,5 +242,7 @@ int mpz_vector_fwrite(mpz_t *m, size_t len, FILE *fp);
 
 int size_t_fread(FILE *fp, size_t *x);
 int size_t_fwrite(FILE *fp, size_t x);
+int bool_fread(FILE *fp, bool *x);
+int bool_fwrite(FILE *fp, bool x);
 
 #pragma GCC visibility pop
