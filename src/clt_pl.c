@@ -58,6 +58,15 @@ clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
 }
 
 int
+clt_pl_elem_sub(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
+                const clt_elem_t *b, size_t level)
+{
+    mpz_sub(rop->elem, a->elem, b->elem);
+    mpz_mod_near(rop->elem, rop->elem, pp->x0s[level]);
+    return CLT_OK;
+}
+
+int
 clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
                 const clt_elem_t *b, size_t idx)
 {
@@ -373,6 +382,21 @@ clt_pl_pp_free(clt_pl_pp_t *pp)
     free(pp);
 }
 
+clt_pl_pp_t *
+clt_pl_pp_fread(FILE *fp)
+{
+    (void) fp;
+    return NULL;
+}
+
+int
+clt_pl_pp_fwrite(clt_pl_pp_t *pp, FILE *fp)
+{
+    (void) pp; (void) fp;
+    return CLT_ERR;
+}
+
+
 static inline size_t
 max3(size_t a, size_t b, size_t c)
 {
@@ -599,9 +623,40 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
         fprintf(stderr, "Polylog CLT initialization complete!\n");
     return s;
 error:
-    /* polylog_s_free(s); */
+    clt_pl_state_free(s);
     return NULL;
+}
 
+clt_pl_state_t *
+clt_pl_state_fread(FILE *fp)
+{
+    (void) fp;
+    return NULL;
+}
+
+int
+clt_pl_state_fwrite(clt_pl_state_t *s, FILE *fp)
+{
+    (void) s; (void) fp;
+    return CLT_ERR;
+}
+
+mpz_t *
+clt_pl_state_moduli(const clt_pl_state_t *s)
+{
+    return s->gs;
+}
+
+size_t
+clt_pl_state_nslots(const clt_pl_state_t *s)
+{
+    return s->n;
+}
+
+size_t
+clt_pl_state_nzs(const clt_pl_state_t *s)
+{
+    return s->nzs;
 }
 
 int
@@ -637,3 +692,4 @@ clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n], c
     }
     return CLT_OK;
 }
+
