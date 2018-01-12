@@ -10,7 +10,8 @@ typedef struct clt_pl_state_t clt_pl_state_t;
 typedef struct clt_pl_pp_t clt_pl_pp_t;
 
 typedef struct {
-    size_t level;
+    size_t source;
+    size_t target;
     int *ix;
 } switch_params_t;
 
@@ -20,10 +21,10 @@ typedef struct {
     size_t lambda;
     /* number of levels */
     size_t nlevels;
+    /* number of multiplications */
+    size_t nswitches;
     /* switch parameters of each multiplication */
     switch_params_t *sparams;
-    /* number of multiplications */
-    size_t nmuls;
     /* number of z's */
     size_t nzs;
     /* powers for the z's */
@@ -62,15 +63,17 @@ void          clt_pl_pp_free(clt_pl_pp_t *pp);
 clt_pl_pp_t * clt_pl_pp_fread(FILE *fp);
 int           clt_pl_pp_fwrite(clt_pl_pp_t *pp, FILE *fp);
 
-int clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t *xs, const int *ix);
+int clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n],
+                  const int *ix, size_t level);
 int clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
-                     const clt_elem_t *b);
+                    const clt_elem_t *b);
 int clt_pl_elem_sub(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
                     const clt_elem_t *b);
 int clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *s, const clt_elem_t *a,
-                     const clt_elem_t *b, size_t idx);
-int clt_pl_elem_decrypt(clt_elem_t *rop, const clt_pl_state_t *s, size_t nzs, const int ix[nzs],
-                         size_t level);
+                    const clt_elem_t *b, size_t idx);
+
+int clt_pl_elem_decrypt(clt_elem_t *rop, const clt_pl_state_t *s, size_t nzs,
+                        const int ix[nzs], size_t level);
 
 int clt_pl_is_zero(const clt_elem_t *c, const clt_pl_pp_t *pp);
 

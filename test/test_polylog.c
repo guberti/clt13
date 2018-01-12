@@ -35,15 +35,15 @@ test(size_t lambda)
     int ix1100[] = {1, 1, 0, 0};
     int ix0011[] = {0, 0, 1, 1};
     switch_params_t ss[] = {
-        { .level = 0, .ix = ix1100 },
-        { .level = 0, .ix = ix0011 },
-        { .level = 1, .ix = top },
+        { .source = 0, .target = 1, .ix = ix1100 },
+        { .source = 0, .target = 1, .ix = ix0011 },
+        { .source = 1, .target = 2, .ix = top },
     };
     clt_pl_params_t params = {
         .lambda = lambda,
         .nlevels = 2,
         .sparams = ss,
-        .nmuls = 3,
+        .nswitches = sizeof ss / sizeof ss[0],
         .nzs = nzs,
         .pows = top,
     };
@@ -103,10 +103,10 @@ test(size_t lambda)
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
 
-    clt_pl_encode(x0, mmap, 1, &zero, ix0);
-    clt_pl_encode(x1, mmap, 1, &one, ix1);
-    clt_pl_encode(x2, mmap, 1, &one, ix2);
-    clt_pl_encode(x3, mmap, 1, &one, ix3);
+    clt_pl_encode(x0, mmap, 1, &zero, ix0, 0);
+    clt_pl_encode(x1, mmap, 1, &one, ix1, 0);
+    clt_pl_encode(x2, mmap, 1, &one, ix2, 0);
+    clt_pl_encode(x3, mmap, 1, &one, ix3, 0);
     clt_pl_elem_decrypt(x0, mmap, nzs, ix0, 0);
     clt_pl_elem_decrypt(x1, mmap, nzs, ix1, 0);
     clt_pl_elem_decrypt(x2, mmap, nzs, ix2, 0);

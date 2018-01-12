@@ -11,3 +11,4 @@ libaesrand/
 *.so
 vgcore.*
 *.out
+install_manifest.txt
