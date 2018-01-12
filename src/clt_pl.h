@@ -8,7 +8,6 @@
 
 typedef struct clt_pl_state_t clt_pl_state_t;
 typedef struct clt_pl_pp_t clt_pl_pp_t;
-typedef struct switch_state_t switch_state_t;
 
 typedef struct {
     size_t level;
@@ -65,13 +64,11 @@ int           clt_pl_pp_fwrite(clt_pl_pp_t *pp, FILE *fp);
 
 int clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t *xs, const int *ix);
 int clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
-                     const clt_elem_t *b, size_t level);
+                     const clt_elem_t *b);
 int clt_pl_elem_sub(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
-                    const clt_elem_t *b, size_t level);
+                    const clt_elem_t *b);
 int clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *s, const clt_elem_t *a,
                      const clt_elem_t *b, size_t idx);
-int clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x_,
-                       const switch_state_t *sstate);
 int clt_pl_elem_decrypt(clt_elem_t *rop, const clt_pl_state_t *s, size_t nzs, const int ix[nzs],
                          size_t level);
 

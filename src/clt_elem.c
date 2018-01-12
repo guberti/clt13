@@ -9,6 +9,7 @@ clt_elem_new(void)
 {
     clt_elem_t *e = calloc(1, sizeof e[0]);
     mpz_init(e->elem);
+    e->level = 0;
     return e;
 }
 
