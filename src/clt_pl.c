@@ -136,7 +136,7 @@ clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
     mpz_mod(rop->elem, rop->elem, pp->x0s[sstate->source]);
     if (clt_pl_elem_switch(rop, pp, rop, sstate) == CLT_ERR)
         return CLT_ERR;
-    rop->level++;
+    rop->level = sstate->target;
     return CLT_OK;
 }
 
@@ -244,12 +244,13 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     double start, _start;
 
     if (source >= target) {
-        fprintf(stderr, "error: %s: source ≥ target\n", __func__);
+        fprintf(stderr, "error: %s: source ≥ target (%lu ≥ %lu)\n",
+                __func__, source, target);
         return NULL;
     }
     if (target >= s->nlevels) {
-        fprintf(stderr, "error: %s: target level too large (%lu ≥ %lu)\n", __func__,
-                target, s->nlevels);
+        fprintf(stderr, "error: %s: target level too large (%lu ≥ %lu)\n",
+                __func__, target, s->nlevels);
         return NULL;
     }
 
