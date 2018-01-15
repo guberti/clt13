@@ -79,49 +79,29 @@ clt_state_fread(FILE *fp)
     clt_state_t *s;
     int ret = CLT_ERR;
 
-    s = calloc(1, sizeof s[0]);
-    if (s == NULL)
-        return NULL;
-
-    if (size_t_fread(fp, &s->flags) == CLT_ERR)
-        goto cleanup;
-    if (size_t_fread(fp, &s->n) == CLT_ERR)
-        goto cleanup;
-    if (size_t_fread(fp, &s->nzs) == CLT_ERR)
-        goto cleanup;
-    if (size_t_fread(fp, &s->rho) == CLT_ERR)
-        goto cleanup;
-    if (size_t_fread(fp, &s->nu) == CLT_ERR)
-        goto cleanup;
-
+    if ((s = calloc(1, sizeof s[0])) == NULL) return NULL;
+    if (size_t_fread(fp, &s->flags) == CLT_ERR) goto cleanup;
+    if (size_t_fread(fp, &s->n) == CLT_ERR) goto cleanup;
+    if (size_t_fread(fp, &s->nzs) == CLT_ERR) goto cleanup;
+    if (size_t_fread(fp, &s->rho) == CLT_ERR) goto cleanup;
+    if (size_t_fread(fp, &s->nu) == CLT_ERR) goto cleanup;
     mpz_init(s->x0);
-    if (mpz_fread(s->x0, fp) == CLT_ERR)
-        goto cleanup;
+    if (mpz_fread(s->x0, fp) == CLT_ERR) goto cleanup;
     mpz_init(s->pzt);
-    if (mpz_fread(s->pzt, fp) == CLT_ERR)
-        goto cleanup;
-
+    if (mpz_fread(s->pzt, fp) == CLT_ERR) goto cleanup;
     s->gs = mpz_vector_new(s->n);
-    if (mpz_vector_fread(s->gs, s->n, fp) == CLT_ERR)
-        goto cleanup;
-
+    if (mpz_vector_fread(s->gs, s->n, fp) == CLT_ERR) goto cleanup;
     s->zinvs = mpz_vector_new(s->nzs);
-    if (mpz_vector_fread(s->zinvs, s->nzs, fp) == CLT_ERR)
-        goto cleanup;
-
+    if (mpz_vector_fread(s->zinvs, s->nzs, fp) == CLT_ERR) goto cleanup;
     if (s->flags & CLT_FLAG_OPT_CRT_TREE) {
-        if ((s->crt = crt_tree_fread(fp, s->n)) == NULL)
-            goto cleanup;
+        if ((s->crt = crt_tree_fread(fp, s->n)) == NULL) goto cleanup;
     } else {
         s->crt_coeffs = mpz_vector_new(s->n);
-        if (mpz_vector_fread(s->crt_coeffs, s->n, fp) != 0)
-            goto cleanup;
+        if (mpz_vector_fread(s->crt_coeffs, s->n, fp) != 0) goto cleanup;
     }
-
     s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
-    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
+    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
         aes_randstate_fread(s->rngs[i], fp);
-    }
     ret = CLT_OK;
 cleanup:
     if (ret) {
@@ -135,6 +115,8 @@ cleanup:
 int
 clt_state_fwrite(clt_state_t *const s, FILE *const fp)
 {
+    if (s == NULL || fp == NULL)
+        return CLT_ERR;
     if (size_t_fwrite(fp, s->flags) == CLT_ERR) goto cleanup;
     if (size_t_fwrite(fp, s->n) == CLT_ERR) goto cleanup;
     if (size_t_fwrite(fp, s->nzs) == CLT_ERR) goto cleanup;
@@ -161,8 +143,7 @@ clt_pp_new(const clt_state_t *mmap)
 {
     clt_pp_t *pp;
 
-    pp = calloc(1, sizeof pp[0]);
-    if (pp == NULL)
+    if ((pp = calloc(1, sizeof pp[0])) == NULL)
         return NULL;
     mpz_inits(pp->x0, pp->pzt, NULL);
     mpz_set(pp->x0, mmap->x0);

@@ -68,11 +68,6 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
         FILE *mmap_f;
 
         mmap_f = tmpfile();
-        if (mmap_f == NULL) {
-            fprintf(stderr, "Couldn't open tmpfile!\n");
-            exit(1);
-        }
-
         if (clt_state_fwrite(mmap, mmap_f) == CLT_ERR) {
             fprintf(stderr, "clt_state_fwrite failed!\n");
             exit(1);
@@ -374,7 +369,7 @@ main(int argc, char *argv[])
     size_t default_flags = CLT_FLAG_NONE | CLT_FLAG_VERBOSE;
     size_t flags;
     size_t kappa;
-    size_t lambda = 40;
+    size_t lambda = 20;
     size_t nzs = 10;
 
     if (argc == 2) {
