@@ -103,10 +103,15 @@ test(size_t lambda)
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
 
-    clt_pl_encode(x0, mmap, 1, &zero, ix0, 0);
-    clt_pl_encode(x1, mmap, 1, &one, ix1, 0);
-    clt_pl_encode(x2, mmap, 1, &one, ix2, 0);
-    clt_pl_encode(x3, mmap, 1, &one, ix3, 0);
+    clt_pl_encode_params_t eparams = { .ix = NULL, .level = 0 };
+    eparams.ix = ix0;
+    clt_pl_encode(x0, mmap, 1, &zero, &eparams);
+    eparams.ix = ix1;
+    clt_pl_encode(x1, mmap, 1, &one, &eparams);
+    eparams.ix = ix2;
+    clt_pl_encode(x2, mmap, 1, &one, &eparams);
+    eparams.ix = ix3;
+    clt_pl_encode(x3, mmap, 1, &one, &eparams);
     clt_pl_elem_decrypt(x0, mmap, nzs, ix0, 0);
     clt_pl_elem_decrypt(x1, mmap, nzs, ix1, 0);
     clt_pl_elem_decrypt(x2, mmap, nzs, ix2, 0);

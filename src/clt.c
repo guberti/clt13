@@ -449,9 +449,13 @@ clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         mpz_t *slots = mpz_vector_new(s->n);
 #pragma omp parallel for
         for (size_t i = 0; i < s->n; i++) {
-            mpz_random_(slots[i], s->rngs[i], s->rho);
+            if (mpz_cmp_ui(s->gs[i], 2) == 0)
+                mpz_set_ui(slots[i], 1);
+            else
+                mpz_random_(slots[i], s->rngs[i], s->rho);
             mpz_mul(slots[i], slots[i], s->gs[i]);
-            mpz_add(slots[i], slots[i], xs[slot(i, n, s->n)]);
+            mpz_add(slots[i], slots[i], xs[i]);
+            /* mpz_add(slots[i], slots[i], xs[slot(i, n, s->n)]); */
         }
         crt_tree_do_crt(rop->elem, s->crt, slots);
         mpz_vector_free(slots, s->n);
@@ -461,9 +465,13 @@ clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
         for (size_t i = 0; i < s->n; ++i) {
             mpz_t tmp;
             mpz_init(tmp);
-            mpz_random_(tmp, s->rngs[i], s->rho);
+            if (mpz_cmp_ui(s->gs[i], 2) == 0)
+                mpz_set_ui(tmp, 1);
+            else
+                mpz_random_(tmp, s->rngs[i], s->rho);
             mpz_mul(tmp, tmp, s->gs[i]);
-            mpz_add(tmp, tmp, xs[slot(i, n, s->n)]);
+            mpz_add(tmp, tmp, xs[i]);
+            /* mpz_add(tmp, tmp, xs[slot(i, n, s->n)]); */
             mpz_mul(tmp, tmp, s->crt_coeffs[i]);
 #pragma omp critical
             {

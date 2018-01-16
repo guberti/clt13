@@ -63,8 +63,13 @@ void          clt_pl_pp_free(clt_pl_pp_t *pp);
 clt_pl_pp_t * clt_pl_pp_fread(FILE *fp);
 int           clt_pl_pp_fwrite(clt_pl_pp_t *pp, FILE *fp);
 
+typedef struct {
+    const int *ix;
+    size_t level;
+} clt_pl_encode_params_t;
+
 int clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n],
-                  const int *ix, size_t level);
+                  clt_pl_encode_params_t *params);
 int clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
                     const clt_elem_t *b);
 int clt_pl_elem_sub(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,

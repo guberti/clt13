@@ -101,7 +101,7 @@ crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
 {
     const double start = current_time();
     int count = 0;
-/* #pragma omp parallel for */
+#pragma omp parallel for
     for (size_t i = 0; i < n; i++) {
         mpz_t q;
         mpz_init(q);
@@ -109,7 +109,7 @@ crt_coeffs(mpz_t *coeffs, mpz_t *ps, size_t n, mpz_t x0, bool verbose)
         mpz_invert(coeffs[i], q, ps[i]);
         mpz_mul_mod_near(coeffs[i], coeffs[i], q, x0);
         if (verbose) {
-/* #pragma omp critical */
+#pragma omp critical
             print_progress(++count, n);
         }
         mpz_clear(q);
@@ -123,13 +123,13 @@ generate_zs(mpz_t *zs, mpz_t *zinvs, aes_randstate_t *rngs, size_t nzs, const mp
 {
     const double start = current_time();
     int count = 0;
-/* #pragma omp parallel for */
+#pragma omp parallel for
     for (size_t i = 0; i < nzs; ++i) {
         do {
             mpz_urandomm_aes(zs[i], rngs[i], x0);
         } while (mpz_invert(zinvs[i], zs[i], x0) == 0);
         if (verbose)
-/* #pragma omp critical */
+#pragma omp critical
             print_progress(++count, nzs);
     }
     if (verbose)
@@ -197,13 +197,14 @@ generate_primes(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t len, bool verb
 {
     const double start = current_time();
     int count = 0;
-    fprintf(stderr, "%lu", len);
+    if (verbose)
+        fprintf(stderr, "%lu", len);
     print_progress(count, n);
-/* #pragma omp parallel for */
+#pragma omp parallel for
     for (size_t i = 0; i < n; ++i) {
         mpz_prime(v[i], rngs[i], len);
         if (verbose) {
-/* #pragma omp critical */
+#pragma omp critical
             print_progress(++count, n);
         }
     }

@@ -818,10 +818,10 @@ clt_pl_state_nzs(const clt_pl_state_t *s)
 
 int
 clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n],
-              const int ix[s->nzs], size_t level)
+              clt_pl_encode_params_t *params)
 {
     mpz_set_ui(rop->elem, 0);
-    rop->level = level;
+    rop->level = params ? params->level : 0;
 /* #pragma omp parallel for */
     for (size_t i = 0; i < s->n; ++i) {
         mpz_t tmp;
@@ -837,7 +837,8 @@ clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n],
         }
         mpz_clear(tmp);
     }
-    if (ix) {
+    if (params && params->ix) {
+        const int *ix = params->ix;
         mpz_t tmp;
         mpz_init(tmp);
         /* multiply by appropriate zinvs */

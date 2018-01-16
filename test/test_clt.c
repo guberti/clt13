@@ -44,7 +44,7 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
 
     clt_state_t *mmap;
     clt_pp_t *pp;
-    mpz_t *moduli;
+    mpz_t *moduli, modulus;
     aes_randstate_t rng;
     int pows[nzs];
 
@@ -52,6 +52,7 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
 
     aes_randinit(rng);
     for (size_t i = 0; i < nzs; i++) pows[i] = 1;
+    mpz_init_set_ui(modulus, 2);
 
     clt_params_t params = {
         .lambda = lambda,
@@ -59,7 +60,12 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
         .nzs = nzs,
         .pows = pows,
     };
-    mmap = clt_state_new(&params, NULL, 0, flags, rng);
+    clt_opt_params_t opts = {
+        .slots = 0,
+        .moduli = &modulus,
+        .nmoduli = 1,
+    };
+    mmap = clt_state_new(&params, &opts, 0, flags, rng);
     pp = clt_pp_new(mmap);
 
     /* Test read/write */
@@ -204,15 +210,17 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
 
     mpz_inits(in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
 
+    mpz_set_ui      (in0[0], 0);
+    mpz_urandomb_aes(in0[1], rng, lambda);
+    mpz_mod         (in0[1], in0[1], moduli[1]);
+
     mpz_urandomb_aes(in1[0], rng, lambda);
-    mpz_mod(in1[0], in1[0], moduli[0]);
+    mpz_mod         (in1[0], in1[0], moduli[0]);
+    mpz_urandomb_aes(in1[1], rng, lambda);
+    mpz_mod         (in1[1], in1[1], moduli[1]);
 
-    mpz_set_ui(in0[0], 0);
     mpz_set_ui(cin[0], 0);
-
-    mpz_urandomb_aes(in0[1], rng, 16);
-    mpz_urandomb_aes(in1[1], rng, 16);
-    mpz_mul(cin[1], in0[1], in1[1]);
+    mpz_mul   (cin[1], in0[1], in1[1]);
 
     clt_encode(x0, mmap, 2, in0, ix0);
     clt_encode(x1, mmap, 2, in1, ix1);
@@ -223,19 +231,21 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
 
     ok &= expect("[Z] is_zero(0 * x)", 1, clt_is_zero(xp, pp));
 
-    mpz_set_ui(in0[0], 1);
-    mpz_set_ui(in1[0], 1);
-    mpz_set_ui(cin[0], 0);
-
+    /* [ $, $ ] */
     mpz_urandomb_aes(in0[0], rng, lambda);
-    mpz_mod(in0[0], in0[0], moduli[0]);
-
+    mpz_mod         (in0[0], in0[0], moduli[0]);
+    mpz_urandomb_aes(in0[1], rng, lambda);
+    mpz_mod         (in0[1], in0[1], moduli[1]);
+    /* [ $, $ ] */
     mpz_urandomb_aes(in1[0], rng, lambda);
-    mpz_mod(in1[0], in1[0], moduli[0]);
+    mpz_mod         (in1[0], in1[0], moduli[0]);
+    mpz_urandomb_aes(in1[1], rng, lambda);
+    mpz_mod         (in1[1], in1[1], moduli[1]);
 
-    mpz_urandomb_aes(in0[1], rng, 16);
-    mpz_urandomb_aes(in1[1], rng, 16);
-    mpz_mul(cin[1], in0[1], in1[1]);
+    mpz_set_ui      (cin[0], 0);
+    mpz_urandomb_aes(cin[1], rng, lambda);
+    mpz_mod         (cin[1], cin[1], moduli[1]);
+    /* mpz_mul   (cin[1], in0[1], in1[1]); */
 
     clt_encode(x0, mmap, 2, in0, ix0);
     clt_encode(x1, mmap, 2, in1, ix1);
@@ -246,14 +256,15 @@ test(size_t flags, size_t nzs, size_t lambda, size_t kappa)
 
     ok &= expect("[Z] is_zero(x * y)", 0, clt_is_zero(xp, pp));
 
-    clt_pp_free(pp);
-    clt_state_free(mmap);
     mpz_clears(x[0], zero[0], one[0], two[0], three[0],
                in0[0], in0[1], in1[0], in1[1], cin[0], cin[1], NULL);
+
     clt_elem_free(c);
     clt_elem_free(x0);
     clt_elem_free(x1);
     clt_elem_free(xp);
+    clt_pp_free(pp);
+    clt_state_free(mmap);
     aes_randclear(rng);
 
     {
