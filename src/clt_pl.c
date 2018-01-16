@@ -7,14 +7,15 @@
 #include <omp.h>
 #include <unistd.h>
 
-typedef struct {
+struct switch_state_t {
     size_t source;
     size_t target;
     size_t wordsize;            /* must be a power of two */
     size_t k;                   /* = η_ℓ / log2(wordsize) */
     mpz_t *ys;                  /* [Θ] */
     mpz_t **sigmas;             /* [Θ][k] */
-} switch_state_t;
+    bool active;
+};
 
 struct clt_pl_state_t {
     size_t n;                   /* number of slots */
@@ -32,7 +33,7 @@ struct clt_pl_state_t {
     mpz_t **ps;                 /* [nlevels][n] */
     mpz_t **crt_coeffs;         /* [nlevels][n] */
     mpz_t *x0s;                 /* [nlevels] */
-    switch_state_t **switches;  /* [nswitches] */
+    switch_state_t ***switches; /* [nswitches][2] */
     aes_randstate_t *rngs;      /* [max{n,nzs}] */
     size_t flags;
 };
@@ -43,13 +44,25 @@ struct clt_pl_pp_t {
     size_t nlevels;
     mpz_t *x0s;
     mpz_t pzt;
-    switch_state_t **switches;
+    switch_state_t ***switches; /* [nswitches][2] */
     size_t nswitches;
     bool verbose;
     bool local;
 };
 
-static int
+switch_state_t ***
+clt_pl_pp_switches(const clt_pl_pp_t *pp)
+{
+    return pp->switches;
+}
+
+size_t
+clt_pl_elem_level(const clt_elem_t *x)
+{
+    return x->level;
+}
+
+int
 clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x,
                    const switch_state_t *sstate)
 {
@@ -57,11 +70,18 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x,
     const double start = current_time();
     mpz_t *pi, *pip, ct, wk, tmp;
 
-    if (rop == NULL)
+    if (rop == NULL || pp == NULL || x == NULL || sstate == NULL)
         return CLT_ERR;
     mpz_inits(ct, wk, NULL);
     mpz_init_set(tmp, x->elem);
-    /* Copy so we don't overwrite `x_` if `rop == x_` */
+    /* Copy so we don't overwrite `x` if `rop == x` */
+
+    if (x->level != sstate->source) {
+        fprintf(stderr, "error: clt_pl_elem_switch: levels not equal (%lu ≠ %lu)\n",
+                x->level, sstate->source);
+        abort();
+        return CLT_ERR;
+    }
 
     pi = &pp->x0s[sstate->source];
     pip = &pp->x0s[sstate->target];
@@ -86,6 +106,7 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x,
             mpz_clears(tmp, decomp, NULL);
         }
     }
+    rop->level = sstate->target;
     if (verbose)
         fprintf(stderr, "Switch time: %.2fs\n", current_time() - start);
     mpz_clears(ct, wk, NULL);
@@ -123,20 +144,16 @@ clt_pl_elem_sub(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
 }
 
 int
-clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
-                const clt_elem_t *b, size_t idx)
+clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b)
 {
-    const switch_state_t *sstate = pp->switches[idx];
     if (a->level != b->level) {
         fprintf(stderr, "error: %s: levels unequal (%lu ≠ %lu)\n",
                 __func__, a->level, b->level);
         abort();
     }
     mpz_mul(rop->elem, a->elem, b->elem);
-    mpz_mod(rop->elem, rop->elem, pp->x0s[sstate->source]);
-    if (clt_pl_elem_switch(rop, pp, rop, sstate) == CLT_ERR)
-        return CLT_ERR;
-    rop->level = sstate->target;
+    mpz_mod(rop->elem, rop->elem, pp->x0s[a->level]);
+    rop->level = a->level;
     return CLT_OK;
 }
 
@@ -204,6 +221,9 @@ switch_state_fread(FILE *fp, size_t theta)
 
     if ((s = calloc(1, sizeof s[0])) == NULL)
         return NULL;
+    if (bool_fread(fp, &s->active) == CLT_ERR) goto error;
+    if (!s->active)
+        return s;
     if (size_t_fread(fp, &s->source) == CLT_ERR) goto error;
     if (size_t_fread(fp, &s->target) == CLT_ERR) goto error;
     if (size_t_fread(fp, &s->wordsize) == CLT_ERR) goto error;
@@ -224,6 +244,9 @@ error:
 static int
 switch_state_fwrite(FILE *fp, switch_state_t *s, size_t theta)
 {
+    if (bool_fwrite(fp, s->active) == CLT_ERR) return CLT_ERR;
+    if (!s->active)
+        return CLT_OK;
     if (size_t_fwrite(fp, s->source) == CLT_ERR) return CLT_ERR;
     if (size_t_fwrite(fp, s->target) == CLT_ERR) return CLT_ERR;
     if (size_t_fwrite(fp, s->wordsize) == CLT_ERR) return CLT_ERR;
@@ -238,10 +261,15 @@ static switch_state_t *
 switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wordsize,
                  size_t source, size_t target, bool verbose)
 {
+    (void) verbose;
     switch_state_t *state;
     mpz_t wk, K, z1, z2;
     mpz_t **ss;
     double start, _start;
+
+    if (source == 0 && target == 0) {
+        return calloc(1, sizeof state[0]);
+    }
 
     if (source >= target) {
         fprintf(stderr, "error: %s: source ≥ target (%lu ≥ %lu)\n",
@@ -262,8 +290,8 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     /* k = η_ℓ / log2(wordsize) */
     state->k = (int) ceil(eta / log2(wordsize));
 
-    if (verbose)
-        fprintf(stderr, "    Generating switch state [%lu →  %lu]:\n", source, target);
+    /* if (verbose) */
+    /*     fprintf(stderr, "    Generating switch state [%lu →  %lu]:\n", source, target); */
     start = current_time();
 
     mpz_inits(wk, K, z1, z2, NULL);
@@ -291,14 +319,14 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     for (size_t i = s->n; i < s->theta; ++i) {
         mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
     }
-    if (verbose)
-        fprintf(stderr, "      Generating random y values: [%.2fs]\n", current_time() - _start);
+    /* if (verbose) */
+    /*     fprintf(stderr, "      Generating random y values: [%.2fs]\n", current_time() - _start); */
 
-    if (verbose)
-        fprintf(stderr, "      Generating s and y values: ");
+    /* if (verbose) */
+    /*     fprintf(stderr, "      Generating s and y values: "); */
     _start = current_time();
     ss = calloc(s->n, sizeof ss[0]);
-/* #pragma omp parallel for */
+#pragma omp parallel for
     for (size_t i = 0; i < s->n; ++i) {
         mpz_t tmp, ginv, f;
 
@@ -330,22 +358,22 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
 
         for (size_t t = s->n; t < s->theta; ++t) {
             mpz_mul(tmp, state->ys[t], ss[i][t]);
-/* #pragma omp critical */
+#pragma omp critical
             {
                 mpz_sub(state->ys[i], state->ys[i], tmp);
             }
         }
-/* #pragma omp critical */
+#pragma omp critical
         {
             mpz_mod_near(state->ys[i], state->ys[i], K);
         }
         mpz_clears(tmp, ginv, f, NULL);
     }
-    if (verbose)
-        fprintf(stderr, "[%.2fs]\n", current_time() - _start);
+    /* if (verbose) */
+    /*     fprintf(stderr, "[%.2fs]\n", current_time() - _start); */
 
-    if (verbose)
-        fprintf(stderr, "      Generating σ values: ");
+    /* if (verbose) */
+    /*     fprintf(stderr, "      Generating σ values: "); */
     _start = current_time();
     state->sigmas = calloc(s->theta, sizeof state->sigmas[0]);
     for (size_t t = 0; t < s->theta; ++t) {
@@ -359,7 +387,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
                 mpz_mod_near_ui(rs[j][i], rs[j][i], s->rho);
             }
         }
-/* #pragma omp parallel for */
+#pragma omp parallel for
         for (size_t j = 0; j < state->k; ++j) {
             mpz_t wkj;
             mpz_init(wkj);
@@ -372,7 +400,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
                 mpz_add(x, x, rs[j][i]);
                 mpz_mul_mod_near(x, x, s->gs[i], s->ps[target][i]);
                 mpz_mul(x, x, s->crt_coeffs[target][i]);
-/* #pragma omp critical */
+#pragma omp critical
                 {
                     mpz_add(state->sigmas[t][j], state->sigmas[t][j], x);
                 }
@@ -388,8 +416,9 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         }
         free(rs);
     }
-    if (verbose)
-        fprintf(stderr, "[%.2fs]\n", current_time() - _start);
+    state->active = true;
+    /* if (verbose) */
+    /*     fprintf(stderr, "[%.2fs]\n", current_time() - _start); */
     for (size_t i = 0; i < s->n; ++i) {
         for (size_t t = 0; t < s->theta; ++t) {
             mpz_clear(ss[i][t]);
@@ -398,8 +427,8 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     }
     free(ss);
     mpz_clears(wk, K, z1, z2, NULL);
-    if (verbose)
-        fprintf(stderr, "    Total: [%.2fs]\n", current_time() - start);
+    /* if (verbose) */
+    /*     fprintf(stderr, "    Total: [%.2fs]\n", current_time() - start); */
     return state;
 }
 
@@ -429,9 +458,9 @@ clt_pl_pp_free(clt_pl_pp_t *pp)
         for (size_t i = 0; i < pp->nlevels; ++i)
             mpz_clear(pp->x0s[i]);
         free(pp->x0s);
-        for (size_t i = 0; i < pp->nswitches; ++i)
-            switch_state_free(pp->switches[i], pp->theta);
-        free(pp->switches);
+        /* for (size_t i = 0; i < pp->nswitches; ++i) */
+        /*     switch_state_free(pp->switches[i], pp->theta); */
+        /* free(pp->switches); */
     }
     free(pp);
 }
@@ -454,8 +483,11 @@ clt_pl_pp_fread(FILE *fp)
     pp->x0s = mpz_vector_new(pp->nlevels);
     if (mpz_vector_fread(pp->x0s, pp->nlevels, fp) == CLT_ERR) goto cleanup;
     pp->switches = calloc(pp->nswitches, sizeof pp->switches[0]);
-    for (size_t i = 0; i < pp->nswitches; ++i)
-        if ((pp->switches[i] = switch_state_fread(fp, pp->theta)) == NULL) goto cleanup;
+    for (size_t i = 0; i < pp->nswitches; ++i) {
+        pp->switches[i] = calloc(2, sizeof pp->switches[0]);
+        for (size_t j = 0; j < 2; ++j)
+            if ((pp->switches[i][j] = switch_state_fread(fp, pp->theta)) == NULL) goto cleanup;
+    }
     if (bool_fread(fp, &pp->verbose) == CLT_ERR) goto cleanup;
     pp->local = true;
     return pp;
@@ -474,7 +506,8 @@ clt_pl_pp_fwrite(clt_pl_pp_t *pp, FILE *fp)
     if (mpz_fwrite(pp->pzt, fp) == CLT_ERR) goto cleanup;
     if (mpz_vector_fwrite(pp->x0s, pp->nlevels, fp) == CLT_ERR) goto cleanup;
     for (size_t i = 0; i < pp->nswitches; ++i)
-        if (switch_state_fwrite(fp, pp->switches[i], pp->theta) == CLT_ERR) goto cleanup;
+        for (size_t j = 0; j < 2; ++j)
+            if (switch_state_fwrite(fp, pp->switches[i][j], pp->theta) == CLT_ERR) goto cleanup;
     if (bool_fwrite(fp, pp->verbose) == CLT_ERR) goto cleanup;
     return CLT_OK;
 cleanup:
@@ -518,11 +551,11 @@ clt_pl_state_free(clt_pl_state_t *s)
     }
     if (s->x0s)
         mpz_vector_free(s->x0s, s->nlevels);
-    if (s->switches) {
-        for (size_t i = 0; i < s->nswitches; ++i)
-            switch_state_free(s->switches[i], s->theta);
-        free(s->switches);
-    }
+    /* if (s->switches) { */
+    /*     for (size_t i = 0; i < s->nswitches; ++i) */
+    /*         switch_state_free(s->switches[i], s->theta); */
+    /*     free(s->switches); */
+    /* } */
     if (s->rngs) {
         for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
             aes_randclear(s->rngs[i]);
@@ -587,7 +620,7 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
     assert(s->n >= slots);
 
     s->theta = s->n + 10;
-    s->b = 10;
+    s->b = 1;
     /* s->b     = max3(s->rho + 2, log2(s->theta) + log2(eta) + 2, 2 * alpha); */
     s->nlevels = params->nlevels + 1;
 
@@ -695,17 +728,30 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
         generate_zs(s->zs[i], s->zinvs[i], s->rngs, s->nzs, s->x0s[i], verbose);
     }
     if (s->nswitches) {
-        if (verbose)
+        const double start = current_time();
+        int count = 0;
+        if (verbose) {
             fprintf(stderr, "  Generating %lu switches:\n", s->nswitches);
-        s->switches = calloc(s->nswitches, sizeof s->switches[0]);
-        for (size_t i = 0; i < s->nswitches; ++i) {
-            size_t source = params->sparams[i].source;
-            size_t target = params->sparams[i].target;
-            int *ix = params->sparams[i].ix;
-            if ((s->switches[i] = switch_state_new(s, ix, etas[source], wordsize,
-                                                   source, target, verbose)) == NULL)
-                goto error;
+            print_progress(count, s->nswitches);
         }
+        s->switches = calloc(s->nswitches, sizeof s->switches[0]);
+#pragma omp parallel for
+        for (size_t i = 0; i < s->nswitches; ++i) {
+            s->switches[i] = calloc(2, sizeof s->switches[i][0]);
+            for (size_t j = 0; j < 2; ++j) {
+                size_t source = params->sparams[i][j].source;
+                size_t target = params->sparams[i][j].target;
+                int *ix = params->sparams[i][j].ix;
+                s->switches[i][j] = switch_state_new(s, ix, etas[source], wordsize, source, target, verbose);
+            }
+            if (verbose)
+#pragma omp critical
+            {
+                print_progress(++count, s->nswitches);
+            }
+        }
+        if (verbose)
+            fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
     }
     free(etas);
     if (verbose)
@@ -758,8 +804,11 @@ clt_pl_state_fread(FILE *fp)
     s->x0s = mpz_vector_new(s->nlevels);
     if (mpz_vector_fread(s->x0s, s->nlevels, fp) == CLT_ERR) goto error;
     s->switches = calloc(s->nswitches, sizeof s->switches[0]);
-    for (size_t i = 0; i < s->nswitches; ++i)
-        if ((s->switches[i] = switch_state_fread(fp, s->theta)) == NULL) goto error;
+    for (size_t i = 0; i < s->nswitches; ++i) {
+        s->switches[i] = calloc(2, sizeof s->switches[i][0]);
+        for (size_t j = 0; j < 2; ++j)
+            if ((s->switches[i][j] = switch_state_fread(fp, s->theta)) == NULL) goto error;
+    }
     s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
     for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
         aes_randstate_fread(s->rngs[i], fp);
@@ -792,7 +841,8 @@ clt_pl_state_fwrite(clt_pl_state_t *s, FILE *fp)
         if (mpz_vector_fwrite(s->crt_coeffs[i], s->n, fp) == CLT_ERR) return CLT_ERR;
     if (mpz_vector_fwrite(s->x0s, s->nlevels, fp) == CLT_ERR) return CLT_ERR;
     for (size_t i = 0; i < s->nswitches; ++i)
-        if (switch_state_fwrite(fp, s->switches[i], s->theta) == CLT_ERR) return CLT_ERR;
+        for (size_t j = 0; j < 2; ++j)
+            if (switch_state_fwrite(fp, s->switches[i][j], s->theta) == CLT_ERR) return CLT_ERR;
     for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
         aes_randstate_fwrite(s->rngs[i], fp);
     return CLT_OK;

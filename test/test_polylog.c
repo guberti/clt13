@@ -34,16 +34,22 @@ test(size_t lambda)
     int ix3[] = {0, 0, 0, 1};
     int ix1100[] = {1, 1, 0, 0};
     int ix0011[] = {0, 0, 1, 1};
-    switch_params_t ss[] = {
-        { .source = 0, .target = 1, .ix = ix1100 },
-        { .source = 0, .target = 1, .ix = ix0011 },
-        { .source = 1, .target = 2, .ix = top },
-    };
+    switch_params_t **ss;
+    ss = calloc(3, sizeof ss[0]);
+    ss[0] = calloc(2, sizeof ss[0][0]);
+    ss[0][0].source = 0; ss[0][0].target = 0; ss[0][0].ix = NULL;
+    ss[0][1].source = 0; ss[0][1].target = 1; ss[0][1].ix = ix1100;
+    ss[1] = calloc(2, sizeof ss[1][0]);
+    ss[1][0].source = 0; ss[1][0].target = 0; ss[1][0].ix = NULL;
+    ss[1][1].source = 0; ss[1][1].target = 1; ss[1][1].ix = ix0011;
+    ss[2] = calloc(2, sizeof ss[2][0]);
+    ss[2][0].source = 0; ss[2][0].target = 0; ss[2][0].ix = NULL;
+    ss[2][1].source = 1; ss[2][1].target = 2; ss[2][1].ix = top;
     clt_pl_params_t params = {
         .lambda = lambda,
         .nlevels = 2,
         .sparams = ss,
-        .nswitches = sizeof ss / sizeof ss[0],
+        .nswitches = 3,
         .nzs = nzs,
         .pows = top,
     };
@@ -116,11 +122,20 @@ test(size_t lambda)
     clt_pl_elem_decrypt(x1, mmap, nzs, ix1, 0);
     clt_pl_elem_decrypt(x2, mmap, nzs, ix2, 0);
     clt_pl_elem_decrypt(x3, mmap, nzs, ix3, 0);
-    clt_pl_elem_mul(x4, pp, x0, x1, 0);
+
+    switch_state_t *** switches;
+    switches = clt_pl_pp_switches(pp);
+
+    clt_pl_elem_mul(x4, pp, x0, x1);
+    clt_pl_elem_switch(x4, pp, x4, switches[0][1]);
     clt_pl_elem_decrypt(x4, mmap, nzs, ix1100, 1);
-    clt_pl_elem_mul(x5, pp, x2, x3, 1);
+
+    clt_pl_elem_mul(x5, pp, x2, x3);
+    clt_pl_elem_switch(x5, pp, x5, switches[1][1]);
     clt_pl_elem_decrypt(x5, mmap, nzs, ix0011, 1);
-    clt_pl_elem_mul(out, pp, x4, x5, 2);
+
+    clt_pl_elem_mul(out, pp, x4, x5);
+    clt_pl_elem_switch(out, pp, out, switches[2][1]);
     clt_pl_elem_decrypt(out, mmap, nzs, top, 2);
     ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_pl_is_zero(out, pp));
 

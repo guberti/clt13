@@ -15,6 +15,8 @@ typedef struct {
     int *ix;
 } switch_params_t;
 
+typedef struct switch_state_t switch_state_t;
+
 /* Required parameters to clt_pl_state_new */
 typedef struct {
     /* security parameter */
@@ -24,7 +26,7 @@ typedef struct {
     /* number of multiplications */
     size_t nswitches;
     /* switch parameters of each multiplication */
-    switch_params_t *sparams;
+    switch_params_t **sparams;
     /* number of z's */
     size_t nzs;
     /* powers for the z's */
@@ -62,11 +64,14 @@ clt_pl_pp_t * clt_pl_pp_new(const clt_pl_state_t *s);
 void          clt_pl_pp_free(clt_pl_pp_t *pp);
 clt_pl_pp_t * clt_pl_pp_fread(FILE *fp);
 int           clt_pl_pp_fwrite(clt_pl_pp_t *pp, FILE *fp);
+switch_state_t *** clt_pl_pp_switches(const clt_pl_pp_t *pp);
 
 typedef struct {
     const int *ix;
     size_t level;
 } clt_pl_encode_params_t;
+
+size_t clt_pl_elem_level(const clt_elem_t *x);
 
 int clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n],
                   clt_pl_encode_params_t *params);
@@ -75,8 +80,11 @@ int clt_pl_elem_add(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
 int clt_pl_elem_sub(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a,
                     const clt_elem_t *b);
 int clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *s, const clt_elem_t *a,
-                    const clt_elem_t *b, size_t idx);
+                    const clt_elem_t *b);
+int clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x,
+                       const switch_state_t *sstate);
 
+/* XXX Remove one is_zero is working */
 int clt_pl_elem_decrypt(clt_elem_t *rop, const clt_pl_state_t *s, size_t nzs,
                         const int ix[nzs], size_t level);
 

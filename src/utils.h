@@ -1,5 +1,6 @@
 #pragma once
 
+#include <aesrand/aesrand.h>
 #include <assert.h>
 #include <gmp.h>
 #include <stdbool.h>
