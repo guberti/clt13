@@ -5,6 +5,7 @@
 
 #include <stdbool.h>
 #include <omp.h>
+#include <math.h>
 #include <unistd.h>
 
 struct switch_state_t {
