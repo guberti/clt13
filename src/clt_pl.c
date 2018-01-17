@@ -76,9 +76,12 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x,
     mpz_init_set(tmp, x->elem);
     /* Copy so we don't overwrite `x` if `rop == x` */
 
+    if (sstate->source == 0 && sstate->target == 0)
+        return CLT_OK;
+
     if (x->level != sstate->source) {
-        fprintf(stderr, "error: clt_pl_elem_switch: levels not equal (%lu ≠ %lu)\n",
-                x->level, sstate->source);
+        fprintf(stderr, "error: %s: levels not equal (%lu ≠ %lu)\n",
+                __func__, x->level, sstate->source);
         abort();
         return CLT_ERR;
     }
@@ -109,7 +112,7 @@ clt_pl_elem_switch(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *x,
     rop->level = sstate->target;
     if (verbose)
         fprintf(stderr, "Switch time: %.2fs\n", current_time() - start);
-    mpz_clears(ct, wk, NULL);
+    mpz_clears(ct, wk, tmp, NULL);
     return CLT_OK;
 }
 
@@ -207,10 +210,12 @@ switch_state_free(switch_state_t *s, size_t theta)
 {
     if (s == NULL)
         return;
-    mpz_vector_free(s->ys, theta);
-    for (size_t t = 0; t < theta; ++t)
-        mpz_vector_free(s->sigmas[t], s->k);
-    free(s->sigmas);
+    if (s->active) {
+        mpz_vector_free(s->ys, theta);
+        for (size_t t = 0; t < theta; ++t)
+            mpz_vector_free(s->sigmas[t], s->k);
+        free(s->sigmas);
+    }
     free(s);
 }
 
@@ -455,12 +460,15 @@ clt_pl_pp_free(clt_pl_pp_t *pp)
     if (pp == NULL)
         return;
     if (pp->local) {
-        for (size_t i = 0; i < pp->nlevels; ++i)
-            mpz_clear(pp->x0s[i]);
-        free(pp->x0s);
-        /* for (size_t i = 0; i < pp->nswitches; ++i) */
-        /*     switch_state_free(pp->switches[i], pp->theta); */
-        /* free(pp->switches); */
+        mpz_clear(pp->pzt);
+        mpz_vector_free(pp->x0s, pp->nlevels);
+        for (size_t i = 0; i < pp->nswitches; ++i) {
+            for (size_t j = 0; j < 2; ++j) {
+                switch_state_free(pp->switches[i][j], pp->theta);
+            }
+            free(pp->switches[i]);
+        }
+        free(pp->switches);
     }
     free(pp);
 }
@@ -472,13 +480,11 @@ clt_pl_pp_fread(FILE *fp)
 
     if ((pp = calloc(1, sizeof pp[0])) == NULL)
         return NULL;
-    mpz_init(pp->pzt);
-    pp->x0s = mpz_vector_new(pp->nlevels);
-    pp->switches = calloc(pp->nswitches, sizeof pp->switches[0]);
     if (size_t_fread(fp, &pp->nu) == CLT_ERR) goto cleanup;
     if (size_t_fread(fp, &pp->theta) == CLT_ERR) goto cleanup;
     if (size_t_fread(fp, &pp->nlevels) == CLT_ERR) goto cleanup;
     if (size_t_fread(fp, &pp->nswitches) == CLT_ERR) goto cleanup;
+    mpz_init(pp->pzt);
     if (mpz_fread(pp->pzt, fp) == CLT_ERR) goto cleanup;
     pp->x0s = mpz_vector_new(pp->nlevels);
     if (mpz_vector_fread(pp->x0s, pp->nlevels, fp) == CLT_ERR) goto cleanup;
@@ -551,11 +557,14 @@ clt_pl_state_free(clt_pl_state_t *s)
     }
     if (s->x0s)
         mpz_vector_free(s->x0s, s->nlevels);
-    /* if (s->switches) { */
-    /*     for (size_t i = 0; i < s->nswitches; ++i) */
-    /*         switch_state_free(s->switches[i], s->theta); */
-    /*     free(s->switches); */
-    /* } */
+    if (s->switches) {
+        for (size_t i = 0; i < s->nswitches; ++i) {
+            for (size_t j = 0; j < 2; ++j) {
+                switch_state_free(s->switches[i][j], s->theta);
+            }
+            free(s->switches[i]);
+        }
+    }
     if (s->rngs) {
         for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
             aes_randclear(s->rngs[i]);
@@ -879,7 +888,9 @@ clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n],
         mpz_urandomb_aes(tmp, s->rngs[i], 2 * s->b);
         mpz_mod_near_ui(tmp, tmp, s->b);
         mpz_mul(tmp, tmp, s->gs[i]);
-        mpz_add(tmp, tmp, xs[slot(i, n, s->n)]);
+        /* mpz_add(tmp, tmp, xs[slot(i, n, s->n)]); */
+        if (i < n)
+            mpz_add(tmp, tmp, xs[i]);
         mpz_mul(tmp, tmp, s->crt_coeffs[rop->level][i]);
 /* #pragma omp critical */
         {

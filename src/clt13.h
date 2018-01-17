@@ -80,6 +80,7 @@ int clt_is_zero(const clt_elem_t *a, const clt_pp_t *pp);
 
 clt_elem_t * clt_elem_new(void);
 void         clt_elem_free(clt_elem_t *a);
+clt_elem_t * clt_elem_copy(clt_elem_t *a);
 void         clt_elem_set(clt_elem_t *a, const clt_elem_t *b);
 int          clt_elem_add(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);
 int          clt_elem_sub(clt_elem_t *rop, const clt_pp_t *pp, const clt_elem_t *a, const clt_elem_t *b);

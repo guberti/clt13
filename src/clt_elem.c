@@ -20,6 +20,15 @@ clt_elem_free(clt_elem_t *e)
     free(e);
 }
 
+clt_elem_t *
+clt_elem_copy(clt_elem_t *a)
+{
+    clt_elem_t *e;
+    e = calloc(1, sizeof e[0]);
+    clt_elem_set(e, a);
+    return e;
+}
+
 void
 clt_elem_set(clt_elem_t *a, const clt_elem_t *b)
 {
