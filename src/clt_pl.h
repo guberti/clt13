@@ -3,7 +3,7 @@
 
 #include "clt13.h"
 
-#include <aesrand/aesrand.h>
+#include <aesrand.h>
 #include <stdlib.h>
 
 typedef struct clt_pl_state_t clt_pl_state_t;

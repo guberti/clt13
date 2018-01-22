@@ -1,14 +1,14 @@
 #ifndef __CLT13_H__
 #define __CLT13_H__
 
-/* #ifdef __cplusplus */
-/* extern "C" { */
-/* #endif */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define CLT_OK 0
 #define CLT_ERR (-1)
 
-#include <aesrand/aesrand.h>
+#include <aesrand.h>
 #include <gmp.h>
 #include <stdbool.h>
 
@@ -90,8 +90,8 @@ void         clt_elem_print(const clt_elem_t *a);
 int          clt_elem_fread(clt_elem_t *x, FILE *fp);
 int          clt_elem_fwrite(clt_elem_t *x, FILE *fp);
 
-/* #ifdef __cplusplus */
-/* } */
-/* #endif */
+#ifdef __cplusplus
+}
+#endif
 
 #endif
