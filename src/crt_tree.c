@@ -112,48 +112,31 @@ crt_tree *
 crt_tree_fread(FILE *fp, size_t n)
 {
     crt_tree *crt = NULL;
+    mpz_t *ps;
 
-    mpz_t *ps = calloc(n, sizeof ps[0]);
-    for (size_t i = 0; i < n; i++)
-        mpz_init(ps[i]);
-
-    if (mpz_vector_fread(ps, n, fp) != 0) {
-        fprintf(stderr, "[%s] couldn't read ps!\n", __func__);
+    ps = mpz_vector_new(n);
+    if (mpz_vector_fread(ps, n, fp) == CLT_ERR)
         goto cleanup;
-    }
-
-    if ((crt = crt_tree_new(ps, n)) == NULL) {
-        fprintf(stderr, "[%s] couldn't initialize crt_tree!\n", __func__);
+    if ((crt = crt_tree_new(ps, n)) == NULL)
         goto cleanup;
-    }
 
 cleanup:
-    for (size_t i = 0; i < n; i++)
-        mpz_clear(ps[i]);
-    free(ps);
-
+    mpz_vector_free(ps, n);
     return crt;
 }
 
 int
 crt_tree_fwrite(FILE *fp, const crt_tree *crt, size_t n)
 {
-    int ret = 1;
+    int ret = CLT_ERR, ctr = 0;
+    mpz_t *ps;
 
-    mpz_t *ps = calloc(n, sizeof ps[0]);
-    for (size_t i = 0; i < n; i++)
-        mpz_init(ps[i]);
-    int ctr = 0;
-
+    ps = mpz_vector_new(n);
     _crt_tree_get_leafs(ps, &ctr, crt);
-    if (mpz_vector_fwrite(ps, n, fp) != 0)
+    if (mpz_vector_fwrite(ps, n, fp) == CLT_ERR)
         goto cleanup;
-
-    for (size_t i = 0; i < n; i++)
-        mpz_clear(ps[i]);
-    free(ps);
-
-    ret = 0;
+    ret = CLT_OK;
 cleanup:
+    mpz_vector_free(ps, n);
     return ret;
 }
