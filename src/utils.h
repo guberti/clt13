@@ -163,14 +163,15 @@ generate_pzt(mpz_t pzt, size_t rho, size_t n, mpz_t *ps, mpz_t *gs,
     }
 #pragma omp parallel for
     for (size_t i = 0; i < n; ++i) {
-        mpz_t tmp, qpi, rnd;
-        mpz_inits(tmp, qpi, rnd, NULL);
+        mpz_t tmp, qpi, rnd, test;
+        mpz_inits(tmp, qpi, rnd, test, NULL);
         /* compute ((g_i^{-1} mod p_i) · z · r_i · (x0 / p_i) */
         mpz_invert(tmp, gs[i], ps[i]);
-        mpz_mul_mod_near(tmp, tmp, zk, ps[i]);
+        mpz_mul(tmp, tmp, zk);
         do {
-            mpz_random_(rnd, rngs[i], rho);
-        } while (mpz_cmp(rnd, gs[i]) == 0);
+            mpz_urandomb_aes(rnd, rngs[i], rho);
+            mpz_mod(test, rnd, gs[i]);
+        } while (mpz_cmp_ui(test, 0) == 0);
         mpz_mul(tmp, tmp, rnd);
         mpz_divexact(qpi, x0, ps[i]);
         mpz_mul_mod_near(tmp, tmp, qpi, x0);
@@ -178,7 +179,7 @@ generate_pzt(mpz_t pzt, size_t rho, size_t n, mpz_t *ps, mpz_t *gs,
         {
             mpz_add(pzt, pzt, tmp);
         }
-        mpz_clears(tmp, qpi, rnd, NULL);
+        mpz_clears(tmp, qpi, rnd, test, NULL);
         if (verbose)
 #pragma omp critical
         {
@@ -211,7 +212,7 @@ generate_primes(mpz_t *v, aes_randstate_t *rngs, size_t n, size_t len, bool verb
     }
     if (verbose)
         fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
-    return 0;                   /* XXX */
+    return CLT_OK;
 }
 
 /* Returns the number of ones in `x` */
