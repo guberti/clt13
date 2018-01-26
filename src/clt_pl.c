@@ -613,10 +613,8 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
     s->rho     = params->lambda;
     alpha      = params->lambda;
     eta        = s->nlevels * params->lambda;
-    /* s->n       = MAX(estimate_n(params->lambda, eta, flags), slots); */
-    s->n       = s->nlevels * params->lambda * params->lambda;
+    s->n       = MAX(estimate_n(params->lambda, eta, flags), slots);
     h          = params->lambda;
-    /* s->theta   = sqrt(s->n * eta * params->lambda); */
     s->theta   = MAX(s->n + 1, s->nlevels * pow(params->lambda, 3 / 2.0));
     beta       = max4(s->rho + 3, s->rho + alpha + 1, log2_(s->theta) + log2_(eta) + 3, 2 * alpha + 3);
     s->nu      = params->lambda;
@@ -642,7 +640,8 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
             assert(beta >= alpha);
             eta_L = MAX(beta + 1, beta - alpha + h + log2_(s->n) + s->n + s->nu);
             eta = eta_L + (beta + 4) * s->nlevels;
-            /* s->n = MAX(estimate_n(params->lambda, eta, flags), slots); */
+            s->n = MAX(estimate_n(params->lambda, eta, flags), slots);
+            s->theta = MAX(s->n + 1, s->nlevels * pow(params->lambda, 3 / 2.0));
             /* s->theta = sqrt(s->n * eta * params->lambda); */
         }
         if (i == nloops && (old_beta != beta
