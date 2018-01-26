@@ -12,3 +12,6 @@ libaesrand/
 vgcore.*
 *.out
 install_manifest.txt
+GPATH
+GRTAGS
+GTAGS
