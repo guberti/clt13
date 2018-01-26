@@ -19,30 +19,20 @@ typedef struct switch_state_t switch_state_t;
 
 /* Required parameters to clt_pl_state_new */
 typedef struct {
-    /* security parameter */
-    size_t lambda;
-    /* number of levels */
-    size_t nlevels;
-    /* number of multiplications */
-    size_t nswitches;
-    /* switch parameters of each multiplication */
-    switch_params_t **sparams;
-    /* number of z's */
-    size_t nzs;
-    /* powers for the z's */
-    int *pows;
+    size_t lambda;              /* security parameter */
+    size_t nlevels;             /* number of levels */
+    size_t nswitches;           /* number of switches */
+    switch_params_t **sparams;  /* switch parameters */
+    size_t nzs;                 /* number of z's */
+    int *pows;                  /* powers for the z's */
 } clt_pl_params_t;
 
 /* Optional parameters to clt_pl_state_new */
 typedef struct {
-    /* number of slots needed */
-    size_t slots;
-    /* plaintext moduli */
-    mpz_t *moduli;
-    /* number of plaintext moduli given */
-    size_t nmoduli;
-    /* word size */
-    size_t wordsize;
+    size_t slots;               /* number of slots needed */
+    mpz_t *moduli;              /* plaintext moduli */
+    size_t nmoduli;             /* number of plaintext moduli given */
+    size_t wordsize;            /* word size (must be a power of two) */
 } clt_pl_opt_params_t;
 
 #define CLT_PL_FLAG_NONE 0x00

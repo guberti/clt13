@@ -23,10 +23,10 @@ struct clt_pl_state_t {
     size_t nzs;                 /* number of z's in the index set */
     size_t rho;                 /* bitsize of randomness */
     size_t nu;                  /* number of most-significant-bits to extract */
-    size_t b;
     size_t nlevels;
     size_t theta;
     size_t nswitches;
+    size_t b;
     mpz_t pzt;
     mpz_t *gs;                  /* [n] */
     mpz_t **zs;                 /* [nlevels][nzs] */
@@ -45,8 +45,8 @@ struct clt_pl_pp_t {
     size_t nlevels;
     mpz_t *x0s;
     mpz_t pzt;
-    switch_state_t ***switches; /* [nswitches][2] */
     size_t nswitches;
+    switch_state_t ***switches; /* [nswitches][2] */
     bool verbose;
     bool local;
 };
@@ -163,18 +163,20 @@ clt_pl_elem_mul(clt_elem_t *rop, const clt_pl_pp_t *pp, const clt_elem_t *a, con
 
 /* XXX REMOVE ONCE WE'VE GOT EVERYTHING WORKING */
 int
-clt_pl_elem_decrypt(clt_elem_t *x, const clt_pl_state_t *s, size_t nzs, const int ix[nzs], size_t level)
+clt_pl_elem_decrypt(clt_elem_t *x, const clt_pl_state_t *s, size_t nzs, const int *ix, size_t level)
 {
     size_t nbits = 0;
     mpz_t rop, tmp, z;
     mpz_inits(rop, tmp, z, NULL);
     mpz_set_ui(z, 1);
     printf("DECRYPTION @ LEVEL %lu :: ", level);
-    for (size_t i = 0; i < nzs; ++i) {
-        printf("%d ", ix[i]);
-        if (ix[i] <= 0) continue;
-        mpz_powm_ui(tmp, s->zs[level][i], ix[i], s->x0s[level]);
-        mpz_mul_mod_near(z, z, tmp, s->x0s[level]);
+    if (ix) {
+        for (size_t i = 0; i < nzs; ++i) {
+            printf("%d ", ix[i]);
+            if (ix[i] <= 0) continue;
+            mpz_powm_ui(tmp, s->zs[level][i], ix[i], s->x0s[level]);
+            mpz_mul_mod_near(z, z, tmp, s->x0s[level]);
+        }
     }
     mpz_mul(z, z, x->elem);
     printf(":: ");
@@ -271,7 +273,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     switch_state_t *state;
     mpz_t wk, K, z1, z2;
     mpz_t **ss;
-    double start, _start;
+    /* double start, _start; */
 
     if (source == 0 && target == 0) {
         return calloc(1, sizeof state[0]);
@@ -298,7 +300,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
 
     /* if (verbose) */
     /*     fprintf(stderr, "    Generating switch state [%lu →  %lu]:\n", source, target); */
-    start = current_time();
+    /* start = current_time(); */
 
     mpz_inits(wk, K, z1, z2, NULL);
     /* wk = (wordsize)ᵏ */
@@ -320,7 +322,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         }
         mpz_clear(tmp);
     }
-    _start = current_time();
+    /* _start = current_time(); */
     state->ys = mpz_vector_new(s->theta);
     for (size_t i = s->n; i < s->theta; ++i) {
         mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
@@ -330,7 +332,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
 
     /* if (verbose) */
     /*     fprintf(stderr, "      Generating s and y values: "); */
-    _start = current_time();
+    /* _start = current_time(); */
     ss = calloc(s->n, sizeof ss[0]);
 #pragma omp parallel for
     for (size_t i = 0; i < s->n; ++i) {
@@ -380,7 +382,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
 
     /* if (verbose) */
     /*     fprintf(stderr, "      Generating σ values: "); */
-    _start = current_time();
+    /* _start = current_time(); */
     state->sigmas = calloc(s->theta, sizeof state->sigmas[0]);
     for (size_t t = 0; t < s->theta; ++t) {
         mpz_t **rs;
@@ -445,9 +447,11 @@ clt_pl_pp_new(const clt_pl_state_t *s)
 
     if ((pp = calloc(1, sizeof pp[0])) == NULL)
         return NULL;
+    pp->nu = s->nu;
     pp->theta = s->theta;
     pp->nlevels = s->nlevels;
     pp->x0s = s->x0s;
+    mpz_init_set(pp->pzt, s->pzt);
     pp->nswitches = s->nswitches;
     pp->switches = s->switches;
     pp->verbose = s->flags & CLT_PL_FLAG_VERBOSE;
@@ -521,12 +525,6 @@ cleanup:
     return CLT_ERR;
 }
 
-static inline size_t
-max3(size_t a, size_t b, size_t c)
-{
-    return a >= b && a >= c ? a : b >= a && b >= c ? b : c;
-}
-
 void
 clt_pl_state_free(clt_pl_state_t *s)
 {
@@ -574,12 +572,29 @@ clt_pl_state_free(clt_pl_state_t *s)
     free(s);
 }
 
+static inline size_t
+max4(size_t a, size_t b, size_t c, size_t d)
+{
+    size_t max = 0;
+    max = max > a ? max : a;
+    max = max > b ? max : b;
+    max = max > c ? max : c;
+    max = max > d ? max : d;
+    return max;
+}
+
+static inline size_t
+log2_(size_t n)
+{
+    return (size_t) floor(log2(n));
+}
+
 clt_pl_state_t *
 clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
                  size_t nthreads, size_t flags, aes_randstate_t rng)
 {
     const bool verbose = flags & CLT_PL_FLAG_VERBOSE;
-    size_t alpha, beta, rho_f, eta, wordsize;
+    size_t alpha, beta, eta_L, eta, h, wordsize;
     size_t *etas = NULL;
     clt_pl_state_t *s;
     const size_t slots = opts ? opts->slots : 0;
@@ -593,63 +608,71 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
     (void) omp_set_num_threads(nthreads);
 
     /* calculate CLT parameters */
-    s->nzs = params->nzs;
-    alpha  = params->lambda;           /* bitsize of g_i primes */
-    beta   = params->lambda;           /* bitsize of h_i entries */
-    s->rho = params->lambda;           /* bitsize of randomness */
-    rho_f  = 4 * (s->rho + alpha);     /* max bitsize of r_i's */
-    eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
-    s->n   = MAX(estimate_n(params->lambda, eta, flags), slots); /* number of primes */
-    eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
-    s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
+    s->nzs     = params->nzs;
+    s->nlevels = params->nlevels + 1;
+    s->rho     = params->lambda;
+    alpha      = params->lambda;
+    eta        = s->nlevels * params->lambda;
+    /* s->n       = MAX(estimate_n(params->lambda, eta, flags), slots); */
+    s->n       = s->nlevels * params->lambda * params->lambda;
+    h          = params->lambda;
+    /* s->theta   = sqrt(s->n * eta * params->lambda); */
+    s->theta   = MAX(s->n + 1, s->nlevels * pow(params->lambda, 3 / 2.0));
+    beta       = max4(s->rho + 3, s->rho + alpha + 1, log2_(s->theta) + log2_(eta) + 3, 2 * alpha + 3);
+    s->nu      = params->lambda;
+    eta_L = MAX(beta + 1, beta - alpha + h + log2_(s->n) + s->n + s->nu);
     s->nswitches = params->nswitches;
     s->flags = flags;
 
-    /* Loop until a fixed point reached for choosing eta, n, and nu */
+    /* Loop until a fixed point reached */
     {
-        size_t old_eta = 0, old_n = 0, old_nu = 0;
-        int i = 0;
-        for (; i < 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu);
-             ++i) {
-            old_eta = eta, old_n = s->n, old_nu = s->nu;
-            eta = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
-            s->n = MAX(estimate_n(params->lambda, eta, flags), slots);
-            s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
+        const size_t nloops = 10;
+        size_t old_beta = 0, old_eta_L = 0, old_eta = 0, old_theta = 0,
+               old_n = 0, old_nu = 0;
+        size_t i = 0;
+        for (; i < nloops && (old_beta != beta
+                              || old_eta_L != eta_L
+                              || old_eta != eta
+                              || old_theta != s->theta
+                              || old_n != s->n
+                              || old_nu != s->nu); ++i) {
+            old_beta = beta, old_eta_L = eta_L, old_eta = eta;
+            old_theta = s->theta, old_n = s->n, old_nu = s->nu;
+            beta = max4(s->rho + 3, s->rho + alpha + 1, log2_(s->theta) + log2_(eta) + 3, 2 * alpha + 3);
+            assert(beta >= alpha);
+            eta_L = MAX(beta + 1, beta - alpha + h + log2_(s->n) + s->n + s->nu);
+            eta = eta_L + (beta + 4) * s->nlevels;
+            /* s->n = MAX(estimate_n(params->lambda, eta, flags), slots); */
+            /* s->theta = sqrt(s->n * eta * params->lambda); */
         }
-
-        if (i == 10 && (old_eta != eta || old_n != s->n || old_nu != s->nu)) {
-            fprintf(stderr, "error: unable to find valid η, n, and ν choices\n");
-            free(s);
-            return NULL;
+        if (i == nloops && (old_beta != beta
+                            || old_eta_L != eta_L
+                            || old_eta != eta
+                            || old_theta != s->theta
+                            || old_n != s->n
+                            || old_nu != s->nu)) {
+            fprintf(stderr, "error: unable to find valid η_L, η, n, Θ, and ν choices\n");
+            goto error;
         }
     }
 
-    /* Make sure the proper bounds are hit [CLT13, Lemma 8] */
-    assert(s->nu >= alpha + 6);
-    assert(beta + alpha + rho_f + nb_of_bits(s->n) <= eta - 9);
-    assert(s->n >= slots);
-
-    s->theta = s->n + 10;
-    s->b = 1;
-    /* s->b     = max3(s->rho + 2, log2(s->theta) + log2(eta) + 2, 2 * alpha); */
-    s->nlevels = params->nlevels + 1;
+    s->b = beta + 4;
 
     wordsize = opts && opts->wordsize ? opts->wordsize : 2;
-
     if (log2(wordsize) != floor(log2(wordsize))) {
         fprintf(stderr, "error: wordsize must be a power of two\n");
-        return NULL;
+        goto error;
     }
 
     /* Compute ηs */
     etas = calloc(s->nlevels, sizeof etas[0]);
     for (size_t i = 0; i < s->nlevels; ++i) {
-        if (i * 2 * s->b > eta) {
-            fprintf(stderr, "error: %s: η - ℓ·2B = %lu - %lu·2%lu < 0\n", __func__,
-                    eta, i, s->b);
+        if (i * s->b > eta) {
+            fprintf(stderr, "error: %s: η - ℓ·r = %lu - %lu·%lu < 0\n",
+                    __func__, eta, i, s->b);
             goto error;
         }
-        etas[i] = eta - i * 2 * s->b;
+        etas[i] = eta - i * s->b;
     }
     if (verbose) {
         fprintf(stderr, "Polylog CLT initialization:\n");
@@ -661,15 +684,20 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
         fprintf(stderr, "\n");
         fprintf(stderr, "  α: ...... %ld\n", alpha);
         fprintf(stderr, "  β: ...... %ld\n", beta);
+        fprintf(stderr, "  η_L: .... %ld\n", eta_L);
         fprintf(stderr, "  η: ...... %ld\n", eta);
         fprintf(stderr, "  ν: ...... %ld\n", s->nu);
         fprintf(stderr, "  ρ: ...... %ld\n", s->rho);
-        fprintf(stderr, "  ρ_f: .... %ld\n", rho_f);
         fprintf(stderr, "  n: ...... %ld\n", s->n);
         fprintf(stderr, "  θ: ...... %lu\n", s->theta);
         fprintf(stderr, "  b: ...... %lu\n", s->b);
         fprintf(stderr, "  wordsize: %lu\n", wordsize);
     }
+
+    assert(eta_L >= beta + 1);
+    /* assert(eta_L >= beta - alpha + h + log2(s->n) + s->n + s->nu); */
+    assert(s->n >= slots);
+    assert(s->theta > s->n);
 
     /* Generate randomness for each core */
     s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
@@ -763,6 +791,10 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
         if (verbose)
             fprintf(stderr, "\t[%.2fs]\n", current_time() - start);
     }
+    mpz_init(s->pzt);
+    generate_pzt(s->pzt, beta, s->n, s->ps[s->nlevels - 1], s->gs, s->nzs,
+                 s->zs[s->nlevels - 1], params->pows, s->x0s[s->nlevels - 1],
+                 s->rngs, verbose);
     free(etas);
     if (verbose)
         fprintf(stderr, "Polylog CLT initialization complete!\n");
@@ -913,4 +945,3 @@ clt_pl_encode(clt_elem_t *rop, const clt_pl_state_t *s, size_t n, mpz_t xs[n],
     }
     return CLT_OK;
 }
-

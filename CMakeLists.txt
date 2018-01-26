@@ -21,7 +21,7 @@ add_library(clt13 SHARED ${clt13_SOURCES})
 target_link_libraries(clt13 PUBLIC gmp aesrand)
 
 include(FindOpenMP)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -Werror -Wno-unused-but-set-variable -fPIC -std=gnu11 -march=native ${OpenMP_C_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -Werror -fPIC -std=gnu11 -march=native ${OpenMP_C_FLAGS}")
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -pg -ggdb -O0")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
 target_link_libraries(clt13 INTERFACE "${OpenMP_C_FLAGS}")

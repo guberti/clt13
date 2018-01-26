@@ -62,7 +62,8 @@ test(size_t lambda)
 
     aes_randinit(rng);
 
-    mmap = clt_pl_state_new(&params, &opts, 0, flags, rng);
+    if ((mmap = clt_pl_state_new(&params, &opts, 0, flags, rng)) == NULL)
+        return 1;
     pp = clt_pl_pp_new(mmap);
 
     {
@@ -109,35 +110,68 @@ test(size_t lambda)
     mpz_init_set_ui(zero, 0);
     mpz_init_set_ui(one, 1);
 
-    clt_pl_encode_params_t eparams = { .ix = NULL, .level = 0 };
-    eparams.ix = ix0;
-    clt_pl_encode(x0, mmap, 1, &zero, &eparams);
-    eparams.ix = ix1;
-    clt_pl_encode(x1, mmap, 1, &one, &eparams);
-    eparams.ix = ix2;
-    clt_pl_encode(x2, mmap, 1, &one, &eparams);
-    eparams.ix = ix3;
-    clt_pl_encode(x3, mmap, 1, &one, &eparams);
-    clt_pl_elem_decrypt(x0, mmap, nzs, ix0, 0);
-    clt_pl_elem_decrypt(x1, mmap, nzs, ix1, 0);
-    clt_pl_elem_decrypt(x2, mmap, nzs, ix2, 0);
-    clt_pl_elem_decrypt(x3, mmap, nzs, ix3, 0);
+    {
+        clt_pl_encode_params_t eparams = { .ix = NULL, .level = 0 };
+        eparams.ix = ix0;
+        clt_pl_encode(x0, mmap, 1, &one, &eparams);
+        eparams.ix = ix1;
+        clt_pl_encode(x1, mmap, 1, &one, &eparams);
+        eparams.ix = ix2;
+        clt_pl_encode(x2, mmap, 1, &one, &eparams);
+        eparams.ix = ix3;
+        clt_pl_encode(x3, mmap, 1, &one, &eparams);
+        clt_pl_elem_decrypt(x0, mmap, nzs, ix0, 0);
+        clt_pl_elem_decrypt(x1, mmap, nzs, ix1, 0);
+        clt_pl_elem_decrypt(x2, mmap, nzs, ix2, 0);
+        clt_pl_elem_decrypt(x3, mmap, nzs, ix3, 0);
 
-    switch_state_t *** switches;
-    switches = clt_pl_pp_switches(pp);
+        switch_state_t *** switches;
+        switches = clt_pl_pp_switches(pp);
 
-    clt_pl_elem_mul(x4, pp, x0, x1);
-    clt_pl_elem_switch(x4, pp, x4, switches[0][1]);
-    clt_pl_elem_decrypt(x4, mmap, nzs, ix1100, 1);
+        clt_pl_elem_mul(x4, pp, x0, x1);
+        clt_pl_elem_switch(x4, pp, x4, switches[0][1]);
+        clt_pl_elem_decrypt(x4, mmap, nzs, ix1100, 1);
 
-    clt_pl_elem_mul(x5, pp, x2, x3);
-    clt_pl_elem_switch(x5, pp, x5, switches[1][1]);
-    clt_pl_elem_decrypt(x5, mmap, nzs, ix0011, 1);
+        clt_pl_elem_mul(x5, pp, x2, x3);
+        clt_pl_elem_switch(x5, pp, x5, switches[1][1]);
+        clt_pl_elem_decrypt(x5, mmap, nzs, ix0011, 1);
 
-    clt_pl_elem_mul(out, pp, x4, x5);
-    clt_pl_elem_switch(out, pp, out, switches[2][1]);
-    clt_pl_elem_decrypt(out, mmap, nzs, top, 2);
-    ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_pl_is_zero(out, pp));
+        clt_pl_elem_mul(out, pp, x4, x5);
+        clt_pl_elem_switch(out, pp, out, switches[2][1]);
+        clt_pl_elem_decrypt(out, mmap, nzs, top, 2);
+        ok &= expect("is_zero(1 * 1 * 1 * 1)", 0, clt_pl_is_zero(out, pp));
+    }
+    {
+        clt_pl_encode_params_t eparams = { .ix = NULL, .level = 0 };
+        eparams.ix = ix0;
+        clt_pl_encode(x0, mmap, 1, &zero, &eparams);
+        eparams.ix = ix1;
+        clt_pl_encode(x1, mmap, 1, &one, &eparams);
+        eparams.ix = ix2;
+        clt_pl_encode(x2, mmap, 1, &one, &eparams);
+        eparams.ix = ix3;
+        clt_pl_encode(x3, mmap, 1, &one, &eparams);
+        clt_pl_elem_decrypt(x0, mmap, nzs, ix0, 0);
+        clt_pl_elem_decrypt(x1, mmap, nzs, ix1, 0);
+        clt_pl_elem_decrypt(x2, mmap, nzs, ix2, 0);
+        clt_pl_elem_decrypt(x3, mmap, nzs, ix3, 0);
+
+        switch_state_t *** switches;
+        switches = clt_pl_pp_switches(pp);
+
+        clt_pl_elem_mul(x4, pp, x0, x1);
+        clt_pl_elem_switch(x4, pp, x4, switches[0][1]);
+        clt_pl_elem_decrypt(x4, mmap, nzs, ix1100, 1);
+
+        clt_pl_elem_mul(x5, pp, x2, x3);
+        clt_pl_elem_switch(x5, pp, x5, switches[1][1]);
+        clt_pl_elem_decrypt(x5, mmap, nzs, ix0011, 1);
+
+        clt_pl_elem_mul(out, pp, x4, x5);
+        clt_pl_elem_switch(out, pp, out, switches[2][1]);
+        clt_pl_elem_decrypt(out, mmap, nzs, top, 2);
+        ok &= expect("is_zero(0 * 1 * 1 * 1)", 1, clt_pl_is_zero(out, pp));
+    }
 
     mpz_clears(zero, one, NULL);
     clt_elem_free(x0);
@@ -158,7 +192,7 @@ main(int arg, char **argv)
 {
     (void) arg; (void) argv;
 
-    size_t lambda = 20;
+    size_t lambda = 8;
 
     if (test(lambda) == 1)
         return 1;
