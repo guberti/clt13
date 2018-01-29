@@ -13,6 +13,11 @@ max(size_t a, size_t b) {
     return a > b ? a : b;
 }
 
+static inline size_t
+min(size_t a, size_t b) {
+    return a > b ? b : a;
+}
+
 double current_time(void);
 void print_progress(size_t cur, size_t total);
 

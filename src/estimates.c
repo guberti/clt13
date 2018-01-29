@@ -1,9 +1,10 @@
-/* 
+/*
 Code for estimating n, the number of primes p_i to use.  Mostly adapted from the
 SAGE code provided by Tancrède Lepoint in his thesis (Figures 7.2 and 7.3).
 */
 
 #include "estimates.h"
+#include "utils.h"
 
 #include <math.h>
 #include <stdbool.h>
@@ -42,7 +43,7 @@ gamma_from_orthogonal_attack(size_t lambda, size_t eta, bool conservative)
             gamma /= 1.1;
             m1 = time_LLL(m_min(lambda, eta, gamma, 1.021), gamma);
             m2 = time_BKZ20(m_min(lambda, eta, gamma, 1.013), gamma);
-            if (MIN(m1, m2) < lambda) {
+            if (min(m1, m2) < lambda) {
                 gamma *= 1.1;
                 break;
             }
