@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#define MAX(a, b) (a) > (b) ? (a) : (b);
+
 #pragma GCC visibility push(hidden)
 
 double current_time(void);
