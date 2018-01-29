@@ -98,8 +98,8 @@ clt_state_fread(FILE *fp)
         s->crt_coeffs = mpz_vector_new(s->n);
         if (mpz_vector_fread(s->crt_coeffs, s->n, fp) == CLT_ERR) goto error;
     }
-    s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
-    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
+    s->rngs = calloc(max(s->n, s->nzs), sizeof s->rngs[0]);
+    for (size_t i = 0; i < max(s->n, s->nzs); ++i)
         if (aes_randstate_fread(s->rngs[i], fp) == AESRAND_ERR) goto error;
     return s;
 error:
@@ -126,7 +126,7 @@ clt_state_fwrite(clt_state_t *const s, FILE *const fp)
     } else {
         if (mpz_vector_fwrite(s->crt_coeffs, s->n, fp) == CLT_ERR) goto error;
     }
-    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
+    for (size_t i = 0; i < max(s->n, s->nzs); ++i)
         aes_randstate_fwrite(s->rngs[i], fp);
     return CLT_OK;
 error:
@@ -257,7 +257,7 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
     s->rho = params->lambda;           /* bitsize of randomness */
     rho_f  = params->kappa * (s->rho + alpha); /* max bitsize of r_i's */
     eta    = rho_f + alpha + beta + 9; /* bitsize of primes p_i */
-    s->n   = MAX(estimate_n(params->lambda, eta, flags), slots); /* number of primes */
+    s->n   = max(estimate_n(params->lambda, eta, flags), slots); /* number of primes */
     eta    = rho_f + alpha + beta + nb_of_bits(s->n) + 9; /* bitsize of primes p_i */
     s->nu  = eta - beta - rho_f - nb_of_bits(s->n) - 3; /* number of msbs to extract */
     s->flags = flags;
@@ -270,7 +270,7 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
              ++i) {
             old_eta = eta, old_n = s->n, old_nu = s->nu;
             eta = rho_f + alpha + beta + nb_of_bits(s->n) + 9;
-            s->n = MAX(estimate_n(params->lambda, eta, flags), slots);
+            s->n = max(estimate_n(params->lambda, eta, flags), slots);
             s->nu = eta - beta - rho_f - nb_of_bits(s->n) - 3;
         }
 
@@ -312,8 +312,8 @@ clt_state_new(const clt_params_t *params, const clt_opt_params_t *opts,
     }
 
     /* Generate randomness for each core */
-    s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
-    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
+    s->rngs = calloc(max(s->n, s->nzs), sizeof s->rngs[0]);
+    for (size_t i = 0; i < max(s->n, s->nzs); ++i) {
         unsigned char *buf;
         size_t nbytes;
 
@@ -403,7 +403,7 @@ clt_state_free(clt_state_t *s)
         mpz_vector_free(s->crt_coeffs, s->n);
     }
     if (s->rngs) {
-        for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
+        for (size_t i = 0; i < max(s->n, s->nzs); ++i) {
             aes_randclear(s->rngs[i]);
         }
         free(s->rngs);

@@ -6,9 +6,12 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define MAX(a, b) (a) > (b) ? (a) : (b);
-
 #pragma GCC visibility push(hidden)
+
+static inline size_t
+max(size_t a, size_t b) {
+    return a > b ? a : b;
+}
 
 double current_time(void);
 void print_progress(size_t cur, size_t total);

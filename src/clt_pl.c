@@ -565,7 +565,7 @@ clt_pl_state_free(clt_pl_state_t *s)
         }
     }
     if (s->rngs) {
-        for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
+        for (size_t i = 0; i < max(s->n, s->nzs); ++i)
             aes_randclear(s->rngs[i]);
         free(s->rngs);
     }
@@ -613,12 +613,12 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
     s->rho     = params->lambda;
     alpha      = params->lambda;
     eta        = s->nlevels * params->lambda;
-    s->n       = MAX(estimate_n(params->lambda, eta, flags), slots);
+    s->n       = max(estimate_n(params->lambda, eta, flags), slots);
     h          = params->lambda;
-    s->theta   = MAX(s->n + 1, s->nlevels * pow(params->lambda, 3 / 2.0));
+    s->theta   = max(s->n + 1, s->nlevels * pow(params->lambda, 3 / 2.0));
     beta       = max4(s->rho + 3, s->rho + alpha + 1, log2_(s->theta) + log2_(eta) + 3, 2 * alpha + 3);
     s->nu      = params->lambda;
-    eta_L = MAX(beta + 1, beta - alpha + h + log2_(s->n) + s->n + s->nu);
+    eta_L = max(beta + 1, beta - alpha + h + log2_(s->n) + s->n + s->nu);
     s->nswitches = params->nswitches;
     s->flags = flags;
 
@@ -638,10 +638,10 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
             old_theta = s->theta, old_n = s->n, old_nu = s->nu;
             beta = max4(s->rho + 3, s->rho + alpha + 1, log2_(s->theta) + log2_(eta) + 3, 2 * alpha + 3);
             assert(beta >= alpha);
-            eta_L = MAX(beta + 1, beta - alpha + h + log2_(s->n) + s->n + s->nu);
+            eta_L = max(beta + 1, beta - alpha + h + log2_(s->n) + s->n + s->nu);
             eta = eta_L + (beta + 4) * s->nlevels;
-            s->n = MAX(estimate_n(params->lambda, eta, flags), slots);
-            s->theta = MAX(s->n + 1, s->nlevels * pow(params->lambda, 3 / 2.0));
+            s->n = max(estimate_n(params->lambda, eta, flags), slots);
+            s->theta = max(s->n + 1, s->nlevels * pow(params->lambda, 3 / 2.0));
             /* s->theta = sqrt(s->n * eta * params->lambda); */
         }
         if (i == nloops && (old_beta != beta
@@ -699,8 +699,8 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
     assert(s->theta > s->n);
 
     /* Generate randomness for each core */
-    s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
-    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i) {
+    s->rngs = calloc(max(s->n, s->nzs), sizeof s->rngs[0]);
+    for (size_t i = 0; i < max(s->n, s->nzs); ++i) {
         unsigned char *buf;
         size_t nbytes;
 
@@ -850,8 +850,8 @@ clt_pl_state_fread(FILE *fp)
         for (size_t j = 0; j < 2; ++j)
             if ((s->switches[i][j] = switch_state_fread(fp, s->theta)) == NULL) goto error;
     }
-    s->rngs = calloc(MAX(s->n, s->nzs), sizeof s->rngs[0]);
-    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
+    s->rngs = calloc(max(s->n, s->nzs), sizeof s->rngs[0]);
+    for (size_t i = 0; i < max(s->n, s->nzs); ++i)
         aes_randstate_fread(s->rngs[i], fp);
     return s;
 error:
@@ -884,7 +884,7 @@ clt_pl_state_fwrite(clt_pl_state_t *s, FILE *fp)
     for (size_t i = 0; i < s->nswitches; ++i)
         for (size_t j = 0; j < 2; ++j)
             if (switch_state_fwrite(fp, s->switches[i][j], s->theta) == CLT_ERR) return CLT_ERR;
-    for (size_t i = 0; i < MAX(s->n, s->nzs); ++i)
+    for (size_t i = 0; i < max(s->n, s->nzs); ++i)
         aes_randstate_fwrite(s->rngs[i], fp);
     return CLT_OK;
 }
