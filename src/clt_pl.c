@@ -351,14 +351,12 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
         mpz_invert(f, f, s->gs[i]);
         mpz_mul(f, f, ginv);
 
-        ss[i] = mpz_vector_new(s->theta);
-        for (size_t j = 0; j < s->n; ++j)
-            mpz_set_ui(ss[i][j], 0);
+        ss[i] = calloc(s->theta, sizeof ss[i][0]);
         for (size_t j = s->n; j < s->theta; ++j) {
-            mpz_urandomb_aes(ss[i][j], s->rngs[0], (int) log2(wordsize));
-            mpz_mod_near_ui(ss[i][j], ss[i][j], wordsize);
+            mpz_urandomb_aes(tmp, s->rngs[0], (int) log2(wordsize));
+            ss[i][j] = mpz_get_ui(tmp);
         }
-        mpz_set_ui(ss[i][i], 1);
+        ss[i][i] = 1;
 
         mpz_mul(state->ys[i], f, z1);
         mpz_mod_near(state->ys[i], state->ys[i], s->ps[source][i]);
@@ -366,7 +364,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
         mpz_quotient(state->ys[i], state->ys[i], s->ps[source][i]);
 
         for (size_t t = s->n; t < s->theta; ++t) {
-            mpz_mul(tmp, state->ys[t], ss[i][t]);
+            mpz_mul_ui(tmp, state->ys[t], ss[i][t]);
 #pragma omp critical
             {
                 mpz_sub(state->ys[i], state->ys[i], tmp);
@@ -404,7 +402,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
             for (size_t i = 0; i < s->n; ++i) {
                 mpz_t x;
                 mpz_init(x);
-                mpz_mul(x, ss[i][t], s->ps[target][i]);
+                mpz_mul_ui(x, s->ps[target][i], ss[i][t]);
                 mpz_quotient(x, x, wkj);
                 mpz_add(x, x, rs[j][i]);
                 mpz_mul_mod_near(x, x, s->gs[i], s->ps[target][i]);
@@ -429,9 +427,6 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
     if (verbose)
         fprintf(stderr, "[%.2fs]\n", current_time() - _start);
     for (size_t i = 0; i < s->n; ++i) {
-        for (size_t t = 0; t < s->theta; ++t) {
-            mpz_clear(ss[i][t]);
-        }
         free(ss[i]);
     }
     free(ss);
@@ -773,7 +768,7 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
             print_progress(count, s->nswitches);
         }
         s->switches = calloc(s->nswitches, sizeof s->switches[0]);
-#pragma omp parallel for
+/* #pragma omp parallel for */
         for (size_t i = 0; i < s->nswitches; ++i) {
             s->switches[i] = calloc(2, sizeof s->switches[i][0]);
             for (size_t j = 0; j < 2; ++j) {
@@ -783,7 +778,7 @@ clt_pl_state_new(const clt_pl_params_t *params, const clt_pl_opt_params_t *opts,
                 s->switches[i][j] = switch_state_new(s, ix, etas[source], wordsize, source, target, verbose);
             }
             if (verbose)
-#pragma omp critical
+/* #pragma omp critical */
             {
                 print_progress(++count, s->nswitches);
             }
