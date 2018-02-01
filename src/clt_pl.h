@@ -10,9 +10,9 @@ typedef struct clt_pl_state_t clt_pl_state_t;
 typedef struct clt_pl_pp_t clt_pl_pp_t;
 
 typedef struct {
-    size_t source;
-    size_t target;
-    int *ix;
+    size_t source;              /* starting level */
+    size_t target;              /* ending level */
+    int *ix;                    /* index set */
 } switch_params_t;
 
 typedef struct switch_state_t switch_state_t;
@@ -35,9 +35,8 @@ typedef struct {
     size_t wordsize;            /* word size (must be a power of two) */
 } clt_pl_opt_params_t;
 
-#define CLT_PL_FLAG_NONE 0x00
-/* Be verbose */
-#define CLT_PL_FLAG_VERBOSE 0x01
+#define CLT_PL_FLAG_NONE    0x00
+#define CLT_PL_FLAG_VERBOSE 0x01 /* Be verbose */
 
 clt_pl_state_t * clt_pl_state_new(const clt_pl_params_t *params,
                                   const clt_pl_opt_params_t *opts,
