@@ -373,47 +373,30 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
     state->sigmas = calloc(s->theta, sizeof state->sigmas[0]);
 #pragma omp parallel for
     for (size_t t = 0; t < s->theta; ++t) {
-        mpz_t **rs;
+        mpz_t wkj, x, r;
+        mpz_inits(wkj, x, r, NULL);
         state->sigmas[t] = mpz_vector_new(state->k);
-        rs = calloc(state->k * s->n, sizeof rs[0]);
         for (size_t j = 0; j < state->k; ++j) {
-            rs[j] = mpz_vector_new(s->n);
-            for (size_t i = 0; i < s->n; ++i) {
-                mpz_urandomb_aes(rs[j][i], s->rngs[i], 2 * s->rho);
-                mpz_mod_near_ui(rs[j][i], rs[j][i], s->rho);
-            }
-        }
-        for (size_t j = 0; j < state->k; ++j) {
-            mpz_t wkj;
-            mpz_init(wkj);
             mpz_ui_pow_ui(wkj, wordsize, state->k - j);
             for (size_t i = 0; i < s->n; ++i) {
-                mpz_t x;
-                mpz_init(x);
                 mpz_mul_ui(x, s->ps[target][i], ss[i][t]);
                 mpz_quotient(x, x, wkj);
-                mpz_add(x, x, rs[j][i]);
+                mpz_urandomb_aes(r, s->rngs[i], 2 * s->rho);
+                mpz_mod_near_ui(r, r, s->rho);
+                mpz_add(x, x, r);
                 mpz_mul_mod_near(x, x, s->gs[i], s->ps[target][i]);
                 mpz_mul(x, x, s->crt_coeffs[target][i]);
                 mpz_add(state->sigmas[t][j], state->sigmas[t][j], x);
-                mpz_clear(x);
             }
             mpz_mul_mod_near(state->sigmas[t][j], state->sigmas[t][j], z2, s->x0s[target]);
-            mpz_clear(wkj);
         }
-        for (size_t j = 0; j < state->k; ++j) {
-            for (size_t i = 0; i < s->n; ++i)
-                mpz_clear(rs[j][i]);
-            free(rs[j]);
-        }
-        free(rs);
+        mpz_clears(wkj, x, r, NULL);
     }
     state->active = true;
     if (verbose)
         fprintf(stderr, "[%.2fs]\n", current_time() - _start);
-    for (size_t i = 0; i < s->n; ++i) {
+    for (size_t i = 0; i < s->n; ++i)
         free(ss[i]);
-    }
     free(ss);
     mpz_clears(wk, K, z1, z2, NULL);
     if (verbose)
