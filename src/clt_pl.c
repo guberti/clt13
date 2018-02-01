@@ -325,9 +325,8 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
         fprintf(stderr, "      Generating random y values: ");
     _start = current_time();
     state->ys = mpz_vector_new(s->theta);
-    for (size_t i = s->n; i < s->theta; ++i) {
+    for (size_t i = s->n; i < s->theta; ++i)
         mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
-    }
     if (verbose)
         fprintf(stderr, "[%.2fs]\n", current_time() - _start);
 
@@ -342,12 +341,9 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
         mpz_inits(tmp, ginv, f, NULL);
 
         mpz_invert(ginv, s->gs[i], s->ps[source][i]);
-        /* Compute fᵢ */
         mpz_mul(f, ginv, s->ps[target][i]);
-        mpz_quotient(f, f, s->ps[source][i]);
-        mpz_mul(f, f, s->gs[i]);
-        mpz_mod_near(f, f, s->ps[target][i]);
-        mpz_mod_near(f, f, s->gs[i]);
+        mpz_tdiv_q(f, f, s->ps[source][i]);
+        mpz_mul_mod_near(f, f, s->gs[i], s->ps[target][i]);
         mpz_invert(f, f, s->gs[i]);
         mpz_mul(f, f, ginv);
 
@@ -358,22 +354,14 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
         }
         ss[i][i] = 1;
 
-        mpz_mul(state->ys[i], f, z1);
-        mpz_mod_near(state->ys[i], state->ys[i], s->ps[source][i]);
-        mpz_mul(state->ys[i], state->ys[i], K);
-        mpz_quotient(state->ys[i], state->ys[i], s->ps[source][i]);
+        mpz_mul_mod_near(tmp, z1, f, s->ps[source][i]);
+        mpz_mul(tmp, tmp, K);
+        mpz_tdiv_q(tmp, tmp, s->ps[source][i]);
 
         for (size_t t = s->n; t < s->theta; ++t) {
-            mpz_mul_ui(tmp, state->ys[t], ss[i][t]);
-#pragma omp critical
-            {
-                mpz_sub(state->ys[i], state->ys[i], tmp);
-            }
+            mpz_submul_ui(tmp, state->ys[t], ss[i][t]);
         }
-#pragma omp critical
-        {
-            mpz_mod_near(state->ys[i], state->ys[i], K);
-        }
+        mpz_mod(state->ys[i], tmp, K);
         mpz_clears(tmp, ginv, f, NULL);
     }
     if (verbose)
@@ -383,6 +371,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
         fprintf(stderr, "      Generating σ values: ");
     _start = current_time();
     state->sigmas = calloc(s->theta, sizeof state->sigmas[0]);
+#pragma omp parallel for
     for (size_t t = 0; t < s->theta; ++t) {
         mpz_t **rs;
         state->sigmas[t] = mpz_vector_new(state->k);
@@ -394,7 +383,6 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
                 mpz_mod_near_ui(rs[j][i], rs[j][i], s->rho);
             }
         }
-#pragma omp parallel for
         for (size_t j = 0; j < state->k; ++j) {
             mpz_t wkj;
             mpz_init(wkj);
@@ -407,10 +395,7 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
                 mpz_add(x, x, rs[j][i]);
                 mpz_mul_mod_near(x, x, s->gs[i], s->ps[target][i]);
                 mpz_mul(x, x, s->crt_coeffs[target][i]);
-#pragma omp critical
-                {
-                    mpz_add(state->sigmas[t][j], state->sigmas[t][j], x);
-                }
+                mpz_add(state->sigmas[t][j], state->sigmas[t][j], x);
                 mpz_clear(x);
             }
             mpz_mul_mod_near(state->sigmas[t][j], state->sigmas[t][j], z2, s->x0s[target]);
