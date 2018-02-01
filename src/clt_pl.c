@@ -9,8 +9,8 @@
 #include <unistd.h>
 
 struct switch_state_t {
-    size_t source;
-    size_t target;
+    size_t source;              /* starting level */
+    size_t target;              /* ending level */
     size_t wordsize;            /* must be a power of two */
     size_t k;                   /* = η_ℓ / log2(wordsize) */
     mpz_t *ys;                  /* [Θ] */
@@ -266,18 +266,17 @@ switch_state_fwrite(FILE *fp, switch_state_t *s, size_t theta)
 }
 
 static switch_state_t *
-switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wordsize,
-                 size_t source, size_t target, bool verbose)
+switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta,
+                 size_t wordsize, size_t source, size_t target, bool verbose)
 {
-    (void) verbose;
     switch_state_t *state;
     mpz_t wk, K, z1, z2;
-    mpz_t **ss;
-    /* double start, _start; */
+    size_t **ss;
+    double start, _start;
 
-    if (source == 0 && target == 0) {
+    /* XXX fix this so we are not generating empty switch statements */
+    if (source == 0 && target == 0)
         return calloc(1, sizeof state[0]);
-    }
 
     if (source >= target) {
         fprintf(stderr, "error: %s: source ≥ target (%lu ≥ %lu)\n",
@@ -298,9 +297,9 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     /* k = η_ℓ / log2(wordsize) */
     state->k = (int) ceil(eta / log2(wordsize));
 
-    /* if (verbose) */
-    /*     fprintf(stderr, "    Generating switch state [%lu →  %lu]:\n", source, target); */
-    /* start = current_time(); */
+    if (verbose)
+        fprintf(stderr, "\n    Generating switch state [%lu →  %lu]:\n", source, target);
+    start = current_time();
 
     mpz_inits(wk, K, z1, z2, NULL);
     /* wk = (wordsize)ᵏ */
@@ -322,17 +321,19 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         }
         mpz_clear(tmp);
     }
-    /* _start = current_time(); */
+    if (verbose)
+        fprintf(stderr, "      Generating random y values: ");
+    _start = current_time();
     state->ys = mpz_vector_new(s->theta);
     for (size_t i = s->n; i < s->theta; ++i) {
         mpz_urandomm_aes(state->ys[i], s->rngs[0], K);
     }
-    /* if (verbose) */
-    /*     fprintf(stderr, "      Generating random y values: [%.2fs]\n", current_time() - _start); */
+    if (verbose)
+        fprintf(stderr, "[%.2fs]\n", current_time() - _start);
 
-    /* if (verbose) */
-    /*     fprintf(stderr, "      Generating s and y values: "); */
-    /* _start = current_time(); */
+    if (verbose)
+        fprintf(stderr, "      Generating s and y values: ");
+    _start = current_time();
     ss = calloc(s->n, sizeof ss[0]);
 #pragma omp parallel for
     for (size_t i = 0; i < s->n; ++i) {
@@ -377,12 +378,12 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         }
         mpz_clears(tmp, ginv, f, NULL);
     }
-    /* if (verbose) */
-    /*     fprintf(stderr, "[%.2fs]\n", current_time() - _start); */
+    if (verbose)
+        fprintf(stderr, "[%.2fs]\n", current_time() - _start);
 
-    /* if (verbose) */
-    /*     fprintf(stderr, "      Generating σ values: "); */
-    /* _start = current_time(); */
+    if (verbose)
+        fprintf(stderr, "      Generating σ values: ");
+    _start = current_time();
     state->sigmas = calloc(s->theta, sizeof state->sigmas[0]);
     for (size_t t = 0; t < s->theta; ++t) {
         mpz_t **rs;
@@ -425,8 +426,8 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
         free(rs);
     }
     state->active = true;
-    /* if (verbose) */
-    /*     fprintf(stderr, "[%.2fs]\n", current_time() - _start); */
+    if (verbose)
+        fprintf(stderr, "[%.2fs]\n", current_time() - _start);
     for (size_t i = 0; i < s->n; ++i) {
         for (size_t t = 0; t < s->theta; ++t) {
             mpz_clear(ss[i][t]);
@@ -435,8 +436,8 @@ switch_state_new(clt_pl_state_t *s, const int ix[s->nzs], size_t eta, size_t wor
     }
     free(ss);
     mpz_clears(wk, K, z1, z2, NULL);
-    /* if (verbose) */
-    /*     fprintf(stderr, "    Total: [%.2fs]\n", current_time() - start); */
+    if (verbose)
+        fprintf(stderr, "    Total: [%.2fs]\n", current_time() - start);
     return state;
 }
 
