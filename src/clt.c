@@ -430,7 +430,7 @@ clt_state_nzs(const clt_state_t *s)
 }
 
 int
-clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, mpz_t *xs,
+clt_encode(clt_elem_t *rop, const clt_state_t *s, size_t n, const mpz_t *xs,
            const int *ix)
 {
     if (rop == NULL || s == NULL || n == 0 || xs == NULL)
