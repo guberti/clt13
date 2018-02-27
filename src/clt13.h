@@ -22,15 +22,15 @@ typedef struct {
     size_t lambda;
     /* multilinearity */
     size_t kappa;
-    /* number of z's */
+    /* number of values in the index set */
     size_t nzs;
-    /* powers for the z's */
+    /* powers of the index set values at the top level */
     int *pows;
 } clt_params_t;
 
 /* Optional parameters to clt_state_new */
 typedef struct {
-    /* number of slots needed */
+    /* minimum number of slots needed */
     size_t slots;
     /* plaintext moduli */
     mpz_t *moduli;
@@ -41,12 +41,18 @@ typedef struct {
 #define CLT_FLAG_NONE 0x00
 /* Be verbose */
 #define CLT_FLAG_VERBOSE 0x01
+
+/* CLT optimization flags */
+
 /* Use CRT tree optimization */
 #define CLT_FLAG_OPT_CRT_TREE 0x02
 /* Parallelize the encoding procedure */
 #define CLT_FLAG_OPT_PARALLEL_ENCODE 0x04
-/* Use composite p_i's instead of primes */
+/* Use composite primes (each "real" prime is the product of smaller primes) */
 #define CLT_FLAG_OPT_COMPOSITE_PS 0x08
+
+/* CLT security parameterization flags */
+
 /* Use improved BKZ algorithm when generating attack estimates */
 #define CLT_FLAG_SEC_IMPROVED_BKZ 0x10
 /* Be conservative when generating attack estimates */
@@ -55,6 +61,7 @@ typedef struct {
 #define CLT_FLAG_DEFAULT                        \
     ( CLT_FLAG_OPT_CRT_TREE                     \
       | CLT_FLAG_OPT_COMPOSITE_PS               \
+      | CLT_FLAG_SEC_IMPROVED_BKZ               \
         )
 
 clt_state_t * clt_state_new(const clt_params_t *params,
