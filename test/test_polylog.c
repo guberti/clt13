@@ -1,5 +1,6 @@
 #include <clt_pl.h>
 #include <stdbool.h>
+#include <time.h>
 
 static int
 expect(char *desc, int expected, int recieved)
