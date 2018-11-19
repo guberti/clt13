@@ -39,7 +39,7 @@ echo
 echo builddir = $builddir
 echo
 
-build libaesrand    https://github.com/5GenCrypto/libaesrand cmake
+build libaesrand    https://github.com/5GenCrypto/libaesrand master
 
 cmake "${debug}" .
 make
