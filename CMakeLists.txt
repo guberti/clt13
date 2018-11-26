@@ -43,4 +43,3 @@ endmacro()
 
 add_test_(test_clt)
 add_test_(test_clt_state_new)
-add_test_(test_polylog)
