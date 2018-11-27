@@ -1,4 +1,5 @@
 #include <clt13.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 
 static int lambda = 60;
@@ -52,6 +53,21 @@ main(void)
         start = current_time();
         clt_encode(x, s, 1, (const mpz_t *) zero, pows);
         fprintf(stderr, "Encoding Time: %.2fs\n", current_time() - start);
+
+        {
+            FILE *f = NULL;
+            struct stat st;
+
+            f = tmpfile();
+            if (clt_elem_fwrite(x, f) == CLT_ERR) {
+                fprintf(stderr, "Failed writing element to disk\n");
+                return 1;
+            }
+            fstat(fileno(f), &st);
+            fprintf(stderr, "Encoding Size: %ld KB\n", st.st_size / 1024);
+            if (f)
+                fclose(f);
+        }
         clt_elem_free(x);
         mpz_clear(zero[0]);
     }
