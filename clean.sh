@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-rm -rf libaesrand/ build/
+rm -rf Makefile CMakeFiles CMakeCache.txt *.cmake libaesrand/ build/
