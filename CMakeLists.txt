@@ -10,7 +10,6 @@ include(GNUInstallDirs)
 
 set(clt13_SOURCES
   src/clt.c
-  src/clt_pl.c
   src/clt_elem.c
   src/crt_tree.c
   src/estimates.c
