@@ -42,3 +42,5 @@ endmacro()
 
 add_test_(test_clt)
 add_test_(test_clt_state_new)
+add_test_(test_clt_witness_scheme)
+add_test_(compute_clt_witness)
